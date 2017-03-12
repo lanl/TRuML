@@ -53,6 +53,7 @@ class Site:
 			s += '~%s'%self.state
 		if self.bond is not None:
 			s += self.bond.write_as_bngl()
+		return s
 
 	def write_as_kappa(self):
 		s = self.name
@@ -60,6 +61,7 @@ class Site:
 			s += '~%s'%self.state
 		if self.bond is not None:
 			s += self.bond.write_as_kappa()
+		return s
 
 	def __repr__(self):
 		return 'Site(name: %s, state: %s, bond: %s)'%(self.name,self.state,self.bond)
@@ -68,7 +70,7 @@ class Site:
 class Bond:
 	def __init__(self,n,w=False,a=False):
 		self.wild = w
-		self.num = n # negative numbers indicate absence of specific bond, positive numbers will override w and a
+		self.num = int(n) # negative numbers indicate absence of specific bond, positive numbers will override w and a
 		self.any = a
 		if self.num < 0:
 			assert(self.wild or self.any)
