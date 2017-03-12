@@ -17,8 +17,13 @@ class MoleculeDef:
 
 	def _all_site_states(self):
 		ss = []
-		for k,v in self.sites:
-			ss.append('%s~%s'%(k,'~'.join(v)))
+		# ordered for deterministic behavior
+		for k in sorted(self.sites.keys()):
+			v = self.sites[k]
+			if not v:
+				ss.append(k)
+			else:
+				ss.append('%s~%s'%(k,'~'.join(v)))
 		return ','.join(ss)
 
 	def write_as_bngl(self):

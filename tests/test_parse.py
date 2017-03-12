@@ -34,3 +34,9 @@ def test_sites():
 	assert s0.write_as_kappa() == r'bound~state!0'
 	assert s1.write_as_bngl() == r'unbound!?'
 	assert s1.write_as_kappa() == r'unbound?'
+
+def test_molec_def():
+	m0 = MoleculeDef('Molec',{'site0':['a','b'],'site1':[]})
+
+	assert m0.write_as_bngl() == r'Molec(site0~a~b,site1)'
+	assert m0.write_as_kappa() == r'%agent: Molec(site0~a~b,site1)'
