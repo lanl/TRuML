@@ -40,3 +40,13 @@ def test_molec_def():
 
 	assert m0.write_as_bngl() == r'Molec(site0~a~b,site1)'
 	assert m0.write_as_kappa() == r'%agent: Molec(site0~a~b,site1)'
+
+def test_molecules():
+	m0 = Molecule('Test0',[Site('site0',s='a'),Site('site1',b=Bond(-3,w=True))])
+	m1 = Molecule('Test1',[Site('site0',b=Bond(4))])
+
+	assert m1.sites[0].bond.num == 4
+	assert m0.write_as_bngl() == r'Test0(site0~a,site1!+)'
+	assert m0.write_as_kappa() == r'Test0(site0~a,site1!_)'
+	assert m1.write_as_bngl() == r'Test1(site0!4)'
+	assert m1.write_as_kappa() == r'Test1(site0!4)'
