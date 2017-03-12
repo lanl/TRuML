@@ -68,7 +68,7 @@ class Site:
 class Bond:
 	def __init__(self,n,w=False,a=False):
 		self.wild = w
-		self.num = n # negative numbers indicate absence of specific bond (must be )
+		self.num = n # negative numbers indicate absence of specific bond, positive numbers will override w and a
 		self.any = a
 		if self.num < 0:
 			assert(self.wild or self.any)
@@ -527,34 +527,34 @@ class BNGLReader(Reader):
 	def _parse_math_expr(line):
 
 		point = Literal( "." )
-        e = CaselessLiteral( "E" )
-        fnumber = Combine( Word( "+-"+nums, nums ) + 
-                           Optional( point + Optional( Word( nums ) ) ) +
-                           Optional( e + Word( "+-"+nums, nums ) ) )
-        ident = Word(alphas, alphas+nums+"_$")
-     
-        plus  = Literal( "+" )
-        minus = Literal( "-" )
-        mult  = Literal( "*" )
-        div   = Literal( "/" )
-        lpar  = Literal( "(" )
-        rpar  = Literal( ")" )
-        addop  = plus | minus
-        multop = mult | div
-        expop = Literal( "^" )
-        pi    = CaselessLiteral( "PI" )
-        
-        expr = Forward()
-        atom = (Optional("-") + ( pi | e | fnumber | ident + lpar + expr + rpar | ident) | ( lpar + expr + rpar )) 
-        
-        # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
-        # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
-        factor = Forward()
-        factor << atom + ZeroOrMore( ( expop + factor ))
-        
-        term = factor + ZeroOrMore( ( multop + factor ))
-        expr << term + ZeroOrMore( ( addop + term ))
-        pattern = expr
+		e = CaselessLiteral( "E" )
+		fnumber = Combine( Word( "+-"+nums, nums ) + 
+		                   Optional( point + Optional( Word( nums ) ) ) +
+		                   Optional( e + Word( "+-"+nums, nums ) ) )
+		ident = Word(alphas, alphas+nums+"_$")
+
+		plus  = Literal( "+" )
+		minus = Literal( "-" )
+		mult  = Literal( "*" )
+		div   = Literal( "/" )
+		lpar  = Literal( "(" )
+		rpar  = Literal( ")" )
+		addop  = plus | minus
+		multop = mult | div
+		expop = Literal( "^" )
+		pi    = CaselessLiteral( "PI" )
+
+		expr = Forward()
+		atom = (Optional("-") + ( pi | e | fnumber | ident + lpar + expr + rpar | ident) | ( lpar + expr + rpar )) 
+
+		# by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
+		# that is, 2^3^2 = 2^(3^2), not (2^3)^2.
+		factor = Forward()
+		factor << atom + ZeroOrMore( ( expop + factor ))
+
+		term = factor + ZeroOrMore( ( multop + factor ))
+		expr << term + ZeroOrMore( ( addop + term ))
+		pattern = expr
 
 		return pattern.parseString(line.strip())
 
