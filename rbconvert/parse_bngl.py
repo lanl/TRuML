@@ -182,27 +182,32 @@ class Rate:
 		self.rate = r
 
 	def write_as_bngl(self):
-		return str(self.rate) if _is_number(self.rate) else self.rate.write_as_bngl()
+		return str(self.rate) if _is_number(self.rate) else self.rate.name
 
 #TODO implement check for rate as raw number before writing
 class Rule:
-	# lhs, rhs are lists of Patterns, rate is Rate, rev is bool (true for reversible rules)
-	def __init__(self,lhs,rhs,rate,rev):
+	# lhs, rhs are lists of Patterns, rate/rev_rate are Rates, rev is bool (true for reversible rules)
+	def __init__(self,lhs,rhs,rate,rev=False,rev_rate=None):
 		self.lhs = lhs
 		self.rhs = rhs
 		self.rate = rate
 		self.rev = rev
 		self.arrow = '->' if not rev else '<->'
+		self.rev_rate = None if not rev else rev_rate # rev overrides rev_rate
+		if self.rev:
+			self.rate_string = self.rate.write_as_bngl() + ',' + self.rev_rate.write_as_bngl()
+		else:
+			self.rate_string = self.rate.write_as_bngl()
 
 	def write_as_bngl(self):
 		lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
 		rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
-		return '%s %s %s %s'%(lhs_string,self.arrow,rhs_string,rate.write_as_bngl())
+		return '%s %s %s %s'%(lhs_string,self.arrow,rhs_string,self.rate_string)
 
 	def write_as_kappa(self):
 		lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
 		rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
-		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate.write_as_kappa())
+		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,self.rate_string)
 
 
 class Observable:
@@ -495,7 +500,7 @@ class BNGLReader(Reader):
 		pexpr = s_char.join(psplit[1:])
 		return Parameter(pname,pexpr)
 
-	# TODO parse rule label
+	# TODO parse rule label and rule rates
 	def _parse_rule(line):
 		sline = line.strip()
 		rhs = ''
@@ -518,7 +523,6 @@ class BNGLReader(Reader):
 			rem_parts = re.split('(?<!!)\s+',parts[1])
 			rhs_patterns = list(_parse_pattern(rem_parts[0]))
 			rate = ' '.join(rem_parts[1:])
-		return lhs_patterns,rhs_patterns,rate
 		return Rule(lhs_patterns,rhs,rate,is_reversible)
 
 	# needs to identify other user-defined functions + stuff in parse_math_expr
