@@ -177,9 +177,16 @@ class Expression:
 
 		return s + expr + '\n'
 
+class Rate:
+	def __init__(self,r): # can be parameter, number or expression
+		self.rate = r
+
+	def write_as_bngl(self):
+		return str(self.rate) if _is_number(self.rate) else self.rate.write_as_bngl()
+
 #TODO implement check for rate as raw number before writing
 class Rule:
-	# lhs, rhs are lists of Patterns, rate is parameter, number or expression, rev is bool (true for reversible rules)
+	# lhs, rhs are lists of Patterns, rate is Rate, rev is bool (true for reversible rules)
 	def __init__(self,lhs,rhs,rate,rev):
 		self.lhs = lhs
 		self.rhs = rhs
