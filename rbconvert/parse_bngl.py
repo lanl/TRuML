@@ -108,6 +108,7 @@ class Bond:
 			b_string = 'any'
 		return b_string
 
+# pattern is defined as a complex whose components are attached
 class Pattern:
 	def __init__(self,ml):
 		self.molecule_list = ml
@@ -148,34 +149,34 @@ class Parameter:
 # special parsing required for 'if', 'log' functions
 # can implement conversion of certain types of values (e.g. log10(x) to log(x)/log(10))
 class Expression:
-	def __init_(self,n,atom_list):
+	def __init__(self,n,atom_list):
 		self.name = n # assigned label (includes parentheses and stuff inside)
 		self.atom_list = atom_list # list from _parse_math_expr listing (in order) operators, values, variables
 
 	def write_as_bngl(self):
-		return '%s'%''.join(atom_list)
+		return '%s=%s'%(self.name,''.join(self.atom_list))
 
 	def write_as_kappa(self,as_obs=True):
-		s = '%%%s: \'%s\' '%(self.name, 'var' if not as_obs else 'obs')
+		s = '%%%s: \'%s\' '%('var' if not as_obs else 'obs',self.name)
 		expr = ''
 
 		i = 0
 		while (i < len(self.atom_list)):
 			a = self.atom_list[i]
-			if re.match('\w+',a) and a not in bngl_builtin_funcs:
-				expr += '\'%s\''%a
-			elif a in bngl_to_kappa_func_map.keys():
+			if a in bngl_to_kappa_func_map.keys():
 				trig_func_match = re.compile('sinh|cosh|tanh|asinh|acosh|atanh')
 				if re.match('log',a) or re.match(trig_func_match,a):
 					expr += bngl_to_kappa_func_map[a](self.atom_list[i+2])
 					i += 4
 				else:
 					expr += bngl_to_kappa_func_map[a]
+			elif re.match('[A-Za-z]',a):
+				expr += '\'%s\''%a
 			else:
 				expr += a
 			i += 1
 
-		return s + expr + '\n'
+		return s + expr
 
 class Rate:
 	def __init__(self,r): # can be parameter, number or expression
@@ -183,6 +184,9 @@ class Rate:
 
 	def write_as_bngl(self):
 		return str(self.rate) if _is_number(self.rate) else self.rate.name
+
+	def write_as_kappa(self):
+		return str(self.rate) if _is_number(self.rate) else "'%s'"%self.rate.name
 
 #TODO implement check for rate as raw number before writing
 class Rule:
@@ -194,21 +198,24 @@ class Rule:
 		self.rev = rev
 		self.arrow = '->' if not rev else '<->'
 		self.rev_rate = None if not rev else rev_rate # rev overrides rev_rate
-		if self.rev:
-			self.rate_string = self.rate.write_as_bngl() + ',' + self.rev_rate.write_as_bngl()
-		else:
-			self.rate_string = self.rate.write_as_bngl()
 
 	def write_as_bngl(self):
 		lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
 		rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
-		return '%s %s %s %s'%(lhs_string,self.arrow,rhs_string,self.rate_string)
+		if self.rev:
+			rate_string = self.rate.write_as_bngl() + ',' + self.rev_rate.write_as_bngl()
+		else:
+			rate_string = self.rate.write_as_bngl()
+		return '%s %s %s %s'%(lhs_string,self.arrow,rhs_string,rate_string)
 
 	def write_as_kappa(self):
 		lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
 		rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
-		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,self.rate_string)
-
+		if self.rev:
+			rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
+		else:
+			rate_string = self.rate.write_as_kappa()
+		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
 
 class Observable:
 	def __init__(self,n,ps,t):
@@ -224,17 +231,6 @@ class Observable:
 		print "Kappa does not distinguish between BNGL \'Molecules\' and \'Species\' observables\nKappa's observables are analogous to the Molecules observable type"
 		obs = ['+'.join(['|%s|'%p.write_as_kappa() for p in self.patterns])]
 		return '%%obs: \'%s\' %s'%(self.name,obs)
-
-# class Function:
-# 	def __init__(self,n,f):
-# 		self.name = n
-# 		self.function = f
-
-# 	def write_as_bngl():
-# 		pass
-
-# 	def write_as_kappa():
-# 		pass
 
 # TODO check types for add_* functions
 class Model:
@@ -290,7 +286,7 @@ class Model:
 			s += '%s\n'%o.write_as_kappa()
 		s += '\n'
 		for f in self.functions:
-			s += '%s\n'%f.write_as_kappa(func_as_obs)
+			s += '%s\n'%f.write_as_kappa(func_as_obs) # defaults to printing all "functions" as observables
 		s += '\n'
 		for i in self.initial_cond:
 			s += '%s\n'%i.write_as_kappa()
@@ -407,14 +403,6 @@ class BNGLReader(Reader):
 
 		return model
 
-	def _is_number(n):
-		try:
-			float(n)
-		except ValueError:
-			return False
-		else:
-			return True
-
 	def _parse_bond(b):
 		if re.match('\+',b):
 			return Bond(-1,w=True)
@@ -468,6 +456,7 @@ class BNGLReader(Reader):
 					site_list.append(Site(s))
 		return Molecule(mname,site_list)
 
+	# TODO implement parsing for expression (need to identify variables for conversion to kappa syntax)
 	def _parse_init(line):
 		isplit = split('\s+',line.strip())
 		spec = _parse_species(isplit[0])
@@ -575,6 +564,15 @@ class BNGLReader(Reader):
 		pattern = expr
 
 		return pattern.parseString(line.strip())
+
+def _is_number(n):
+	try:
+		float(n)
+	except (ValueError, AttributeError):
+		return False
+	else:
+		return True
+
 
 # KaSim has: inf, [mod]
 # BNGL has: hyperbolic funcs, inverse trig, abs
