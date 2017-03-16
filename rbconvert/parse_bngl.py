@@ -108,8 +108,8 @@ class Bond:
 			b_string = 'any'
 		return b_string
 
-# pattern is defined as a complex whose components are attached
-class Pattern:
+# CPattern is defined as a pattern (list of molecules) that are attached
+class CPattern:
 	def __init__(self,ml):
 		self.molecule_list = ml
 
@@ -190,7 +190,7 @@ class Rate:
 
 #TODO implement check for rate as raw number before writing
 class Rule:
-	# lhs, rhs are lists of Patterns, rate/rev_rate are Rates, rev is bool (true for reversible rules)
+	# lhs, rhs are lists of CPatterns, rate/rev_rate are Rates, rev is bool (true for reversible rules)
 	def __init__(self,lhs,rhs,rate,rev=False,rev_rate=None):
 		self.lhs = lhs
 		self.rhs = rhs
@@ -226,15 +226,15 @@ class Observable:
 			self.type = 'Molecules'
 		else:
 			raise Exception("not a valid observable type: %s"%t)
-		self.patterns = ps # a list of patterns
+		self.CPatterns = ps # a list of CPatterns
 
 	def write_as_bngl(self):
-		return "%s %s %s"%(self.type,self.name,' '.join([p.write_as_bngl() for p in self.patterns]))
+		return "%s %s %s"%(self.type,self.name,' '.join([p.write_as_bngl() for p in self.CPatterns]))
 
 	def write_as_kappa(self):
 		if self.type == 'Species':
 			print "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable"%self.name
-		obs = '+'.join(['|%s|'%p.write_as_kappa() for p in self.patterns])
+		obs = '+'.join(['|%s|'%p.write_as_kappa() for p in self.CPatterns])
 		return '%%obs: \'%s\' %s'%(self.name,obs)
 
 # TODO check types for add_* functions
@@ -468,19 +468,19 @@ class BNGLReader(Reader):
 		amount = isplit[1]
 		return InitialCondition(spec,amount,not _is_number(amount))
 
-	def _parse_pattern(line):
+	def _parse_CPattern(line):
 		ssplit = re.split('(?<=\))\.',line.strip())
 		m_list = []
 		for s in ssplit:
 			m_list.append(_parse_molecule(s))
-		return Pattern(m_list)
+		return CPattern(m_list)
 
 	def _parse_obs(line):
 		osplit = split('\s+',line.strip())
 		otype = osplit[0][0]
 		oname = osplit[1]
-		opattern = [_parse_pattern(p) for p in osplit[2:]]
-		return Observable(oname,opattern,otype)
+		oCPattern = [_parse_CPattern(p) for p in osplit[2:]]
+		return Observable(oname,oCPattern,otype)
 
 	def _parse_param(line):
 		sline = line.strip()
@@ -501,23 +501,23 @@ class BNGLReader(Reader):
 		lhs = ''
 		is_reversible = True if re.search('<->',sline) else False
 		parts = re.split('->',sline)
-		lhs_patterns = [_parse_pattern(x) for x in re.split('(?<!!)\+',parts[0].rstrip('<'))]
+		lhs_CPatterns = [_parse_CPattern(x) for x in re.split('(?<!!)\+',parts[0].rstrip('<'))]
 		rem = re.split('(?<!!)\+',parts[1].strip())
 		if len(rem) > 1:
 			one_past_final_mol_index = 0
 			for i,t in enumerate(rem):
 				try:
-					_parse_pattern(t)
+					_parse_CPattern(t)
 				except NotAMoleculeException:
 					one_past_final_mol_index = i
 			mol,first_rate_part = re.split('\s+',rem[one_past_final_mol_index])
-			rhs_patterns = [_parse_pattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
+			rhs_CPatterns = [_parse_CPattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
 			rate = first_rate_part + '+'.join(rem[one_past_final_mol_index+1:])
 		else:
 			rem_parts = re.split('(?<!!)\s+',parts[1])
-			rhs_patterns = list(_parse_pattern(rem_parts[0]))
+			rhs_CPatterns = list(_parse_CPattern(rem_parts[0]))
 			rate = ' '.join(rem_parts[1:])
-		return Rule(lhs_patterns,rhs,rate,is_reversible)
+		return Rule(lhs_CPatterns,rhs,rate,is_reversible)
 
 	# needs to identify other user-defined functions + stuff in parse_math_expr
 	def _parse_func(line):
@@ -566,9 +566,9 @@ class BNGLReader(Reader):
 
 		term = factor + ZeroOrMore( ( multop + factor ))
 		expr << term + ZeroOrMore( ( addop + term ))
-		pattern = expr
+		CPattern = expr
 
-		return pattern.parseString(line.strip())
+		return CPattern.parseString(line.strip())
 
 def _is_number(n):
 	try:

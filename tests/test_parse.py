@@ -24,10 +24,10 @@ class TestPrint:
 		cls.m0 = Molecule('Test0',[cls.s0,cls.s2])
 		cls.m1 = Molecule('Test1',[cls.s1])
 
-		cls.p0 = Pattern([cls.m0,Molecule('Test0',[cls.s0])])
-		cls.p1 = Pattern([Molecule('Test0',[cls.s3,cls.s2]),Molecule('Test0',[cls.s3])])
-		cls.p2 = Pattern([Molecule('A',[])])
-		cls.p3 = Pattern([Molecule('B',[])])
+		cls.p0 = CPattern([cls.m0,Molecule('Test0',[cls.s0])])
+		cls.p1 = CPattern([Molecule('Test0',[cls.s3,cls.s2]),Molecule('Test0',[cls.s3])])
+		cls.p2 = CPattern([Molecule('A',[])])
+		cls.p3 = CPattern([Molecule('B',[])])
 
 		cls.i0 = InitialCondition(cls.p0,10)
 		# implement functionality to print initial condition as kappa/bngl expression
@@ -80,7 +80,7 @@ class TestPrint:
 		assert self.m1.write_as_bngl() == r'Test1(site1!?)'
 		assert self.m1.write_as_kappa() == r'Test1(site1?)'
 
-	def test_patterns(self):
+	def test_CPatterns(self):
 		assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
 		assert self.p0.write_as_kappa() == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
 
