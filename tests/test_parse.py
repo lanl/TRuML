@@ -17,15 +17,17 @@ class TestPrint:
 		cls.s0 = Site('site0',s='state',b=cls.num_bond)
 		cls.s1 = Site('site1',b=cls.any_bond)
 		cls.s2 = Site('site2',b=cls.wild_bond)
-
+		cls.s3 = Site('site0',s='state')
+		
 		cls.md0 = MoleculeDef('Molec',{'site0':['a','b'],'site1':[]})
 
 		cls.m0 = Molecule('Test0',[cls.s0,cls.s2])
 		cls.m1 = Molecule('Test1',[cls.s1])
 
-		cls.s3 = Site('site0',s='state')
 		cls.p0 = Pattern([cls.m0,Molecule('Test0',[cls.s0])])
 		cls.p1 = Pattern([Molecule('Test0',[cls.s3,cls.s2]),Molecule('Test0',[cls.s3])])
+		cls.p2 = Pattern([Molecule('A',[])])
+		cls.p3 = Pattern([Molecule('B',[])])
 
 		cls.i0 = InitialCondition(cls.p0,10)
 		# implement functionality to print initial condition as kappa/bngl expression
@@ -35,9 +37,12 @@ class TestPrint:
 
 		cls.expr0 = Expression('rate_expr',['ln', '(', '10', ')', '+', 'x', '-', '356'])
 
-		cls.rule0 = Rule([Pattern([Molecule('A',[])])],[Pattern([Molecule('B',[])])],Rate(10))
-		cls.rule1 = Rule([Pattern([Molecule('A',[])])],[Pattern([Molecule('B',[])])],Rate(cls.expr0),False,'x')
-		cls.rule2 = Rule([Pattern([Molecule('A',[])])],[Pattern([Molecule('B',[])])],Rate(10),True,Rate(cls.par0))
+		cls.rule0 = Rule([cls.p2],[cls.p3],Rate(10))
+		cls.rule1 = Rule([cls.p2],[cls.p3],Rate(cls.expr0),False,'x')
+		cls.rule2 = Rule([cls.p2],[cls.p3],Rate(10),True,Rate(cls.par0))
+
+		cls.obs0 = Observable("Obs0",[cls.p3],'m')
+		cls.obs1 = Observable("Obs1",[cls.p2,cls.p3],'s')
 
 	@classmethod
 	def teardown_class(cls):
@@ -102,5 +107,14 @@ class TestPrint:
 		print self.rule2.write_as_kappa(),'\n',r"A() <-> B() 10,'rate'"
 		assert self.rule2.write_as_kappa() == r"A() <-> B() @ 10,'rate'"
 
+	def test_obs(self):
+		print self.obs0.write_as_kappa()
+		assert self.obs0.write_as_bngl() == r'Molecules Obs0 B()'
+		assert self.obs0.write_as_kappa() == r"%obs: 'Obs0' |B()|"
+		assert self.obs1.write_as_bngl() == r'Species Obs1 A() B()'
+		assert self.obs1.write_as_kappa() == r"%obs: 'Obs1' |A()|+|B()|"
 
+	@raises(Exception)
+	def test_invalid_obs(self):
+		Observable("InvalidType",[cls.p2],'f')
 

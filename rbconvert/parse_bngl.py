@@ -218,18 +218,23 @@ class Rule:
 		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
 
 class Observable:
-	def __init__(self,n,ps,t):
+	def __init__(self,n,ps,t='m'):
 		self.name = n
-		self.type = t
-		assert(re.match('[sS]$',self.type) or re.match('[mM]$',self.type))
+		if re.match('[sS]$',t):
+			self.type = 'Species'
+		elif re.match('[mM]$',t):
+			self.type = 'Molecules'
+		else:
+			raise Exception("not a valid observable type: %s"%t)
 		self.patterns = ps # a list of patterns
 
-	def write_as_bngl():
-		return "%s %s %s"%(self.type,self.name,' '.join(self.patterns))
+	def write_as_bngl(self):
+		return "%s %s %s"%(self.type,self.name,' '.join([p.write_as_bngl() for p in self.patterns]))
 
-	def write_as_kappa():
-		print "Kappa does not distinguish between BNGL \'Molecules\' and \'Species\' observables\nKappa's observables are analogous to the Molecules observable type"
-		obs = ['+'.join(['|%s|'%p.write_as_kappa() for p in self.patterns])]
+	def write_as_kappa(self):
+		if self.type == 'Species':
+			print "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable"%self.name
+		obs = '+'.join(['|%s|'%p.write_as_kappa() for p in self.patterns])
 		return '%%obs: \'%s\' %s'%(self.name,obs)
 
 # TODO check types for add_* functions
