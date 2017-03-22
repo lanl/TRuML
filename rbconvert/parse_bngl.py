@@ -1,6 +1,7 @@
 import re
 from pyparsing import Literal,CaselessLiteral,Word,Combine,Group,Optional,\
     ZeroOrMore,Forward,nums,alphas
+from deepdiff import DeepDiff
 
 class NotAMoleculeException(Exception):
 	def __init__(self,s):
@@ -129,7 +130,7 @@ class InitialCondition:
 		self.amount_is_parameter = ais
 
 	def write_as_bngl(self):
-		return '%s\t%s'%(self.species.write_as_bngl(),self.amount)
+		return '%s %s'%(self.species.write_as_bngl(),self.amount)
 
 	def write_as_kappa(self):
 		amount = self.amount if not self.amount_is_parameter else "'%s'"%self.amount
@@ -149,15 +150,13 @@ class Parameter:
 # special parsing required for 'if', 'log' functions
 # can implement conversion of certain types of values (e.g. log10(x) to log(x)/log(10))
 class Expression:
-	def __init__(self,n,atom_list):
-		self.name = n # assigned label (includes parentheses and stuff inside)
+	def __init__(self,atom_list):
 		self.atom_list = atom_list # list from _parse_math_expr listing (in order) operators, values, variables
 
 	def write_as_bngl(self):
-		return '%s=%s'%(self.name,''.join(self.atom_list))
+		return ''.join(self.atom_list)
 
-	def write_as_kappa(self,as_obs=True):
-		s = '%%%s: \'%s\' '%('var' if not as_obs else 'obs',self.name)
+	def write_as_kappa(self):
 		expr = ''
 
 		i = 0
@@ -176,21 +175,45 @@ class Expression:
 				expr += a
 			i += 1
 
-		return s + expr
+		return expr
 
-class Rate:
-	def __init__(self,r): # can be parameter, number or expression
-		self.rate = r
+class Function:
+	def __init__(self,name,expr):
+		self.name = name
+		self.expr = expr
 
 	def write_as_bngl(self):
-		return str(self.rate) if _is_number(self.rate) else self.rate.name
+		return '%s()=%s'%(self.name,self.expr.write_as_bngl())
+
+	def write_as_kappa(self,as_obs=True):
+		dec = 'obs' if as_obs else 'var'
+		return "%%%s: '%s' %s"%(dec,self.name,self.expr.write_as_kappa())
+
+class Rate:
+	def __init__(self,r,intra=False): # can be string (including a single number) or Expression
+		self.rate = r
+		self.intra_binding = intra
+
+	def write_as_bngl(self):
+		try:
+			return self.rate.write_as_bngl()
+		except AttributeError:
+			return str(self.rate)
 
 	def write_as_kappa(self):
-		return str(self.rate) if _is_number(self.rate) else "'%s'"%self.rate.name
+		try:
+			rate_string = self.rate.write_as_kappa()
+		except AttributeError:
+			rate_string =  str(self.rate) if _is_number(self.rate) else "'%s'"%self.rate
+		return rate_string if not self.intra_binding else '0 {%s}'%rate_string
+
+	def __repr__(self):
+		return "Rate: %s"%self.rate
 
 #TODO implement check for rate as raw number before writing
 class Rule:
-	# lhs, rhs are lists of CPatterns, rate/rev_rate are Rates, rev is bool (true for reversible rules)
+	# lhs, rhs are lists of CPatterns, rate/rev_rate are Rates, rev is bool (true for reversible rules), 
+	# amb_mol is boolean denoting a rule that (in Kappa) has ambiguous molecularity
 	def __init__(self,lhs,rhs,rate,rev=False,rev_rate=None):
 		self.lhs = lhs
 		self.rhs = rhs
@@ -278,7 +301,7 @@ class Model:
 		f.write(s)
 		f.close()
 
-
+	# check for rules with molecular ambiguity
 	def write_as_kappa(self,func_as_obs=False):
 		s = ''
 		for m in self.molecules:
@@ -391,24 +414,25 @@ class BNGLReader(Reader):
 			else:
 				cur_line += l.strip()
 				if self.is_param_block:
-					model.add_parameter(_parse_param(cur_line))
+					model.add_parameter(self.parse_param(cur_line))
 				elif self.is_def_block:
-					model.add_molecule(_parse_mtype(cur_line))
+					model.add_molecule(self.parse_mtype(cur_line))
 				elif self.is_init_block:
-					model.add_init(_parse_init(cur_line))
+					model.add_init(self.parse_init(cur_line))
 				elif self.is_obs_block:
-					model.add_obs(_parse_obs(cur_line))
+					model.add_obs(self.parse_obs(cur_line))
 				elif self.is_func_block:
-					model.add_func(_parse_func(cur_line))
+					model.add_func(self.parse_func(cur_line))
 				elif self.is_rule_block:
-					model.add_rule(_parse_rule(cur_line))
+					model.add_rule(self.parse_rule(cur_line))
 				else:
 					continue
 				cur_line = ''
 
 		return model
 
-	def _parse_bond(b):
+	@staticmethod
+	def parse_bond(b):
 		if re.match('\+',b):
 			return Bond(-1,w=True)
 		elif re.match('\?',b):
@@ -418,7 +442,8 @@ class BNGLReader(Reader):
 		else:
 			raise ValueError("Illegal bond: %s"%b)
 
-	def _parse_mtype(line):
+	@staticmethod
+	def parse_mtype(line):
 		psplit = re.split('\(',line.strip())
 		name = psplit[0]
 		site_dict = {} # site name: list of possible states
@@ -431,7 +456,8 @@ class BNGLReader(Reader):
 				site_dict[site_split[0]] = site_split[1:]
 		return MoleculeDef(name, site_dict)
 
-	def _parse_molecule(line):
+	@classmethod
+	def parse_molecule(cls,line):
 		sline = line.strip()
 		msplit = re.split('\(',sline)
 		mname = msplit[0]
@@ -447,7 +473,7 @@ class BNGLReader(Reader):
 				name = tsplit[0]
 				if '!' in s:
 					bsplit = re.split('!',tsplit[1])
-					bond = _parse_bond(bsplit[1])
+					bond = cls.parse_bond(bsplit[1])
 					site_list.append(Site(name,s=bsplit[0],b=bond))
 				else:
 					site_list.append(Site(name,s=tsplit[1]))
@@ -455,72 +481,120 @@ class BNGLReader(Reader):
 				if '!' in s:
 					bsplit = re.split('!',s)
 					name = bsplit[0]
-					bond = _parse_bond(bsplit[1])
+					bond = cls.parse_bond(bsplit[1])
 					site_list.append(Site(name,b=bond))
 				else:
 					site_list.append(Site(s))
 		return Molecule(mname,site_list)
 
 	# TODO implement parsing for expression (need to identify variables for conversion to kappa syntax)
-	def _parse_init(line):
-		isplit = split('\s+',line.strip())
-		spec = _parse_species(isplit[0])
+	@classmethod
+	def parse_init(cls,line):
+		isplit = re.split('\s+',line.strip())
+		spec = cls.parse_cpattern(isplit[0])
 		amount = isplit[1]
 		return InitialCondition(spec,amount,not _is_number(amount))
 
-	def _parse_CPattern(line):
+	@classmethod
+	def parse_cpattern(cls,line):
 		ssplit = re.split('(?<=\))\.',line.strip())
 		m_list = []
 		for s in ssplit:
-			m_list.append(_parse_molecule(s))
+			m_list.append(cls.parse_molecule(s))
 		return CPattern(m_list)
 
-	def _parse_obs(line):
-		osplit = split('\s+',line.strip())
+	@classmethod
+	def parse_obs(cls,line):
+		osplit = re.split('\s+',line.strip())
 		otype = osplit[0][0]
 		oname = osplit[1]
-		oCPattern = [_parse_CPattern(p) for p in osplit[2:]]
+		oCPattern = [cls.parse_cpattern(p) for p in osplit[2:]]
 		return Observable(oname,oCPattern,otype)
 
-	def _parse_param(line):
+	@staticmethod
+	def parse_param(line):
 		sline = line.strip()
 		s_char = ''
 		for x in sline:
 			if re.match('\s',x) or re.match('=',x):
 				s_char = x
 				break
-		psplit = split(s_char,sline)
+		psplit = re.split(s_char,sline)
 		pname = psplit[0]
 		pexpr = s_char.join(psplit[1:])
 		return Parameter(pname,pexpr)
 
-	# TODO parse rule label and rule rates
-	def _parse_rule(line):
+	# assumes that pattern mapping is left to right and that there is 
+	# only 1 component on either side of the rule (doesn't make sense to 
+	# have components that aren't operated on).  The change will be from
+	# a Site with bond = None to a Site with a Bond object containing a 
+	# link to another Molecule in the same component
+	@staticmethod
+	def _has_intramolecular_binding(lhs_cp,rhs_cp):
+		d = DeepDiff(lhs_cp,rhs_cp)
+		changed = d.get('type_changes').keys()
+		num_changed_bonds = 0
+		for c in changed:
+			if re.search('bond$',c):
+				num_changed_bonds += 1
+		return num_changed_bonds == 2
+
+	# TODO parse rule label and check for molecular ambiguity
+	@classmethod
+	def parse_rule(cls,line):
 		sline = line.strip()
 		rhs = ''
 		lhs = ''
 		is_reversible = True if re.search('<->',sline) else False
 		parts = re.split('->',sline)
-		lhs_CPatterns = [_parse_CPattern(x) for x in re.split('(?<!!)\+',parts[0].rstrip('<'))]
+		lhs_cpatterns = [cls.parse_cpattern(x) for x in re.split('(?<!!)\+',parts[0].rstrip('<'))]
 		rem = re.split('(?<!!)\+',parts[1].strip())
 		if len(rem) > 1:
 			one_past_final_mol_index = 0
 			for i,t in enumerate(rem):
 				try:
-					_parse_CPattern(t)
+					cls.parse_cpattern(t)
 				except NotAMoleculeException:
 					one_past_final_mol_index = i
-			mol,first_rate_part = re.split('\s+',rem[one_past_final_mol_index])
-			rhs_CPatterns = [_parse_CPattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
-			rate = first_rate_part + '+'.join(rem[one_past_final_mol_index+1:])
+					break
+			last_split = re.split('\s+',rem[one_past_final_mol_index])
+ 			mol,first_rate_part = last_split[0], ' '.join(last_split[1:])
+			rhs_cpatterns = [cls.parse_cpattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
+			rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index+1:])
+			if is_reversible:
+				rate0,rate1 = re.split(',',rate_string)
+				return Rule(lhs_cpatterns,rhs_cpatterns,cls.parse_rate(rate0),is_reversible,cls.parse_rate(rate1))
+			else:
+				return Rule(lhs_cpatterns,rhs_cpatterns,cls.parse_rate(rate_string),is_reversible)
 		else:
-			rem_parts = re.split('(?<!!)\s+',parts[1])
-			rhs_CPatterns = list(_parse_CPattern(rem_parts[0]))
-			rate = ' '.join(rem_parts[1:])
-		return Rule(lhs_CPatterns,rhs,rate,is_reversible)
+			rem_parts = re.split('(?<!!)\s+',parts[1].strip())
+			rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
+			is_intra_l_to_r = False
+			if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
+				is_intra_l_to_r = cls._has_intramolecular_binding(lhs_cpatterns[0],rhs_cpatterns[0])
+			rate_string = ' '.join(rem_parts[1:])
+			if is_reversible:
+				is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0],lhs_cpatterns[0])
+				rate0_string,rate1_string = re.split(',',rate_string)
+				rate0 = cls.parse_rate(rate0_string,is_intra_l_to_r)
+				rate1 = cls.parse_rate(rate1_string,is_intra_r_to_l)
+				return Rule(lhs_cpatterns,rhs_cpatterns,rate0,is_reversible,rate1)
+			else:
+				rate0 = cls.parse_rate(rate_string,is_intra_l_to_r)
+				return Rule(lhs_cpatterns,rhs_cpatterns,rate0,is_reversible)
+
+	@classmethod
+	def parse_rate(cls,rs,is_intra=False):
+		rss = rs.strip()
+		expr = cls.parse_math_expr(rss)
+		if len(expr) > 1:
+			return Rate(Expression(expr),is_intra)
+		else:
+			return Rate(rs,is_intra)
 
 	# needs to identify other user-defined functions + stuff in parse_math_expr
-	def _parse_func(line):
+	@classmethod
+	def parse_func(cls,line):
 		sline = line.strip()
 		s_char = ''
 		for x in sline:
@@ -530,13 +604,14 @@ class BNGLReader(Reader):
 		name,func = re.split(s_char,sline)
 		if re.search('\(.\)',name): # a variable in between the parentheses means the function is local (not Kappa compatible)
 			raise NotCompatibleException("Kappa functions cannot accommodate local functions:\n\t%s\n"%sline)
-		p_func = _parse_math_expr(func)
+		p_func = cls.parse_math_expr(func)
 		return Expression(name,p_func.asList())
 
 	# needs to be able to identify built in functions, numbers, variables, (previously defined functions?)
 	# functions are an alphanumeric string starting with a letter; they are preceded by an operator or parenthesis and encompass something in parentheses
 	# parameters are also alphanumeric strings starting with a letter; they are preceded by operators or parentheses and succeeded by operators
-	def _parse_math_expr(line):
+	@staticmethod
+	def parse_math_expr(line):
 
 		point = Literal( "." )
 		e = CaselessLiteral( "E" )
@@ -566,9 +641,9 @@ class BNGLReader(Reader):
 
 		term = factor + ZeroOrMore( ( multop + factor ))
 		expr << term + ZeroOrMore( ( addop + term ))
-		CPattern = expr
+		pattern = expr
 
-		return CPattern.parseString(line.strip())
+		return pattern.parseString(line.strip())
 
 def _is_number(n):
 	try:
@@ -592,8 +667,8 @@ bngl_to_kappa_func_map = {
 	'tan': '[tan]',
 	'sqrt': '[sqrt]',
 	'time': '[T]',
-	'log2': lambda s: '[log](%s)/[log](2)'%s,
-	'log10': lambda s: '[log](%s)/[log](10)'%s,
+	'log2': lambda s: '([log](%s)/[log](2))'%s,
+	'log10': lambda s: '([log](%s)/[log](10))'%s,
 	'ln': '[log]',
 	'exp': '[exp]',
 	'sinh': lambda s: '([exp](%s) - [exp](-%s))/2.0'%(s,s),
@@ -616,4 +691,3 @@ bngl_binary_operators = set(['==','!=','>=','<='])
 kappa_other_builtin_funcs = set(['[Tsim]','[Tmax]','[E]','[E-]','[Emax]','[pp]','inf'])
 # [int] is floor
 kappa_other_operators = set(['[int]','[mod]','[max]','[min]','[not]','[true]','[false]'])
-

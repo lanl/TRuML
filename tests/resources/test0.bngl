@@ -1,0 +1,64 @@
+begin model
+
+begin parameters
+
+NA 6.022e23 # scientific notation
+V 1e-12
+ka  1e9 # two spaces between name and value
+kpd	1e6 # tab between name and value
+kps = kpd/(NA*V) # assignment using equality and value contains expression
+km = kpd/ka
+
+kcat 1
+k_michaelis=(km+kcat)/kps
+
+Sconc_nM 10
+Scopies=Sconc_nM*1e-9*(NA*V)
+
+end parameters
+
+begin molecule types
+
+K(b)
+S(b,active~0~P)
+P(b)
+
+end molecule types
+
+begin seed species
+
+K(b)	60220
+S(b,active~0) Scopies
+P(b)  100*1e-9*(NA*V)
+
+end seed species
+
+begin observables
+
+Molecules active_S S(active~P)
+Molecules boundK K(b!+)
+
+end observables
+
+begin functions
+
+log10BoundK()=log10(boundK)
+mmValue()=kcat*60220*Scopies/(k_michaelis + Scopies)
+
+end functions
+
+begin reaction rules
+
+P(b)+S(b,active~P) <-> P(b!1).S(b!1,active~P) kps,km
+P(b!1).S(b!1,active~P) -> P(b) + S(b,active~0) kcat
+S(b,active~0) -> S(b,active~P) mmValue()
+
+end reaction rules
+
+end model
+
+begin actions
+
+generate_network({overwrite=>1})
+
+end actions

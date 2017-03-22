@@ -5,116 +5,62 @@ sys.path.insert(0,os.path.abspath(os.path.join(os.path.dirname(__file__),'..')))
 from rbconvert.parse_bngl import *
 
 from nose.tools import raises
+import mock
 
-class TestPrint:
+class TestParse:
 
 	@classmethod
 	def setup_class(cls):
-		cls.num_bond = Bond(3)
-		cls.wild_bond = Bond(-1,w=True)
-		cls.any_bond = Bond(-3,a=True)
-
-		cls.s0 = Site('site0',s='state',b=cls.num_bond)
-		cls.s1 = Site('site1',b=cls.any_bond)
-		cls.s2 = Site('site2',b=cls.wild_bond)
-		cls.s3 = Site('site0',s='state')
-		
-		cls.md0 = MoleculeDef('Molec',{'site0':['a','b'],'site1':[]})
-
-		cls.m0 = Molecule('Test0',[cls.s0,cls.s2])
-		cls.m1 = Molecule('Test1',[cls.s1])
-
-		cls.p0 = CPattern([cls.m0,Molecule('Test0',[cls.s0])])
-		cls.p1 = CPattern([Molecule('Test0',[cls.s3,cls.s2]),Molecule('Test0',[cls.s3])])
-		cls.p2 = CPattern([Molecule('A',[])])
-		cls.p3 = CPattern([Molecule('B',[])])
-
-		cls.i0 = InitialCondition(cls.p0,10)
-		# implement functionality to print initial condition as kappa/bngl expression
-		# cls.i1 = InitialCondition(cls.p0,"x+10")
-
-		cls.par0 = Parameter('rate',1e6)
-
-		cls.expr0 = Expression('rate_expr',['ln', '(', '10', ')', '+', 'x', '-', '356'])
-
-		cls.rule0 = Rule([cls.p2],[cls.p3],Rate(10))
-		cls.rule1 = Rule([cls.p2],[cls.p3],Rate(cls.expr0),False,'x')
-		cls.rule2 = Rule([cls.p2],[cls.p3],Rate(10),True,Rate(cls.par0))
-
-		cls.obs0 = Observable("Obs0",[cls.p3],'m')
-		cls.obs1 = Observable("Obs1",[cls.p2,cls.p3],'s')
+		cls.mdef = "Molecule(site0,site1~0~P~PP)"
+		cls.mol = "Mol(sa,sb!+,sc!3,sd~0!?)"
+		cls.init0 = cls.mol+' 100'
+		cls.init1 = cls.mol+'\t(x+3)/k'
+		cls.obs0 = "Molecules Mol0 "+cls.mol
+		cls.obs1 = "Species Mol1 "+cls.mol
+		cls.param0 = "kcat 1"
+		cls.param1 = "kp=km/kd/(NA*V)"
+		cls.rule0 = "A(a) + B(b)<->A(a!1).B(b!1) kp,km"
+		# intermolecular rate
+		cls.rule1 = "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp / log10(10)"
+		# intramolecular rule
+		cls.rule2 = "A(a~s).B(b,c!1).C(c!1) -> A(a~s!2).B(b!2,c!1).C(c!1) kp/log10(10)"
+		cls.rule3 = "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
 
 	@classmethod
 	def teardown_class(cls):
 		pass
 
-	def test_valid_bonds(self):
-		assert self.num_bond.wild == False
-		assert self.num_bond.any == False
-		assert self.wild_bond.write_as_bngl() == r'!+'
-		assert self.any_bond.write_as_bngl() == r'!?'
-		assert self.wild_bond.write_as_kappa() == r'!_'
-		assert self.any_bond.write_as_kappa() == r'?'
+	def test_mdef_parse(self):
+		assert BNGLReader.parse_mtype(self.mdef).write_as_bngl() == self.mdef
 
-	@raises(AssertionError)
-	def test_invalid_bond_0(self):
-		Bond(-3)
+	def test_mol_parse(self):
+		assert BNGLReader.parse_molecule(self.mol).write_as_bngl() == self.mol
 
-	@raises(ValueError)
-	def test_invalid_bond_1(self):
-		Bond('hello')
+	def test_init_parse(self):
+		assert BNGLReader.parse_init(self.init0).write_as_bngl() == self.mol+' 100'
+		assert BNGLReader.parse_init(self.init1).write_as_bngl() == self.mol+' (x+3)/k'
 
-	def test_sites(self):
-		assert self.s0.write_as_bngl() == r'site0~state!3'
-		assert self.s0.write_as_kappa() == r'site0~state!3'
-		assert self.s1.write_as_bngl() == r'site1!?'
-		assert self.s1.write_as_kappa() == r'site1?'
+	def test_obs_parse(self):
+		assert BNGLReader.parse_obs(self.obs0).write_as_bngl() == self.obs0
+		assert BNGLReader.parse_obs(self.obs1).write_as_bngl() == self.obs1
 
-	def test_molec_def(self):
-		assert self.md0.write_as_bngl() == r'Molec(site0~a~b,site1)'
-		assert self.md0.write_as_kappa() == r'%agent: Molec(site0~a~b,site1)'
+	def test_params_parse(self):
+		assert BNGLReader.parse_param(self.param0).write_as_bngl() == self.param0
+		assert BNGLReader.parse_param(self.param1).write_as_bngl() == "kp km/kd/(NA*V)"
 
-	def test_molecules(self):
-		assert self.m0.write_as_bngl() == r'Test0(site0~state!3,site2!+)'
-		assert self.m0.write_as_kappa() == r'Test0(site0~state!3,site2!_)'
-		assert self.m1.write_as_bngl() == r'Test1(site1!?)'
-		assert self.m1.write_as_kappa() == r'Test1(site1?)'
-
-	def test_CPatterns(self):
-		assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
-		assert self.p0.write_as_kappa() == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
-
-	def test_init_conditions(self):
-		assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3)\t10'
-		assert self.i0.write_as_kappa() == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
-		# assert self.i1.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)\tx+10'
-		# assert self.i1.write_as_kappa() == r"%init: 'x' + 10 Test0(site0~state!3,site2!+).Test0(site0~state!3)"
-
-	#TODO write more to check function map functionality
-	def test_pars_and_exprs(self):
-		assert self.par0.write_as_bngl() == r'rate 1000000.0'
-		assert self.par0.write_as_kappa() == r"%var: 'rate' 1000000.0"
-		assert self.expr0.write_as_bngl() == r'rate_expr=ln(10)+x-356'
-		assert self.expr0.write_as_kappa() == r"%obs: 'rate_expr' [log](10)+'x'-356"
-		assert self.expr0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr' [log](10)+'x'-356"
-
-	def test_rule(self):
-		assert self.rule0.write_as_bngl() == r'A() -> B() 10'
-		assert self.rule0.write_as_kappa() == r'A() -> B() @ 10'
-		# assert self.rule1.write_as_bngl() == r'A() -> B() 10'
-		# assert self.rule1.write_as_kappa() == r'A() -> B() @ 10'
-		assert self.rule2.write_as_bngl() == r'A() <-> B() 10,rate'
-		print self.rule2.write_as_kappa(),'\n',r"A() <-> B() 10,'rate'"
-		assert self.rule2.write_as_kappa() == r"A() <-> B() @ 10,'rate'"
-
-	def test_obs(self):
-		print self.obs0.write_as_kappa()
-		assert self.obs0.write_as_bngl() == r'Molecules Obs0 B()'
-		assert self.obs0.write_as_kappa() == r"%obs: 'Obs0' |B()|"
-		assert self.obs1.write_as_bngl() == r'Species Obs1 A() B()'
-		assert self.obs1.write_as_kappa() == r"%obs: 'Obs1' |A()|+|B()|"
-
-	@raises(Exception)
-	def test_invalid_obs(self):
-		Observable("InvalidType",[cls.p2],'f')
+	def test_rule_parse(self):
+		prule0 = BNGLReader.parse_rule(self.rule0)
+		assert prule0.rev is True
+		assert prule0.write_as_bngl() == "A(a)+B(b) <-> A(a!1).B(b!1) kp,km"
+		prule1 = BNGLReader.parse_rule(self.rule1)
+		assert prule1.write_as_bngl() == "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp/log10(10)"
+		assert prule1.write_as_kappa() == "A(a~r),B(b,c!1),C(c!1) -> A(a~r!2),B(b!2,c!1),C(c!1) @ 'kp'/([log](10)/[log](10))"
+		prule2 = BNGLReader.parse_rule(self.rule2)
+		assert prule2.rate.intra_binding is True
+		assert prule2.write_as_bngl() == self.rule2
+		assert prule2.write_as_kappa() == "A(a~s),B(b,c!1),C(c!1) -> A(a~s!2),B(b!2,c!1),C(c!1) @ 0 {'kp'/([log](10)/[log](10))}"
+		prule3 = BNGLReader.parse_rule(self.rule3)
+		assert prule3.rate.intra_binding is False
+		assert prule3.write_as_bngl() == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
+		assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
 
