@@ -33,6 +33,10 @@ class MoleculeDef:
 	def write_as_kappa(self):
 		return "%%agent: %s(%s)"%(self.name,self._all_site_states())
 
+	def __repr__(self):
+		sites_string = ','.join(['%s->%s'%(k,self.sites[k]) for k in self.sites.keys()])
+		return "MoleculeDef(name: %s, sites: %s)"%(self.name,sites_string)
+
 class Molecule:
 	def __init__(self,name,sites):
 		self.name = name
@@ -136,6 +140,9 @@ class InitialCondition:
 		amount = self.amount if not self.amount_is_parameter else "'%s'"%self.amount
 		return '%%init: %s %s'%(amount,self.species.write_as_kappa())
 
+	def __repr__(self):
+		return "Init(species: %s, quantity: %s)"%(self.species,self.amount)
+
 class Parameter:
 	def __init__(self,n,v):
 		self.name = n # string
@@ -146,6 +153,9 @@ class Parameter:
 
 	def write_as_kappa(self):
 		return '%%var: \'%s\' %s'%(self.name, self.value)
+
+	def __repr__(self):
+		return "Parameter(name: %s, value: %s)"%(self.name,self.value)
 
 # special parsing required for 'if', 'log' functions
 # can implement conversion of certain types of values (e.g. log10(x) to log(x)/log(10))
@@ -177,6 +187,9 @@ class Expression:
 
 		return expr
 
+	def __repr__(self):
+		return "Expression(expr: %s)"%self.write_as_bngl()
+
 class Function:
 	def __init__(self,name,expr):
 		self.name = name
@@ -188,6 +201,9 @@ class Function:
 	def write_as_kappa(self,as_obs=True):
 		dec = 'obs' if as_obs else 'var'
 		return "%%%s: '%s' %s"%(dec,self.name,self.expr.write_as_kappa())
+
+	def __repr__(self):
+		return "Function(name: %s, expr: %s"%(self.name, self.expr)
 
 class Rate:
 	def __init__(self,r,intra=False): # can be string (including a single number) or Expression
@@ -240,6 +256,12 @@ class Rule:
 			rate_string = self.rate.write_as_kappa()
 		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
 
+	def __repr__(self):
+		if not rev:
+			return "Rule(lhs: %s, rhs: %s, rate: %s)"%(self.lhs,self.rhs,self.rate)
+		else:
+			return "Rule(lhs: %s, rhs: %s, rate: %s, rev_rate: %s)"%(self.lhs,self.rhs,self.rate,self.rev_rate)
+
 class Observable:
 	def __init__(self,n,ps,t='m'):
 		self.name = n
@@ -249,16 +271,19 @@ class Observable:
 			self.type = 'Molecules'
 		else:
 			raise Exception("not a valid observable type: %s"%t)
-		self.CPatterns = ps # a list of CPatterns
+		self.cpatterns = ps # a list of CPatterns
 
 	def write_as_bngl(self):
-		return "%s %s %s"%(self.type,self.name,' '.join([p.write_as_bngl() for p in self.CPatterns]))
+		return "%s %s %s"%(self.type,self.name,' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
 	def write_as_kappa(self):
 		if self.type == 'Species':
 			print "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable"%self.name
-		obs = '+'.join(['|%s|'%p.write_as_kappa() for p in self.CPatterns])
+		obs = '+'.join(['|%s|'%p.write_as_kappa() for p in self.cpatterns])
 		return '%%obs: \'%s\' %s'%(self.name,obs)
+
+	def __repr__(self):
+		return "Obs(name: %s, pattern: %s)"%(self.name, ' '.join(self.cpatterns))
 
 # TODO check types for add_* functions
 class Model:
