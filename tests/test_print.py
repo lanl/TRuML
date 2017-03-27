@@ -19,7 +19,7 @@ class TestPrint:
 		cls.s2 = Site('site2',b=cls.wild_bond)
 		cls.s3 = Site('site0',s='state')
 		
-		cls.md0 = MoleculeDef('Molec',{'site0':['a','b'],'site1':[]})
+		cls.md0 = MoleculeDef('Molec',{'site0':['a','b'],'site1':[]},{'site0':'site0','site1':'site1'})
 
 		cls.m0 = Molecule('Test0',[cls.s0,cls.s2])
 		cls.m1 = Molecule('Test1',[cls.s1])

@@ -12,9 +12,10 @@ class NotCompatibleException(Exception):
 		print s
 
 class MoleculeDef:
-	def __init__(self,n,sd):
+	def __init__(self,n,sd,snm):
 		self.name = n
 		self.sites = sd
+		self.site_name_map = snm # if there are equivalently named sites in a BNGL to Kappa conversion
 
 	def _all_site_states(self):
 		ss = []
@@ -471,15 +472,39 @@ class BNGLReader(Reader):
 	def parse_mtype(line):
 		psplit = re.split('\(',line.strip())
 		name = psplit[0]
-		site_dict = {} # site name: list of possible states
+		
+		site_name_map = {} # maps equivalent site names in BNGL to distinct site names for tracking conversion to kappa if needed
+
 		sites = re.split(',',psplit[1].strip(')'))
+		site_names = []
+		site_defs = {}
+		site_name_counter = {}
 		for s in sites:
 			site_split = re.split('~',s)
-			if len(site_split) == 1:
-				site_dict[site_split[0]] = []
+			site_name = site_split[0]
+			if site_name in site_name_counter.keys():
+				site_name_counter[site_name] += 1
+				continue
 			else:
-				site_dict[site_split[0]] = site_split[1:]
-		return MoleculeDef(name, site_dict)
+				site_name_counter[site_name] = 1
+				site_names.append(site_name)
+				site_defs[site_name] = [] if len(site_split) == 1 else site_split[1:]
+
+		for sn in site_name_counter.keys():
+			if site_name_counter[sn] == 1:
+				site_name_counter.pop(sn)
+				site_name_map[sn] = sn
+
+		for sn in site_name_counter.keys():
+			while site_name_counter[sn] > 0:
+				site_name_map[sn + str(site_name_counter[sn]-1)] = sn
+				site_name_counter[sn] -= 1
+
+		un_site_defs = {}
+		for sn in site_name_map.keys():
+			un_site_defs[sn] = site_defs[site_name_map[sn]]
+
+		return MoleculeDef(name, un_site_defs, site_name_map)
 
 	@classmethod
 	def parse_molecule(cls,line):

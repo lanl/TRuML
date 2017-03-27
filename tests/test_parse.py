@@ -11,7 +11,8 @@ class TestParse:
 
 	@classmethod
 	def setup_class(cls):
-		cls.mdef = "Molecule(site0,site1~0~P~PP)"
+		cls.mdef0 = "Molecule(site0,site1~0~P~PP)"
+		cls.mdef1 = "Mol(a,b~0~1,c~a~b,b~0~1)"
 		cls.mol = "Mol(sa,sb!+,sc!3,sd~0!?)"
 		cls.init0 = cls.mol+' 100'
 		cls.init1 = cls.mol+'\t(x+3)/k'
@@ -31,7 +32,12 @@ class TestParse:
 		pass
 
 	def test_mdef_parse(self):
-		assert BNGLReader.parse_mtype(self.mdef).write_as_bngl() == self.mdef
+		assert BNGLReader.parse_mtype(self.mdef0).write_as_bngl() == self.mdef0
+		md1 = BNGLReader.parse_mtype(self.mdef1)
+		md1.site_name_map['b0'] = 'b'
+		md1.site_name_map['b1'] = 'b'
+		print md1.write_as_bngl()
+		assert md1.write_as_bngl() == "Mol(a,b0~0~1,b1~0~1,c~a~b)"
 
 	def test_mol_parse(self):
 		assert BNGLReader.parse_molecule(self.mol).write_as_bngl() == self.mol
