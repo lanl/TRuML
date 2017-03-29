@@ -2,6 +2,7 @@ import re
 from pyparsing import Literal,CaselessLiteral,Word,Combine,Group,Optional,\
     ZeroOrMore,Forward,nums,alphas
 from deepdiff import DeepDiff
+from itertools import product, combinations
 
 class NotAMoleculeException(Exception):
 	def __init__(self,s):
@@ -11,25 +12,43 @@ class NotCompatibleException(Exception):
 	def __init__(self,s):
 		print s
 
+# full definition
 class MoleculeDef:
-	def __init__(self,n,sd,snm):
+	def __init__(self,n,sd,snm,hss=False):
 		self.name = n
 		self.sites = sd
-		self.site_name_map = snm # if there are equivalently named sites in a BNGL to Kappa conversion
+		# map of Kappa name to BNGL name
+		self.site_name_map = snm
+		self.has_site_symmetry = hss
+		self._invert_site_name_map()
 
-	def _all_site_states(self):
+	# map of BNGL name to list of Kappa names (omits 1-1 mappings; only sites with symm)
+	def _invert_site_name_map(self):
+		self.inv_site_name_map = {}
+		for k in self.site_name_map.keys():
+			v = self.site_name_map[k] 
+			if v not in self.inv_site_name_map.keys():
+				self.inv_site_name_map[v] = [k]
+			else:
+				self.inv_site_name_map[v].append(k)
+		for k in self.inv_site_name_map.keys():
+			if len(self.inv_site_name_map[k]) == 1:
+				self.inv_site_name_map.pop(k)
+
+	def _all_site_states(self,as_equiv=False):
 		ss = []
 		# ordered for deterministic behavior
 		for k in sorted(self.sites.keys()):
+			site_name = k if not as_equiv else self.site_name_map[k]
 			v = self.sites[k]
 			if not v:
-				ss.append(k)
+				ss.append(site_name)
 			else:
-				ss.append('%s~%s'%(k,'~'.join(v)))
+				ss.append('%s~%s'%(site_name,'~'.join(v)))
 		return ','.join(ss)
 
 	def write_as_bngl(self):
-		return "%s(%s)"%(self.name,self._all_site_states())
+		return "%s(%s)"%(self.name,self._all_site_states(True))
 
 	def write_as_kappa(self):
 		return "%%agent: %s(%s)"%(self.name,self._all_site_states())
@@ -42,12 +61,53 @@ class Molecule:
 	def __init__(self,name,sites):
 		self.name = name
 		self.sites = sites # list of Sites
+		self.site_dict = {s.name:s for s in self.sites}
 	
 	def write_as_bngl(self):
 		return self.name + '(' + ','.join([s.write_as_bngl() for s in self.sites]) + ')'
 
-	def write_as_kappa(self):
-		return self.name + '(' + ','.join([s.write_as_kappa() for s in self.sites]) + ')'		
+	# returns list of molecule strings
+	# check to see how many of possible symm sites are present in pattern
+	def write_as_kappa(self,mdef):
+
+		def kappa_string(ss):
+			return self.name + '(' + ','.join(sorted(ss)) + ')' # sorted for consistent testing
+
+		un_site_names = set([s.name for s in self.sites])
+		un_configs_per_site = {s:{} for s in un_site_names}
+		for s in self.sites:
+			if s not in un_configs_per_site[s.name]:
+				un_configs_per_site[s.name][s] = 0
+			un_configs_per_site[s.name][s] += 1
+
+		def rename_sites(names,site):
+			return tuple([Site(name,s=site.state,b=site.bond) for name in names])
+
+		k_configs = {}
+		for sn in un_configs_per_site.keys():
+			k_configs[sn] = []
+			if sn not in mdef.inv_site_name_map.keys():
+				k_configs[sn] = [tuple([self.site_dict[sn]])]
+				continue
+			k_sn_names = set(mdef.inv_site_name_map[sn])
+			cur_combs = []
+			for s,n in un_configs_per_site[sn].iteritems():
+				if len(cur_combs) == 0:
+					cur_combs = [rename_sites(names,s) for names in combinations(k_sn_names,n)]
+				else:
+					tmp_combs = []
+					for cc in cur_combs:
+						rem_names = k_sn_names - set(map(lambda l: l.name, cc))
+						new_combs = [rename_sites(names,s) for names in combinations(rem_names,n)]
+						for nc in new_combs:
+							tmp_combs.append(cc+nc)
+					cur_combs = tmp_combs
+			k_configs[sn] = cur_combs
+
+		k_prod = list(product(*k_configs.values()))
+		return [kappa_string([e.write_as_kappa() for t in tt for e in t]) for tt in k_prod]
+
+
 
 	def __repr__(self):
 		return 'Molecule(name: %s, sites: %s)'%(self.name,', '.join([str(x) for x in self.sites]))
@@ -58,21 +118,21 @@ class Site:
 		self.state = s
 		self.bond = b
 
-	def write_as_bngl(self):
-		s = self.name
+	def _add_state_bond(self,s,kappa=False):
 		if self.state is not None:
 			s += '~%s'%self.state
-		if self.bond is not None:
+		if self.bond is not None and kappa:
+			s += self.bond.write_as_kappa()
+		elif self.bond is not None:
 			s += self.bond.write_as_bngl()
 		return s
 
+	def write_as_bngl(self):
+		return self._add_state_bond(self.name)
+
+	# for testing only (check for site symmetries occurs in Molecule class)
 	def write_as_kappa(self):
-		s = self.name
-		if self.state is not None:
-			s += '~%s'%self.state
-		if self.bond is not None:
-			s += self.bond.write_as_kappa()
-		return s
+		return self._add_state_bond(self.name,True)
 
 	def __eq__(self,other):
 		if isinstance(other,self.__class__):
@@ -81,6 +141,9 @@ class Site:
 
 	def __ne__(self,other):
 		return not self == other
+
+	def __hash__(self):
+		return hash((self.name,self.state,self.bond))
 
 	def __repr__(self):
 		return 'Site(name: %s, state: %s, bond: %s)'%(self.name,self.state,self.bond)
@@ -92,6 +155,7 @@ class Bond:
 		self.num = int(n) # negative numbers indicate absence of specific bond, positive numbers will override w and a
 		self.any = a
 		if self.num < 0:
+			self.num = -1
 			assert(self.wild or self.any)
 		assert(not (self.wild and self.any))
 
@@ -126,6 +190,9 @@ class Bond:
 	def __ne__(self,other):
 		return not self == other
 
+	def __hash__(self):
+		return hash((self.num,self.wild,self.any))
+
 	def __repr__(self):
 		b_string = str(self.num)
 		if self.wild:
@@ -142,8 +209,8 @@ class CPattern:
 	def write_as_bngl(self):
 		return '.'.join([m.write_as_bngl() for m in self.molecule_list])
 
-	def write_as_kappa(self):
-		return ','.join([m.write_as_kappa() for m in self.molecule_list])
+	def write_as_kappa(self,mdefs): # mdefs is all the moleculedefs corresponding to molecules in the molecule list
+		pass
 
 	def __repr__(self):
 		return '\n'.join([str(x) for x in self.molecule_list])
@@ -157,9 +224,19 @@ class InitialCondition:
 	def write_as_bngl(self):
 		return '%s %s'%(self.species.write_as_bngl(),self.amount)
 
-	def write_as_kappa(self):
-		amount = self.amount if not self.amount_is_parameter else "'%s'"%self.amount
-		return '%%init: %s %s'%(amount,self.species.write_as_kappa())
+	# if there are symmetries, the initial condition amount is divided evenly among species
+	def write_as_kappa(self,mdefs):
+		# symm_strings = self.species.write_as_kappa(mdefs)
+		# num_symm = len(symm_strings)
+		# if num_symm == 1:
+		# 	amount = self.amount if not self.amount_is_parameter else "'%s'"%self.amount
+		# else:
+		# 	amount = self.amount/float(num_symm) if not self.amount_is_parameter else "'%s'/%s.0"%(self.amount,num_symm)
+		# res = []
+		# for s in symm_strings:
+		# 	res.append('%%init: %s %s'%(amount,s))
+		# return res
+		pass
 
 	def __repr__(self):
 		return "Init(species: %s, quantity: %s)"%(self.species,self.amount)
@@ -278,7 +355,7 @@ class Rule:
 		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
 
 	def __repr__(self):
-		if not rev:
+		if not self.rev:
 			return "Rule(lhs: %s, rhs: %s, rate: %s)"%(self.lhs,self.rhs,self.rate)
 		else:
 			return "Rule(lhs: %s, rhs: %s, rate: %s, rev_rate: %s)"%(self.lhs,self.rhs,self.rate,self.rev_rate)
@@ -297,7 +374,7 @@ class Observable:
 	def write_as_bngl(self):
 		return "%s %s %s"%(self.type,self.name,' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
-	def write_as_kappa(self):
+	def write_as_kappa(self,mdef):
 		if self.type == 'Species':
 			print "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable"%self.name
 		obs = '+'.join(['|%s|'%p.write_as_kappa() for p in self.cpatterns])
@@ -410,6 +487,7 @@ class BNGLReader(Reader):
 		self.is_obs_block = False
 		self.is_func_block = False
 
+	# assumes that the file has the molecule types block before the rules block
 	def parse(self):
 		# to accommodate line-continuation characters
 		cur_line = ''
@@ -499,11 +577,14 @@ class BNGLReader(Reader):
 		site_names = []
 		site_defs = {}
 		site_name_counter = {}
+		has_site_symmetry = False
 		for s in sites:
 			site_split = re.split('~',s)
 			site_name = site_split[0]
 			if site_name in site_name_counter.keys():
 				site_name_counter[site_name] += 1
+				if not has_site_symmetry:
+					has_site_symmetry = True
 				continue
 			else:
 				site_name_counter[site_name] = 1
@@ -524,7 +605,7 @@ class BNGLReader(Reader):
 		for sn in site_name_map.keys():
 			un_site_defs[sn] = site_defs[site_name_map[sn]]
 
-		return MoleculeDef(name, un_site_defs, site_name_map)
+		return MoleculeDef(name, un_site_defs, site_name_map, has_site_symmetry)
 
 	@classmethod
 	def parse_molecule(cls,line):
@@ -605,11 +686,12 @@ class BNGLReader(Reader):
 		changed = d.get('type_changes').keys()
 		num_changed_bonds = 0
 		for c in changed:
-			if re.search('bond$',c):
+			if re.search('sites\[.\]\.bond$',c):
 				num_changed_bonds += 1
+		print num_changed_bonds, d
 		return num_changed_bonds == 2
 
-	# TODO parse rule label and check for molecular ambiguity
+	# TODO parse rule label
 	@classmethod
 	def parse_rule(cls,line):
 		sline = line.strip()
@@ -619,6 +701,7 @@ class BNGLReader(Reader):
 		parts = re.split('->',sline)
 		lhs_cpatterns = [cls.parse_cpattern(x) for x in re.split('(?<!!)\+',parts[0].rstrip('<'))]
 		rem = re.split('(?<!!)\+',parts[1].strip())
+		# if the rule is an unbinding rule or has a '+' in its rate expression
 		if len(rem) > 1:
 			one_past_final_mol_index = 0
 			for i,t in enumerate(rem):
