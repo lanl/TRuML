@@ -74,6 +74,14 @@ class Site:
 			s += self.bond.write_as_kappa()
 		return s
 
+	def __eq__(self,other):
+		if isinstance(other,self.__class__):
+			return (self.name == other.name and self.state == other.state and self.bond == other.bond)
+		return False
+
+	def __ne__(self,other):
+		return not self == other
+
 	def __repr__(self):
 		return 'Site(name: %s, state: %s, bond: %s)'%(self.name,self.state,self.bond)
 
@@ -85,15 +93,16 @@ class Bond:
 		self.any = a
 		if self.num < 0:
 			assert(self.wild or self.any)
+		assert(not (self.wild and self.any))
 
 	def write_as_bngl(self):
 		s = ''
+		if self.num >= 0:
+			s = '!%s'%self.num
 		if self.wild:
 			s = '!+'
 		elif self.any:
 			s = '!?'
-		else:
-			s = '!%s'%self.num
 		return s
 
 	def write_as_kappa(self):
@@ -105,6 +114,17 @@ class Bond:
 		else:
 			s = '!%s'%self.num
 		return s
+
+	def __eq__(self,other):
+		if isinstance(other,self.__class__):
+			num_check = False
+			if (self.num < 0 and other.num < 0) or (self.num == other.num):
+				num_check = True
+			return (self.wild == other.wild and self.any == other.any and num_check)
+		return False
+
+	def __ne__(self,other):
+		return not self == other
 
 	def __repr__(self):
 		b_string = str(self.num)
