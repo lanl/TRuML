@@ -113,19 +113,19 @@ class TestPrint:
 
 	def test_patterns(self):
 		assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
-		assert self.p0.write_as_kappa([self.md0])[0] == r'Test0(site0~state!3),Test0(site0~state!3,site2!_)'
+		assert self.p0.write_as_kappa([self.md0])[0] == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
 		assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
 		kp4 = self.p4.write_as_kappa([self.md0,self.md2])
 		assert len(kp4) == 4
-		print set(kp4)
-		assert set(kp4) == {r'Test0(site0~state!3,site2!_),Test2(a0)',r'Test0(site0~state!3,site2!_),Test2(a1)',r'Test0(site0~state!3,site2!_),Test2(a2)',r'Test0(site0~state!3,site2!_),Test2(a3)'}
+		print sorted(kp4)
+		assert sorted(kp4) == [r'Test2(a0),Test0(site0~state!3,site2!_)',r'Test2(a1),Test0(site0~state!3,site2!_)',r'Test2(a2),Test0(site0~state!3,site2!_)',r'Test2(a3),Test0(site0~state!3,site2!_)']
 
 	def test_init_conditions(self):
 		assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
-		assert self.i0.write_as_kappa([self.md0])[0] == r'%init: 10 Test0(site0~state!3),Test0(site0~state!3,site2!_)'
+		print self.i0.write_as_kappa([self.md0])[0]
+		assert self.i0.write_as_kappa([self.md0])[0] == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
 		assert self.i1.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) x+10'
-		print self.i1.write_as_kappa([self.md0])[0]
-		assert self.i1.write_as_kappa([self.md0])[0] == r"%init: 'x'+10 Test0(site0~state!3),Test0(site0~state!3,site2!_)"
+		assert self.i1.write_as_kappa([self.md0])[0] == r"%init: 'x'+10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
 
 	#TODO write more to check function map functionality
 	def test_pars_and_funcs(self):
@@ -159,7 +159,6 @@ class TestPrint:
 		assert self.obs1.write_as_bngl() == r'Species Obs1 A() B()'
 		assert self.obs1.write_as_kappa([self.md4,self.md3]) == r"%obs: 'Obs1' |A()|+|B()|"
 		assert self.obs2.write_as_bngl() == r'Molecules Obs2 Test2(a)'
-		print self.obs2.write_as_kappa([self.md2])
 		assert self.obs2.write_as_kappa([self.md2]) == r"%obs: 'Obs2' |Test2(a0)|+|Test2(a1)|+|Test2(a2)|+|Test2(a3)|"
 
 	@raises(Exception)

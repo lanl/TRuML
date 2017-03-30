@@ -86,14 +86,9 @@ class Molecule:
 		def rename_sites(names,site):
 			return tuple([Site(name,s=site.state,b=site.bond) for name in names])
 
-		print mdef.inv_site_name_map
-
 		k_configs = {}
 		for sn in un_configs_per_site.keys():
 			k_configs[sn] = []
-			# if sn not in mdef.inv_site_name_map.keys():
-			# 	k_configs[sn] = [tuple([self.site_dict[sn]])]
-			# 	continue
 			k_sn_names = set(mdef.inv_site_name_map[sn])
 			cur_combs = []
 			for s,n in un_configs_per_site[sn].iteritems():
@@ -221,9 +216,15 @@ class CPattern:
 				if m.name == md.name:
 					k_str_mol_list.append(m.write_as_kappa(md))
 		k_patterns = product(*k_str_mol_list)
-		# order doesn't matter; remove doubles
-		sk_patterns = set([','.join(sorted(p)) for p in k_patterns])
-		return list(sk_patterns)
+		# remove doubles, preserve molecule order
+		seen = set()
+		un_k_patterns = []
+		for pat in k_patterns:
+			s_pat = tuple(sorted(pat))
+			if s_pat not in seen:
+				seen.add(s_pat)
+				un_k_patterns.append(','.join(pat))
+		return un_k_patterns
 
 	def __repr__(self):
 		return '\n'.join([str(x) for x in self.molecule_list])
@@ -358,14 +359,26 @@ class Rule:
 			rate_string = self.rate.write_as_bngl()
 		return '%s %s %s %s'%(lhs_string,self.arrow,rhs_string,rate_string)
 
-	def write_as_kappa(self):
-		lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
-		rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
-		if self.rev:
-			rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
-		else:
-			rate_string = self.rate.write_as_kappa()
-		return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
+	def write_as_kappa(self,mdefs):
+
+		# possible actions  (root object is list (rule.lhs and rule.rhs))
+		#  - iterable_item_added/removed (binding, unbinding)
+		#  - type_changes (binding, unbinding)
+		#  - value_changes (state change)
+
+		def kappa_rule_string(lhss,ars,rhss,rs):
+			return '%s %s %s @ %s'%(lhss,ars,rhss,rs)
+
+		lhs_strings = product(*[p.write_as_kappa(mdefs) for p in self.lhs])
+
+
+		# lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
+		# rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
+		# if self.rev:
+		# 	rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
+		# else:
+		# 	rate_string = self.rate.write_as_kappa()
+		# return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
 
 	def __repr__(self):
 		if not self.rev:
@@ -698,7 +711,10 @@ class BNGLReader(Reader):
 	@staticmethod
 	def _has_intramolecular_binding(lhs_cp,rhs_cp):
 		d = DeepDiff(lhs_cp,rhs_cp)
-		changed = d.get('type_changes').keys()
+		try:
+			changed = d.get('type_changes').keys()
+		except AttributeError:
+			return False
 		num_changed_bonds = 0
 		for c in changed:
 			if re.search('sites\[.\]\.bond$',c):
