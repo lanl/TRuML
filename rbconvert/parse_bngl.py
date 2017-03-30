@@ -382,10 +382,17 @@ class Observable:
 	def write_as_bngl(self):
 		return "%s %s %s"%(self.type,self.name,' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
-	def write_as_kappa(self,mdef):
+	def write_as_kappa(self,mdefs):
 		if self.type == 'Species':
 			print "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable"%self.name
-		obs = '+'.join(['|%s|'%p.write_as_kappa() for p in self.cpatterns])
+
+		obs_strs = []
+		for p in self.cpatterns:
+			# sorted for determinism (testing)
+			kos = '+'.join(sorted(['|%s|'%x for x in p.write_as_kappa(mdefs)]))
+			obs_strs.append(kos)
+
+		obs = '+'.join(obs_strs)
 		return '%%obs: \'%s\' %s'%(self.name,obs)
 
 	def __repr__(self):

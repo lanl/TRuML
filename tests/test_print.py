@@ -22,6 +22,8 @@ class TestPrint:
 		cls.md0 = MoleculeDef('Test0',{'site0':['state','state2'],'site1':[]},{'site0':'site0','site1':'site1'})
 		cls.md1 = MoleculeDef('Test1',{'site1':[]},{'site1':'site1'})
 		cls.md2 = MoleculeDef('Test2',{'a':[],'a':[],'a':[],'a':[],'b':[],'c':[],'c':[]},{'a0':'a','a1':'a','a2':'a','a3':'a','b':'b','c0':'c','c1':'c'},hss=True)
+		cls.md3 = MoleculeDef('A',{},{})
+		cls.md4 = MoleculeDef('B',{},{})
 
 		cls.m0 = Molecule('Test0',[cls.s0,cls.s2])
 		cls.m1 = Molecule('Test1',[cls.s1])
@@ -57,6 +59,7 @@ class TestPrint:
 
 		cls.obs0 = Observable("Obs0",[cls.p3],'m')
 		cls.obs1 = Observable("Obs1",[cls.p2,cls.p3],'s')
+		cls.obs2 = Observable("Obs2",[CPattern([cls.m2])],'m')
 
 	@classmethod
 	def teardown_class(cls):
@@ -150,9 +153,12 @@ class TestPrint:
 
 	def test_obs(self):
 		assert self.obs0.write_as_bngl() == r'Molecules Obs0 B()'
-		# assert self.obs0.write_as_kappa() == r"%obs: 'Obs0' |B()|"
+		assert self.obs0.write_as_kappa([self.md4]) == r"%obs: 'Obs0' |B()|"
 		assert self.obs1.write_as_bngl() == r'Species Obs1 A() B()'
-		# assert self.obs1.write_as_kappa() == r"%obs: 'Obs1' |A()|+|B()|"
+		assert self.obs1.write_as_kappa([self.md4,self.md3]) == r"%obs: 'Obs1' |A()|+|B()|"
+		assert self.obs2.write_as_bngl() == r'Molecules Obs2 Test2(a)'
+		print self.obs2.write_as_kappa([self.md2])
+		assert self.obs2.write_as_kappa([self.md2]) == r"%obs: 'Obs2' |Test2(a0)|+|Test2(a1)|+|Test2(a2)|+|Test2(a3)|"
 
 	@raises(Exception)
 	def test_invalid_obs(self):
