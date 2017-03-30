@@ -47,7 +47,7 @@ class TestParse:
 
 
 	def test_init_parse(self):
-		assert BNGLReader.parse_init(self.init0).write_as_bngl() == self.mol0+' 100'
+		assert BNGLReader.parse_init(self.init0).write_as_bngl() == self.mol0+' 100.0'
 		assert BNGLReader.parse_init(self.init1).write_as_bngl() == self.mol0+' (x+3)/k'
 
 	def test_obs_parse(self):

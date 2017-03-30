@@ -35,10 +35,11 @@ class TestPrint:
 		cls.p1 = CPattern([Molecule('Test0',[cls.s3,cls.s2]),Molecule('Test0',[cls.s3])])
 		cls.p2 = CPattern([Molecule('A',[])])
 		cls.p3 = CPattern([Molecule('B',[])])
+		cls.p4 = CPattern([cls.m2,cls.m0])
 
 		cls.i0 = InitialCondition(cls.p0,10)
 		# implement functionality to print initial condition as kappa/bngl expression
-		# cls.i1 = InitialCondition(cls.p0,"x+10")
+		cls.i1 = InitialCondition(cls.p0,Expression(['x','+','10']),False)
 
 		cls.par0 = Parameter('rate',1e6)
 
@@ -107,13 +108,19 @@ class TestPrint:
 
 	def test_patterns(self):
 		assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
-		# assert self.p0.write_as_kappa([self.md0]) == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
+		assert self.p0.write_as_kappa([self.md0])[0] == r'Test0(site0~state!3),Test0(site0~state!3,site2!_)'
+		assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
+		kp4 = self.p4.write_as_kappa([self.md0,self.md2])
+		assert len(kp4) == 4
+		print set(kp4)
+		assert set(kp4) == {r'Test0(site0~state!3,site2!_),Test2(a0)',r'Test0(site0~state!3,site2!_),Test2(a1)',r'Test0(site0~state!3,site2!_),Test2(a2)',r'Test0(site0~state!3,site2!_),Test2(a3)'}
 
 	def test_init_conditions(self):
 		assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
-		# assert self.i0.write_as_kappa([self.md0]) == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
-		# assert self.i1.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)\tx+10'
-		# assert self.i1.write_as_kappa() == r"%init: 'x' + 10 Test0(site0~state!3,site2!+).Test0(site0~state!3)"
+		assert self.i0.write_as_kappa([self.md0])[0] == r'%init: 10 Test0(site0~state!3),Test0(site0~state!3,site2!_)'
+		assert self.i1.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) x+10'
+		print self.i1.write_as_kappa([self.md0])[0]
+		assert self.i1.write_as_kappa([self.md0])[0] == r"%init: 'x'+10 Test0(site0~state!3),Test0(site0~state!3,site2!_)"
 
 	#TODO write more to check function map functionality
 	def test_pars_and_funcs(self):

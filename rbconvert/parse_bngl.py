@@ -210,33 +210,41 @@ class CPattern:
 		return '.'.join([m.write_as_bngl() for m in self.molecule_list])
 
 	def write_as_kappa(self,mdefs): # mdefs is all the moleculedefs corresponding to molecules in the molecule list
-		pass
+		k_str_mol_list = []
+		for m in self.molecule_list:
+			for md in mdefs:
+				if m.name == md.name:
+					k_str_mol_list.append(m.write_as_kappa(md))
+		k_patterns = product(*k_str_mol_list)
+		# order doesn't matter; remove doubles
+		sk_patterns = set([','.join(sorted(p)) for p in k_patterns])
+		return list(sk_patterns)
 
 	def __repr__(self):
 		return '\n'.join([str(x) for x in self.molecule_list])
 
 class InitialCondition:
-	def __init__(self,s,a,ais=False):
+	def __init__(self,s,a,ain=True):
 		self.species = s
-		self.amount = a # can be number or parameter string
-		self.amount_is_parameter = ais
+		self.amount = a # can be number or expression
+		self.amount_is_number = ain
 
 	def write_as_bngl(self):
-		return '%s %s'%(self.species.write_as_bngl(),self.amount)
+		amount = self.amount if self.amount_is_number else self.amount.write_as_bngl()
+		return '%s %s'%(self.species.write_as_bngl(),amount)
 
 	# if there are symmetries, the initial condition amount is divided evenly among species
 	def write_as_kappa(self,mdefs):
-		# symm_strings = self.species.write_as_kappa(mdefs)
-		# num_symm = len(symm_strings)
-		# if num_symm == 1:
-		# 	amount = self.amount if not self.amount_is_parameter else "'%s'"%self.amount
-		# else:
-		# 	amount = self.amount/float(num_symm) if not self.amount_is_parameter else "'%s'/%s.0"%(self.amount,num_symm)
-		# res = []
-		# for s in symm_strings:
-		# 	res.append('%%init: %s %s'%(amount,s))
-		# return res
-		pass
+		symm_strings = self.species.write_as_kappa(mdefs)
+		num_symm = len(symm_strings)
+		if num_symm == 1:
+			amount = self.amount if self.amount_is_number else self.amount.write_as_kappa()
+		else:
+			amount = self.amount/float(num_symm) if self.amount_is_number else self.amount.write_as_kappa()
+		res = []
+		for s in symm_strings:
+			res.append('%%init: %s %s'%(amount,s))
+		return res
 
 	def __repr__(self):
 		return "Init(species: %s, quantity: %s)"%(self.species,self.amount)
@@ -259,7 +267,7 @@ class Parameter:
 # can implement conversion of certain types of values (e.g. log10(x) to log(x)/log(10))
 class Expression:
 	def __init__(self,atom_list):
-		self.atom_list = atom_list # list from _parse_math_expr listing (in order) operators, values, variables
+		self.atom_list = atom_list # list from parse_math_expr listing (in order) operators, values, variables
 
 	def write_as_bngl(self):
 		return ''.join(self.atom_list)
@@ -643,8 +651,10 @@ class BNGLReader(Reader):
 	def parse_init(cls,line):
 		isplit = re.split('\s+',line.strip())
 		spec = cls.parse_cpattern(isplit[0])
-		amount = isplit[1]
-		return InitialCondition(spec,amount,not _is_number(amount))
+		amount = ' '.join(isplit[1:])
+		amount_is_number = _is_number(amount)
+		p_amount = float(amount) if amount_is_number else Expression(cls.parse_math_expr(amount))
+		return InitialCondition(spec,p_amount,amount_is_number)
 
 	@classmethod
 	def parse_cpattern(cls,line):
@@ -688,7 +698,6 @@ class BNGLReader(Reader):
 		for c in changed:
 			if re.search('sites\[.\]\.bond$',c):
 				num_changed_bonds += 1
-		print num_changed_bonds, d
 		return num_changed_bonds == 2
 
 	# TODO parse rule label
