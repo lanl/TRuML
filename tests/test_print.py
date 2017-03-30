@@ -19,11 +19,11 @@ class TestPrint:
 		cls.s2 = Site('site2',b=cls.wild_bond)
 		cls.s3 = Site('site0',s='state')
 		
-		cls.md0 = MoleculeDef('Test0',{'site0':['state','state2'],'site1':[]},{'site0':'site0','site1':'site1'})
-		cls.md1 = MoleculeDef('Test1',{'site1':[]},{'site1':'site1'})
-		cls.md2 = MoleculeDef('Test2',{'a':[],'a':[],'a':[],'a':[],'b':[],'c':[],'c':[]},{'a0':'a','a1':'a','a2':'a','a3':'a','b':'b','c0':'c','c1':'c'},hss=True)
-		cls.md3 = MoleculeDef('A',{},{})
-		cls.md4 = MoleculeDef('B',{},{})
+		cls.md0 = MoleculeDef('Test0',[('site0',['state','state2']),('site1',[]),('site2',[])],{'site0':'site0','site1':'site1','site2':'site2'})
+		cls.md1 = MoleculeDef('Test1',[('site1',[])],{'site1':'site1'})
+		cls.md2 = MoleculeDef('Test2',[('a',[]),('a',[]),('a',[]),('a',[]),('b',[]),('c',[]),('c',[])],{'a0':'a','a1':'a','a2':'a','a3':'a','b':'b','c0':'c','c1':'c'},hss=True)
+		cls.md3 = MoleculeDef('A',[],{})
+		cls.md4 = MoleculeDef('B',[],{})
 
 		cls.m0 = Molecule('Test0',[cls.s0,cls.s2])
 		cls.m1 = Molecule('Test1',[cls.s1])
@@ -88,8 +88,10 @@ class TestPrint:
 		assert self.s1.write_as_kappa() == r'site1?'
 
 	def test_molec_def(self):
-		assert self.md0.write_as_bngl() == r'Test0(site0~state~state2,site1)'
-		assert self.md0.write_as_kappa() == r'%agent: Test0(site0~state~state2,site1)'
+		assert self.md0.write_as_bngl() == r'Test0(site0~state~state2,site1,site2)'
+		assert self.md0.write_as_kappa() == r'%agent: Test0(site0~state~state2,site1,site2)'
+		assert self.md2.write_as_bngl() == r'Test2(a,a,a,a,b,c,c)'
+		assert self.md2.write_as_kappa() == r'%agent: Test2(a0,a1,a2,a3,b,c0,c1)'
 
 	def test_molecules(self):
 		assert self.m0.write_as_bngl() == r'Test0(site0~state!3,site2!+)'

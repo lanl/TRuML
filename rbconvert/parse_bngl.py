@@ -3,6 +3,7 @@ from pyparsing import Literal,CaselessLiteral,Word,Combine,Group,Optional,\
     ZeroOrMore,Forward,nums,alphas
 from deepdiff import DeepDiff
 from itertools import product, combinations
+from copy import deepcopy
 
 class NotAMoleculeException(Exception):
 	def __init__(self,s):
@@ -14,15 +15,15 @@ class NotCompatibleException(Exception):
 
 # full definition
 class MoleculeDef:
-	def __init__(self,n,sd,snm,hss=False):
+	def __init__(self,n,st,snm,hss=False):
 		self.name = n
-		self.sites = sd
+		self.sites = st
 		# map of Kappa name to BNGL name
 		self.site_name_map = snm
 		self.has_site_symmetry = hss
 		self._invert_site_name_map()
 
-	# map of BNGL name to list of Kappa names (omits 1-1 mappings; only sites with symm)
+	# map of BNGL name to list of Kappa names (includes 1-1 mappings)
 	def _invert_site_name_map(self):
 		self.inv_site_name_map = {}
 		for k in self.site_name_map.keys():
@@ -31,16 +32,18 @@ class MoleculeDef:
 				self.inv_site_name_map[v] = [k]
 			else:
 				self.inv_site_name_map[v].append(k)
-		for k in self.inv_site_name_map.keys():
-			if len(self.inv_site_name_map[k]) == 1:
-				self.inv_site_name_map.pop(k)
 
-	def _all_site_states(self,as_equiv=False):
+	def _all_site_states(self,is_bngl=True):
 		ss = []
-		# ordered for deterministic behavior
-		for k in sorted(self.sites.keys()):
-			site_name = k if not as_equiv else self.site_name_map[k]
-			v = self.sites[k]
+		if not is_bngl:
+			k_track = {s:list(reversed(sorted(self.inv_site_name_map[s]))) for s in self.inv_site_name_map.keys()}
+		# ordered easy testing
+		for k,v in self.sites:
+			site_name = None
+			if is_bngl:
+				site_name = k 
+			else:
+				site_name = k_track[k].pop()
 			if not v:
 				ss.append(site_name)
 			else:
@@ -48,10 +51,10 @@ class MoleculeDef:
 		return ','.join(ss)
 
 	def write_as_bngl(self):
-		return "%s(%s)"%(self.name,self._all_site_states(True))
+		return "%s(%s)"%(self.name,self._all_site_states())
 
 	def write_as_kappa(self):
-		return "%%agent: %s(%s)"%(self.name,self._all_site_states())
+		return "%%agent: %s(%s)"%(self.name,self._all_site_states(False))
 
 	def __repr__(self):
 		sites_string = ','.join(['%s->%s'%(k,self.sites[k]) for k in self.sites.keys()])
@@ -83,12 +86,14 @@ class Molecule:
 		def rename_sites(names,site):
 			return tuple([Site(name,s=site.state,b=site.bond) for name in names])
 
+		print mdef.inv_site_name_map
+
 		k_configs = {}
 		for sn in un_configs_per_site.keys():
 			k_configs[sn] = []
-			if sn not in mdef.inv_site_name_map.keys():
-				k_configs[sn] = [tuple([self.site_dict[sn]])]
-				continue
+			# if sn not in mdef.inv_site_name_map.keys():
+			# 	k_configs[sn] = [tuple([self.site_dict[sn]])]
+			# 	continue
 			k_sn_names = set(mdef.inv_site_name_map[sn])
 			cur_combs = []
 			for s,n in un_configs_per_site[sn].iteritems():
@@ -586,25 +591,22 @@ class BNGLReader(Reader):
 		psplit = re.split('\(',line.strip())
 		name = psplit[0]
 		
-		site_name_map = {} # maps equivalent site names in BNGL to distinct site names for tracking conversion to kappa if needed
+		site_name_map = {} # maps distinct site names for tracking conversion to kappa if needed from equivalent site names in BNGL
 
 		sites = re.split(',',psplit[1].strip(')'))
-		site_names = []
-		site_defs = {}
+		site_defs = []
 		site_name_counter = {}
 		has_site_symmetry = False
 		for s in sites:
 			site_split = re.split('~',s)
 			site_name = site_split[0]
+			site_defs.append((site_name,[] if len(site_split) == 1 else site_split[1:]))
 			if site_name in site_name_counter.keys():
 				site_name_counter[site_name] += 1
 				if not has_site_symmetry:
 					has_site_symmetry = True
-				continue
 			else:
 				site_name_counter[site_name] = 1
-				site_names.append(site_name)
-				site_defs[site_name] = [] if len(site_split) == 1 else site_split[1:]
 
 		for sn in site_name_counter.keys():
 			if site_name_counter[sn] == 1:
@@ -616,11 +618,7 @@ class BNGLReader(Reader):
 				site_name_map[sn + str(site_name_counter[sn]-1)] = sn
 				site_name_counter[sn] -= 1
 
-		un_site_defs = {}
-		for sn in site_name_map.keys():
-			un_site_defs[sn] = site_defs[site_name_map[sn]]
-
-		return MoleculeDef(name, un_site_defs, site_name_map, has_site_symmetry)
+		return MoleculeDef(name, site_defs, site_name_map, has_site_symmetry)
 
 	@classmethod
 	def parse_molecule(cls,line):

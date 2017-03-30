@@ -38,13 +38,12 @@ class TestParse:
 		md1.site_name_map['b0'] = 'b'
 		md1.site_name_map['b1'] = 'b'
 		print md1.write_as_bngl()
-		assert md1.write_as_bngl() == "Mol(a,b~0~1,b~0~1,c~a~b,c~a~b)"
+		assert md1.write_as_bngl() == "Mol(a,b~0~1,c~a~b,b~0~1,c~a~b)"
 
 	def test_mol_parse(self):
 		assert BNGLReader.parse_molecule(self.mol0).write_as_bngl() == self.mol0
 		mol1 = BNGLReader.parse_molecule(self.mol1)
 		mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
-
 
 	def test_init_parse(self):
 		assert BNGLReader.parse_init(self.init0).write_as_bngl() == self.mol0+' 100.0'
