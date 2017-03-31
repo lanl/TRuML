@@ -64,18 +64,9 @@ class Molecule:
 	def __init__(self,name,sites):
 		self.name = name
 		self.sites = sites # list of Sites
-		self.site_dict = {s.name:s for s in self.sites}
-	
-	def write_as_bngl(self):
-		return self.name + '(' + ','.join([s.write_as_bngl() for s in self.sites]) + ')'
 
-	# returns list of molecule strings
-	# check to see how many of possible symm sites are present in pattern
-	def write_as_kappa(self,mdef):
-
-		def kappa_string(ss):
-			return self.name + '(' + ','.join(sorted(ss)) + ')' # sorted for consistent testing
-
+	# returns a list of molecules
+	def convert(self,mdef):
 		un_site_names = set([s.name for s in self.sites])
 		un_configs_per_site = {s:{} for s in un_site_names}
 		for s in self.sites:
@@ -105,9 +96,27 @@ class Molecule:
 			k_configs[sn] = cur_combs
 
 		k_prod = list(product(*k_configs.values()))
-		return [kappa_string([e.write_as_kappa() for t in tt for e in t]) for tt in k_prod]
 
+		return [Molecule(self.name,[e for t in tt for e in t]) for tt in k_prod]
 
+	def _write(self,bngl=True):
+		ss = []
+		for s in self.sites:
+			if bngl:
+				ss.append(s.write_as_bngl())
+			else:
+				ss.append(s.write_as_kappa())
+		return '%s(%s)'%(self.name,','.join(ss))
+
+	def write_as_bngl(self):
+		return self._write()
+
+	# returns list of molecule strings
+	# check to see how many of possible symm sites are present in pattern
+	def write_as_kappa(self):
+		if len(set([s.name for s in self.sites])) < len(self.sites):
+			raise NotCompatibleException("Kappa molecules cannot have identically named sites.  Convert first")
+		return self._write(False)
 
 	def __repr__(self):
 		return 'Molecule(name: %s, sites: %s)'%(self.name,', '.join([str(x) for x in self.sites]))

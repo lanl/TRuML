@@ -95,16 +95,16 @@ class TestPrint:
 
 	def test_molecules(self):
 		assert self.m0.write_as_bngl() == r'Test0(site0~state!3,site2!+)'
-		assert self.m0.write_as_kappa(self.md0)[0] == r'Test0(site0~state!3,site2!_)'
+		assert self.m0.write_as_kappa() == r'Test0(site0~state!3,site2!_)'
 		assert self.m1.write_as_bngl() == r'Test1(site1!?)'
-		assert self.m1.write_as_kappa(self.md1)[0] == r'Test1(site1?)'
+		assert self.m1.write_as_kappa() == r'Test1(site1?)'
 
 	def test_site_renaming(self):
-		km2 = self.m2.write_as_kappa(self.md2)
-		km3 = self.m3.write_as_kappa(self.md2)
-		km4 = self.m4.write_as_kappa(self.md2)
-		km5 = self.m5.write_as_kappa(self.md2)
-		km6 = self.m6.write_as_kappa(self.md2)
+		km2 = self.m2.convert(self.md2)
+		km3 = self.m3.convert(self.md2)
+		km4 = self.m4.convert(self.md2)
+		km5 = self.m5.convert(self.md2)
+		km6 = self.m6.convert(self.md2)
 		assert len(km2) == 4 # 4 choose 1
 		assert len(km3) == 6 # 4 choose 2
 		assert len(km4) == 24 # (4 choose 2) * (2 choose 1) * (2 choose 1)
@@ -122,7 +122,6 @@ class TestPrint:
 
 	def test_init_conditions(self):
 		assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
-		print self.i0.write_as_kappa([self.md0])[0]
 		assert self.i0.write_as_kappa([self.md0])[0] == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
 		assert self.i1.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) x+10'
 		assert self.i1.write_as_kappa([self.md0])[0] == r"%init: 'x'+10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
