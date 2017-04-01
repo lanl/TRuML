@@ -63,19 +63,20 @@ class MoleculeDef:
 class Molecule:
 	def __init__(self,name,sites):
 		self.name = name
-		self.sites = sites # list of Sites
+		self.sites = sorted(sites,key=lambda s: s.index) # list of Sites
 
 	# returns a list of molecules
 	def convert(self,mdef):
 		un_site_names = set([s.name for s in self.sites])
 		un_configs_per_site = {s:{} for s in un_site_names}
-		for s in self.sites:
+		for i in range(len(self.sites)):
+			s = self.sites[i]
 			if s not in un_configs_per_site[s.name]:
 				un_configs_per_site[s.name][s] = 0
 			un_configs_per_site[s.name][s] += 1
 
 		def rename_sites(names,site):
-			return tuple([Site(name,s=site.state,b=site.bond) for name in names])
+			return tuple([Site(name,site.index,s=site.state,b=site.bond) for name in names])
 
 		k_configs = {}
 		for sn in un_configs_per_site.keys():
@@ -122,8 +123,9 @@ class Molecule:
 		return 'Molecule(name: %s, sites: %s)'%(self.name,', '.join([str(x) for x in self.sites]))
 
 class Site:
-	def __init__(self,n,s=None,b=None):
+	def __init__(self,n,i,s=None,b=None):
 		self.name = n
+		self.index = i # position in the Molecule
 		self.state = s
 		self.bond = b
 
@@ -215,15 +217,13 @@ class CPattern:
 	def __init__(self,ml):
 		self.molecule_list = ml
 
-	def write_as_bngl(self):
-		return '.'.join([m.write_as_bngl() for m in self.molecule_list])
-
-	def write_as_kappa(self,mdefs): # mdefs is all the moleculedefs corresponding to molecules in the molecule list
+	# returns a list of objects with renamed sites
+	def convert(self,mdefs):
 		k_str_mol_list = []
 		for m in self.molecule_list:
 			for md in mdefs:
 				if m.name == md.name:
-					k_str_mol_list.append(m.write_as_kappa(md))
+					k_str_mol_list.append(m.convert(md))
 		k_patterns = product(*k_str_mol_list)
 		# remove doubles, preserve molecule order
 		seen = set()
@@ -232,8 +232,24 @@ class CPattern:
 			s_pat = tuple(sorted(pat))
 			if s_pat not in seen:
 				seen.add(s_pat)
-				un_k_patterns.append(','.join(pat))
+				un_k_patterns.append(CPattern(pat))
 		return un_k_patterns
+
+	def _write(self,bngl=True):
+		cps = []
+		for m in self.molecule_list:
+			if bngl:
+				cps.append(m.write_as_bngl())
+			else:
+				cps.append(m.write_as_kappa())
+		joiner = '.' if bngl else ','
+		return joiner.join(cps)
+
+	def write_as_bngl(self):
+		return self._write()
+
+	def write_as_kappa(self):
+		return self._write(False)
 
 	def __repr__(self):
 		return '\n'.join([str(x) for x in self.molecule_list])
@@ -244,22 +260,23 @@ class InitialCondition:
 		self.amount = a # can be number or expression
 		self.amount_is_number = ain
 
+	def convert(self,mdefs):
+		ss = self.species.convert(mdefs)
+		lss = len(ss)
+		if lss == 1:
+			amount = self.amount
+		else:
+			amount = self.amount / float(lss) if self.amount_is_number else Expression(['(']+self.amount.expr+[')','/',lss])
+		return [InitialCondition(s,amount,self.amount_is_number) for s in ss]
+
 	def write_as_bngl(self):
 		amount = self.amount if self.amount_is_number else self.amount.write_as_bngl()
 		return '%s %s'%(self.species.write_as_bngl(),amount)
 
 	# if there are symmetries, the initial condition amount is divided evenly among species
-	def write_as_kappa(self,mdefs):
-		symm_strings = self.species.write_as_kappa(mdefs)
-		num_symm = len(symm_strings)
-		if num_symm == 1:
-			amount = self.amount if self.amount_is_number else self.amount.write_as_kappa()
-		else:
-			amount = self.amount/float(num_symm) if self.amount_is_number else self.amount.write_as_kappa()
-		res = []
-		for s in symm_strings:
-			res.append('%%init: %s %s'%(amount,s))
-		return res
+	def write_as_kappa(self):
+		amount = self.amount if self.amount_is_number else self.amount.write_as_kappa()
+		return '%%init: %s %s'%(amount,self.species.write_as_kappa())
 
 	def __repr__(self):
 		return "Init(species: %s, quantity: %s)"%(self.species,self.amount)
@@ -416,7 +433,7 @@ class Observable:
 		obs_strs = []
 		for p in self.cpatterns:
 			# sorted for determinism (testing)
-			kos = '+'.join(sorted(['|%s|'%x for x in p.write_as_kappa(mdefs)]))
+			kos = '+'.join(sorted(['|%s|'%x.write_as_kappa() for x in p.convert(mdefs)]))
 			obs_strs.append(kos)
 
 		obs = '+'.join(obs_strs)
@@ -653,24 +670,25 @@ class BNGLReader(Reader):
 		if not sites[0]:
 			return Molecule(mname,[])
 		site_list = []
-		for s in sites:
+		for i in range(len(sites)):
+			s = sites[i]
 			if '~' in s:
 				tsplit = re.split('~',s)
 				name = tsplit[0]
 				if '!' in s:
 					bsplit = re.split('!',tsplit[1])
 					bond = cls.parse_bond(bsplit[1])
-					site_list.append(Site(name,s=bsplit[0],b=bond))
+					site_list.append(Site(name,i,s=bsplit[0],b=bond))
 				else:
-					site_list.append(Site(name,s=tsplit[1]))
+					site_list.append(Site(name,i,s=tsplit[1]))
 			else:
 				if '!' in s:
 					bsplit = re.split('!',s)
 					name = bsplit[0]
 					bond = cls.parse_bond(bsplit[1])
-					site_list.append(Site(name,b=bond))
+					site_list.append(Site(name,i,b=bond))
 				else:
-					site_list.append(Site(s))
+					site_list.append(Site(s,i))
 		return Molecule(mname,site_list)
 
 	# TODO implement parsing for expression (need to identify variables for conversion to kappa syntax)
@@ -730,7 +748,7 @@ class BNGLReader(Reader):
 				num_changed_bonds += 1
 		return num_changed_bonds == 2
 
-	# TODO parse rule label
+	# TODO parse rule label, change so that lhs and rule 'action' is returned
 	@classmethod
 	def parse_rule(cls,line):
 		sline = line.strip()

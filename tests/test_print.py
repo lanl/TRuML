@@ -14,10 +14,10 @@ class TestPrint:
 		cls.wild_bond = Bond(-1,w=True)
 		cls.any_bond = Bond(-3,a=True)
 
-		cls.s0 = Site('site0',s='state',b=cls.num_bond)
-		cls.s1 = Site('site1',b=cls.any_bond)
-		cls.s2 = Site('site2',b=cls.wild_bond)
-		cls.s3 = Site('site0',s='state')
+		cls.s0 = Site('site0',0,s='state',b=cls.num_bond)
+		cls.s1 = Site('site1',0,b=cls.any_bond)
+		cls.s2 = Site('site2',1,b=cls.wild_bond)
+		cls.s3 = Site('site0',0,s='state')
 		
 		cls.md0 = MoleculeDef('Test0',[('site0',['state','state2']),('site1',[]),('site2',[])],{'site0':'site0','site1':'site1','site2':'site2'})
 		cls.md1 = MoleculeDef('Test1',[('site1',[])],{'site1':'site1'})
@@ -27,11 +27,11 @@ class TestPrint:
 
 		cls.m0 = Molecule('Test0',[cls.s0,cls.s2])
 		cls.m1 = Molecule('Test1',[cls.s1])
-		cls.m2 = Molecule('Test2',[Site('a')])
-		cls.m3 = Molecule('Test2',[Site('a'),Site('a')])
-		cls.m4 = Molecule('Test2',[Site('a'),Site('a',b=Bond(1)),Site('c')])
-		cls.m5 = Molecule('Test2',[Site('a'),Site('a',b=Bond(1)),Site('a'),Site('b')])
-		cls.m6 = Molecule('Test2',[Site('a'),Site('a',b=Bond(1)),Site('a',Bond(2)),Site('b')])
+		cls.m2 = Molecule('Test2',[Site('a',0)])
+		cls.m3 = Molecule('Test2',[Site('a',0),Site('a',1)])
+		cls.m4 = Molecule('Test2',[Site('a',0),Site('a',1,b=Bond(1)),Site('c',2)])
+		cls.m5 = Molecule('Test2',[Site('a',0),Site('a',1,b=Bond(1)),Site('a',2),Site('b',3)])
+		cls.m6 = Molecule('Test2',[Site('a',0),Site('a',1,b=Bond(1)),Site('a',2,Bond(2)),Site('b',3)])
 
 		cls.p0 = CPattern([cls.m0,Molecule('Test0',[cls.s0])])
 		cls.p1 = CPattern([Molecule('Test0',[cls.s3,cls.s2]),Molecule('Test0',[cls.s3])])
@@ -113,18 +113,18 @@ class TestPrint:
 
 	def test_patterns(self):
 		assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
-		assert self.p0.write_as_kappa([self.md0])[0] == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
+		assert self.p0.write_as_kappa() == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
 		assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
-		kp4 = self.p4.write_as_kappa([self.md0,self.md2])
+		kp4 = self.p4.convert([self.md0,self.md2])
 		assert len(kp4) == 4
-		print sorted(kp4)
-		assert sorted(kp4) == [r'Test2(a0),Test0(site0~state!3,site2!_)',r'Test2(a1),Test0(site0~state!3,site2!_)',r'Test2(a2),Test0(site0~state!3,site2!_)',r'Test2(a3),Test0(site0~state!3,site2!_)']
+		print sorted([k.write_as_kappa() for k in kp4])
+		assert sorted([k.write_as_kappa() for k in kp4]) == [r'Test2(a0),Test0(site0~state!3,site2!_)',r'Test2(a1),Test0(site0~state!3,site2!_)',r'Test2(a2),Test0(site0~state!3,site2!_)',r'Test2(a3),Test0(site0~state!3,site2!_)']
 
 	def test_init_conditions(self):
 		assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
-		assert self.i0.write_as_kappa([self.md0])[0] == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
+		assert self.i0.write_as_kappa() == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
 		assert self.i1.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) x+10'
-		assert self.i1.write_as_kappa([self.md0])[0] == r"%init: 'x'+10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
+		assert self.i1.write_as_kappa() == r"%init: 'x'+10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
 
 	#TODO write more to check function map functionality
 	def test_pars_and_funcs(self):
