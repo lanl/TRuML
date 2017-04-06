@@ -57,7 +57,7 @@ class MoleculeDef:
 		return "%%agent: %s(%s)"%(self.name,self._all_site_states(False))
 
 	def __repr__(self):
-		sites_string = ','.join(['%s->%s'%(k,self.sites[k]) for k in self.sites.keys()])
+		sites_string = ','.join(['%s->%s'%(k,v) for k,v in self.sites])
 		return "MoleculeDef(name: %s, sites: %s)"%(self.name,sites_string)
 
 class Molecule:
@@ -730,7 +730,7 @@ class BNGLReader(Reader):
 		is_reversible = True if re.search('<->',sline) else False
 		parts = re.split('->',sline)
 		lhs_cpatterns = [cls.parse_cpattern(x) for x in re.split('(?<!!)\+',parts[0].rstrip('<'))]
-		rem = re.split('(?<!!)\+',parts[1].strip())
+		rem = [x.strip() for x in re.split('(?<!!)\+',parts[1].strip())]
 		# if the rule is an unbinding rule or has a '+' in its rate expression
 		if len(rem) > 1:
 			one_past_final_mol_index = 0
