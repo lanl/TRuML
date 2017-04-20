@@ -4,6 +4,7 @@ from pyparsing import Literal,CaselessLiteral,Word,Combine,Group,Optional,\
 from deepdiff import DeepDiff
 from itertools import product, combinations
 from copy import deepcopy
+import networkx as nx
 
 class NotAMoleculeException(Exception):
 	def __init__(self,s):
@@ -216,6 +217,64 @@ class Bond:
 class CPattern:
 	def __init__(self,ml):
 		self.molecule_list = ml
+
+	def _build_graph(self):
+		g = nx.DiGraph()
+		c = 0
+
+		# enter molecules and sites into graph and their hierarchical edges
+		for mol in self.molecule_list:
+			g.add_node(c,name=mol.name,type='M')
+			cur_mol_num = c
+			c += 1
+			for s in mol.sites:
+				bond = 'u'
+				if s.bond is not None:
+					if s.bond.wild:
+						bond = 'w'
+					elif s.bond.any:
+						bond = 'a'
+					else:
+						bond = 'b'
+				state = '' if s.state is None else str(s.state)
+				g.add_node(c,name=s.name,type='s',bond=bond,state=state)
+				g.add_edge(cur_mol_num,c,type='hier')
+				c += 1
+
+		# enter bonds into graph
+		c = 0
+		for i in range(len(self.molecule_list)-1):
+			mol = self.molecule_list[i]
+			cur_mol_num = c
+			c += 1
+			for s in mol.sites:
+				if s.bond is None:
+					c += 1
+					continue
+				else:
+					for j in range(i+1,len(self.molecule_list)):
+						c2 = cur_mol_num + len(mol.sites) + 2
+						for s2 in self.molecule_list[j].sites:
+							if s2.bond is None:
+								c2 +=1
+								continue
+							else:
+								if s.bond == s2.bond and s.bond.num >= 0:
+									g.add_edges_from([(c,c2),(c2,c)],type='bond')
+								c2 += 1
+						c2 += 1
+					c += 1
+
+		return g
+
+	def _permute(self):
+		pass
+
+	# since conversion to Kappa removes identical site names, automorphisms only exist
+	# on the level of the molecule
+	def automorphisms(self):
+		# implement check to confirm that there are no identical site names in the pattern's molecules
+		pass
 
 	# returns a list of objects with renamed sites
 	def convert(self,mdefs):
