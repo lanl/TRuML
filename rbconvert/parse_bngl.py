@@ -2,9 +2,10 @@ import re
 from pyparsing import Literal,CaselessLiteral,Word,Combine,Group,Optional,\
     ZeroOrMore,Forward,nums,alphas
 from deepdiff import DeepDiff
-from itertools import product, combinations
+import itertools as it 
 from copy import deepcopy
 import networkx as nx
+import networkx.algorithms.isomorphism as iso
 
 class NotAMoleculeException(Exception):
 	def __init__(self,s):
@@ -13,6 +14,10 @@ class NotAMoleculeException(Exception):
 class NotCompatibleException(Exception):
 	def __init__(self,s):
 		print s
+
+class NotConvertedException(Exception):
+	def __init__(self):
+		print "Must convert object due to identically named sites"
 
 # full definition
 class MoleculeDef:
@@ -66,6 +71,27 @@ class Molecule:
 		self.name = name
 		self.sites = sorted(sites,key=lambda s: s.index) # list of Sites
 
+	def _node_name(self):
+		sstrs = []
+		for s in self.sites:
+			sstr = s._site_plus_state()
+			if s.bond is not None:
+				if s.bond.wild:
+					sstr += '?'
+				elif s.bond.any:
+					sstr += '!'
+				else:
+					sstr += 'b'
+			else:
+				sstr += 'u'
+			sstrs.append(sstr)
+
+		return self.name+':'+'_'.join(sorted(sstrs))
+
+	def has_identical_sites(self):
+		sn_set = set([s.name for s in self.sites])
+		return len(sn_set) != len(self.sites)
+
 	# returns a list of molecules
 	def convert(self,mdef):
 		un_site_names = set([s.name for s in self.sites])
@@ -86,18 +112,18 @@ class Molecule:
 			cur_combs = []
 			for s,n in un_configs_per_site[sn].iteritems():
 				if len(cur_combs) == 0:
-					cur_combs = [rename_sites(names,s) for names in combinations(k_sn_names,n)]
+					cur_combs = [rename_sites(names,s) for names in it.combinations(k_sn_names,n)]
 				else:
 					tmp_combs = []
 					for cc in cur_combs:
 						rem_names = k_sn_names - set(map(lambda l: l.name, cc))
-						new_combs = [rename_sites(names,s) for names in combinations(rem_names,n)]
+						new_combs = [rename_sites(names,s) for names in it.combinations(rem_names,n)]
 						for nc in new_combs:
 							tmp_combs.append(cc+nc)
 					cur_combs = tmp_combs
 			k_configs[sn] = cur_combs
 
-		k_prod = list(product(*k_configs.values()))
+		k_prod = list(it.product(*k_configs.values()))
 
 		return [Molecule(self.name,[e for t in tt for e in t]) for tt in k_prod]
 
@@ -130,9 +156,12 @@ class Site:
 		self.state = s
 		self.bond = b
 
+	def _site_plus_state(self):
+		state = '' if self.state is None else '~%s'%self.state
+		return self.name+state
+
 	def _add_state_bond(self,s,kappa=False):
-		if self.state is not None:
-			s += '~%s'%self.state
+		s = self._site_plus_state()
 		if self.bond is not None and kappa:
 			s += self.bond.write_as_kappa()
 		elif self.bond is not None:
@@ -219,62 +248,87 @@ class CPattern:
 		self.molecule_list = ml
 
 	def _build_graph(self):
-		g = nx.DiGraph()
-		c = 0
+		g = nx.Graph()
 
-		# enter molecules and sites into graph and their hierarchical edges
-		for mol in self.molecule_list:
-			g.add_node(c,name=mol.name,type='M')
-			cur_mol_num = c
-			c += 1
-			for s in mol.sites:
-				bond = 'u'
-				if s.bond is not None:
-					if s.bond.wild:
-						bond = 'w'
-					elif s.bond.any:
-						bond = 'a'
-					else:
-						bond = 'b'
-				state = '' if s.state is None else str(s.state)
-				g.add_node(c,name=s.name,type='s',bond=bond,state=state)
-				g.add_edge(cur_mol_num,c,type='hier')
-				c += 1
+		# enter molecules and sites into graph 
+		# nodes are named with the molecule name and sorted list of sites (including states if present) without bonds
+		# edges are named with sorted site names
+		for i,mol in enumerate(self.molecule_list):
+			nstr = mol._node_name()
+			g.add_node(i,name=nstr)
 
 		# enter bonds into graph
-		c = 0
 		for i in range(len(self.molecule_list)-1):
-			mol = self.molecule_list[i]
-			cur_mol_num = c
-			c += 1
-			for s in mol.sites:
-				if s.bond is None:
-					c += 1
-					continue
-				else:
-					for j in range(i+1,len(self.molecule_list)):
-						c2 = cur_mol_num + len(mol.sites) + 2
-						for s2 in self.molecule_list[j].sites:
-							if s2.bond is None:
-								c2 +=1
-								continue
-							else:
-								if s.bond == s2.bond and s.bond.num >= 0:
-									g.add_edges_from([(c,c2),(c2,c)],type='bond')
-								c2 += 1
-						c2 += 1
-					c += 1
+			for j in range(i+1,len(self.molecule_list)):
+				for s in self.molecule_list[i].sites:
+					if s.bond is None:
+						break
+					for s2 in self.molecule_list[j].sites:
+						if s2.bond is None:
+							break
+						if s.bond == s2.bond and s.bond.num >= 0:
+							bond_name = '-'.join(sorted([s.name,s2.name]))
+							g.add_edge(i,j,name=bond_name)
 
 		return g
 
-	def _permute(self):
-		pass
+	# returns a list of graphs with all permutations of identical nodes
+	@staticmethod
+	def _permute(g):
+		# build dict of node name: node
+		node_name_dict = {}
+		for node in g.nodes():
+			name = g.node[node]['name']
+			if name not in node_name_dict.keys():
+				node_name_dict[name] = [node]
+			else:
+				node_name_dict[name].append(node)
+		# remove unique nodes
+		for n in node_name_dict.keys():
+			if len(node_name_dict[n]) == 1:
+				node_name_dict.pop(n)
+			else:
+				node_name_dict[n] = sorted(node_name_dict[n])
+		# find all permutations of nodes corresponding to a particular name (possible node mappings)
+		per_node_tuples = [] # this is a list of 
+		for n in node_name_dict.keys():
+			# original ordering
+			op = node_name_dict[n]
+			# all permutations of original ordering
+			perms = list(it.permutations(op))
+			# converting each permutation into a list of tuples (mapping the original ordering to the permutation)
+			# each entry in tuples is a list of tuples corresponding to a permutation of the node type's nodes
+			tuples = [list(it.izip(op,p))+list(it.izip(p,op)) for p in perms]
+			per_node_tuples.append(tuples)
+		# this is a tricky one:
+		# first take the cartesian product over the list of lists of permutations for each node type
+		# all combinations of permutations over all node types.  Each result is a list of node type
+		# permutations (a list of tuples), so flatten the list to a single list of tuples.  Convert 
+		# to a dictionary for the actual node relabeling    
+		relabeling_dicts = [dict(it.chain(*x)) for x in it.product(*per_node_tuples)]
+
+		return [nx.relabel_nodes(g,rd) for rd in relabeling_dicts]
 
 	# since conversion to Kappa removes identical site names, automorphisms only exist
 	# on the level of the molecule
 	def automorphisms(self):
 		# implement check to confirm that there are no identical site names in the pattern's molecules
-		pass
+		for m in self.molecule_list:
+			if m.has_identical_sites():
+				raise NotConvertedException
+		if len([m._node_name() for m in self.molecule_list]) == len(set([m.name for m in self.molecule_list])):
+			return 1
+		else:
+			g = self._build_graph()
+			am = 0
+			nm = iso.categorical_node_match('name','')
+			em = iso.categorical_edge_match('name','')
+			for gp in self._permute(g):
+				is_iso = iso.is_isomorphic(g,gp,edge_match=em,node_match=nm)
+				equal_edges = set(g.edges()) == set(gp.edges())
+				if is_iso and equal_edges:
+					am += 1
+			return am
 
 	# returns a list of objects with renamed sites
 	def convert(self,mdefs):
@@ -283,7 +337,7 @@ class CPattern:
 			for md in mdefs:
 				if m.name == md.name:
 					k_str_mol_list.append(m.convert(md))
-		k_patterns = product(*k_str_mol_list)
+		k_patterns = it.product(*k_str_mol_list)
 		# remove doubles, preserve molecule order
 		seen = set()
 		un_k_patterns = []
@@ -424,6 +478,7 @@ class Rate:
 		return "Rate: %s"%self.rate
 
 #TODO implement check for rate as raw number before writing
+#TODO add check for automorphisms in CPatterns
 class Rule:
 	# lhs, rhs are lists of CPatterns, rate/rev_rate are Rates, rev is bool (true for reversible rules), 
 	# amb_mol is boolean denoting a rule that (in Kappa) has ambiguous molecularity
@@ -454,7 +509,7 @@ class Rule:
 		def kappa_rule_string(lhss,ars,rhss,rs):
 			return '%s %s %s @ %s'%(lhss,ars,rhss,rs)
 
-		lhs_strings = product(*[p.write_as_kappa(mdefs) for p in self.lhs])
+		lhs_strings = it.product(*[p.write_as_kappa(mdefs) for p in self.lhs])
 
 
 		# lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
