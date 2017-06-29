@@ -92,7 +92,8 @@ class Molecule:
 		sn_set = set([s.name for s in self.sites])
 		return len(sn_set) != len(self.sites)
 
-	# returns a list of molecules
+	# TODO consider cases with potential for double counting (cases where identical sites are omitted from a rule)
+    # TODO must enumerate binding or general site state possibilities in this case
 	def convert(self,mdef):
 		un_site_names = set([s.name for s in self.sites])
 		un_configs_per_site = {s:{} for s in un_site_names}
