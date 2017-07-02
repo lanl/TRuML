@@ -22,10 +22,17 @@ class TestPrint:
         cls.s2 = Site('site2', 1, b=cls.wild_bond)
         cls.s3 = Site('site0', 0, s='state')
 
-        cls.md0 = MoleculeDef('Test0', [('site0', ['state', 'state2']), ('site1', []), ('site2', [])],
+        cls.sd0 = SiteDef('site0', ['state', 'state2'])
+        cls.sd1 = SiteDef('site1', [])
+        cls.sd2 = SiteDef('site2', [])
+        cls.sd3 = SiteDef('a', [])
+        cls.sd4 = SiteDef('b', [])
+        cls.sd5 = SiteDef('c', [])
+
+        cls.md0 = MoleculeDef('Test0', [cls.sd0, cls.sd1, cls.sd2],
                               {'site0': 'site0', 'site1': 'site1', 'site2': 'site2'})
-        cls.md1 = MoleculeDef('Test1', [('site1', [])], {'site1': 'site1'})
-        cls.md2 = MoleculeDef('Test2', [('a', []), ('a', []), ('a', []), ('a', []), ('b', []), ('c', []), ('c', [])],
+        cls.md1 = MoleculeDef('Test1', [cls.sd1], {'site1': 'site1'})
+        cls.md2 = MoleculeDef('Test2', [cls.sd3, cls.sd3, cls.sd3, cls.sd3, cls.sd4, cls.sd5, cls.sd5],
                               {'a0': 'a', 'a1': 'a', 'a2': 'a', 'a3': 'a', 'b': 'b', 'c0': 'c', 'c1': 'c'}, hss=True)
         cls.md3 = MoleculeDef('A', [], {})
         cls.md4 = MoleculeDef('B', [], {})

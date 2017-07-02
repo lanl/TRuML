@@ -27,11 +27,33 @@ class NotConvertedException(Exception):
     def __init__(self):
         print "Must convert object due to identically named sites"
 
+class SiteDef:
+    """A site definition composed of a name and a finite set of states"""
+
+    def __init__(self, n, ss):
+        self.name = n
+        self.state_list = ss
+
+    def _write(self):
+        if self.state_list:
+            return "%s~%s"%(self.name, '~'.join(self.state_list))
+        else:
+            return self.name
+
+    def write_as_bngl(self):
+        return self._write()
+
+    def write_as_kappa(self):
+        return self._write()
+
+    def __repr__(self):
+        return "SiteDef(%s: %s)"%(self.name, ','.join(self.state_list))
+
 
 class MoleculeDef:
     """A BNGL molecule type or Kappa agent signature"""
 
-    def __init__(self, n, st, snm, hss=False):
+    def __init__(self, n, sds, snm, hss=False):
         """
         MoleculeDef initialization function that calculates inverse site name mapping.
 
@@ -40,7 +62,7 @@ class MoleculeDef:
         n : str
             Alphanumeric string that identifies the molecule type
         st : list
-            List of the molecule's sites
+            List of SiteDef instances
         snm : dict
             Dictionary that maps Kappa site names to BNGL site names
         hss : bool
@@ -48,7 +70,7 @@ class MoleculeDef:
 
         """
         self.name = n
-        self.sites = st
+        self.sites = sds
         self.site_name_map = snm
         self.has_site_symmetry = hss
         self._invert_site_name_map()
@@ -63,44 +85,20 @@ class MoleculeDef:
             else:
                 self.inv_site_name_map[v].append(k)
 
-    def _all_site_states(self, is_bngl=True):
-        """
-        Builds a string of all the molecule type's sites' states.
-
-        Parameters
-        ----------
-        is_bngl : bool
-            True if writing to BNGL syntax, False if Kappa
-
-        Returns
-        -------
-        str
-            Kappa or BNGL string defining a molecule
-        """
-        ss = []
-        if not is_bngl:
-            k_track = {s: list(reversed(sorted(self.inv_site_name_map[s]))) for s in self.inv_site_name_map.keys()}
-        # ordered for easy testing
-        for k, v in self.sites:
-            site_name = None
-            if is_bngl:
-                site_name = k
-            else:
-                site_name = k_track[k].pop()
-            if not v:
-                ss.append(site_name)
-            else:
-                ss.append('%s~%s' % (site_name, '~'.join(v)))
-        return ','.join(ss)
-
     def write_as_bngl(self):
         """Writes MoleculeDef as BNGL string"""
-        return "%s(%s)" % (self.name, self._all_site_states())
-
-        """Writes MoleculeDef as Kappa string"""
+        bss = [s.write_as_bngl() for s in self.sites]
+        return "%s(%s)" % (self.name, ','.join(bss))
 
     def write_as_kappa(self):
-        return "%%agent: %s(%s)" % (self.name, self._all_site_states(False))
+        """Writes MoleculeDef as Kappa string"""
+        ss = []
+        k_track = {s: list(reversed(sorted(self.inv_site_name_map[s]))) for s in self.inv_site_name_map.keys()}
+        for s in self.sites:
+            name = k_track[s.name].pop()
+            ss.append(SiteDef(name, s.state_list))
+        kss = [s.write_as_kappa() for s in ss]
+        return "%%agent: %s(%s)" % (self.name, ','.join(kss))
 
     def __repr__(self):
         sites_string = ','.join(['%s->%s' % (k, v) for k, v in self.sites])
@@ -1274,7 +1272,7 @@ class BNGLReader(Reader):
         for s in sites:
             site_split = re.split('~', s)
             site_name = site_split[0]
-            site_defs.append((site_name, [] if len(site_split) == 1 else site_split[1:]))
+            site_defs.append(SiteDef(site_name, [] if len(site_split) == 1 else site_split[1:]))
             if site_name in site_name_counter.keys():
                 site_name_counter[site_name] += 1
                 if not has_site_symmetry:
