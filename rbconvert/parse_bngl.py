@@ -85,20 +85,45 @@ class MoleculeDef:
             else:
                 self.inv_site_name_map[v].append(k)
 
-    def write_as_bngl(self):
-        """Writes MoleculeDef as BNGL string"""
-        bss = [s.write_as_bngl() for s in self.sites]
-        return "%s(%s)" % (self.name, ','.join(bss))
-
-    def write_as_kappa(self):
-        """Writes MoleculeDef as Kappa string"""
+    def convert(self):
+        """Converts MoleculeDef to use Kappa-compatible site names if necessary"""
         ss = []
+        snm = {}
         k_track = {s: list(reversed(sorted(self.inv_site_name_map[s]))) for s in self.inv_site_name_map.keys()}
         for s in self.sites:
             name = k_track[s.name].pop()
             ss.append(SiteDef(name, s.state_list))
-        kss = [s.write_as_kappa() for s in ss]
-        return "%%agent: %s(%s)" % (self.name, ','.join(kss))
+            snm[name] = s.name
+        return MoleculeDef(self.name, ss, snm)
+
+    def _write(self, is_bngl=True):
+        """
+        Writes MoleculeDef as string
+
+        Parameters
+        ----------
+        is_bngl : bool
+            If True, writes as BNGL string, else Kappa string
+
+        Returns
+        -------
+        str
+            MoleculeDef as BNGL molecule type or Kappa agent signature
+        """
+        if is_bngl or not self.has_site_symmetry:
+            ss = [s.write_as_bngl() for s in self.sites]
+        else:
+            md = self.convert()
+            ss = [s.write_as_kappa() for s in md.sites]
+        return "%s(%s)" % (self.name, ','.join(ss))
+
+    def write_as_bngl(self):
+        """Writes MoleculeDef as BNGL string"""
+        return self._write()
+
+    def write_as_kappa(self):
+        """Writes MoleculeDef as Kappa string"""
+        return "%%agent: %s"%self._write(is_bngl=False)
 
     def __repr__(self):
         sites_string = ','.join(['%s->%s' % (k, v) for k, v in self.sites])
@@ -165,8 +190,44 @@ class Molecule:
         sn_set = set([s.name for s in self.sites])
         return len(sn_set) != len(self.sites)
 
-    # TODO consider cases with potential for double counting (cases where identical sites are omitted from a rule)
-    # TODO must enumerate binding or general site state possibilities in this case
+    def _check_overlap(self, ms):
+        pass
+
+    def _enumerate_site(self, site_name, index, mdef, state=False):
+        """
+        Provides a list of sites in bound and unbound bond states, optionally
+        enumerating all potential states as well
+
+        Parameters
+        ----------
+        site_name : str
+            Kappa-compatible name of site
+        index : int
+            Index of site in molecule
+        mdef : MoleculeDef
+        state : bool
+            If True, enumerate site states as well as bond state, otherwise
+            only bond states.
+
+        Returns
+        -------
+        list
+            List of Sites
+        """
+        ss = []
+        if state:
+            for sn, ss in mdef.sites:
+                ss.append(Site(site_name))
+        else:
+            ss.append(Site(site_name, index, b=Bond(-1, w=True)))
+            ss.append(Site(site_name, index, b=None))
+            return ss
+
+    # TODO
+    # consider cases with potential for double counting events.  For example, if expanding a BNGL
+    # molecule with identical sites, direct expansion (i.e. enumerating the renamed sites) may not
+    # be appropriate.  There may be overlap in the rules, so we must enumerate binding or general
+    # site state possibilities in this case
     def convert(self, mdef):
         """
         Converts a molecule that may have multiple identically named sites
@@ -196,6 +257,16 @@ class Molecule:
         def rename_sites(names, site):
             return tuple([Site(name, site.index, s=site.state, b=site.bond) for name in names])
 
+        # Check for the possibility of overlapping patterns
+        possible_overlap = {k: False for k in un_configs_per_site.keys()}
+        for k in un_configs_per_site.keys():
+            num_identical_sites = len(mdef.inv_site_name_map[k])
+            if num_identical_sites > 1 and k in un_configs_per_site.keys():
+                num_present_sites = sum(un_configs_per_site[k].values())
+                if num_identical_sites > num_present_sites > 1:
+                    possible_overlap[k] = True
+                    break
+
         k_configs = {}
         for sn in un_configs_per_site.keys():
             k_configs[sn] = []
@@ -213,6 +284,17 @@ class Molecule:
                             tmp_combs.append(cc + nc)
                     cur_combs = tmp_combs
             k_configs[sn] = cur_combs
+            if possible_overlap[sn]:
+
+                # generate all possible configurations of site sn
+                # for remaining (unseen) sites, enumerate configurations
+
+                for idx in range(len(cur_combs),len(mdef.inv_site_name_map[k])):
+                    new_combs = gen_configs(idx)
+
+
+                bound_configs = [Site(sn, i, state, 'w')]
+                unbound_configs = []
 
         k_prod = list(it.product(*k_configs.values()))
 
@@ -249,11 +331,12 @@ class Molecule:
     def write_as_kappa(self):
         """Writes Molecule as Kappa string and checks for conversion if necessary"""
         if len(set([s.name for s in self.sites])) < len(self.sites):
-            raise NotConvertedException("Kappa molecules cannot have identically named sites.  Convert first")
+            raise NotConvertedException
         return self._write(False)
 
     def __repr__(self):
         return 'Molecule(name: %s, sites: %s)' % (self.name, ', '.join([str(x) for x in self.sites]))
+
 
 class Site:
     """
@@ -330,7 +413,7 @@ class Site:
             True if Sites are equivalent in terms of name, state, and bond
         """
         if isinstance(other, self.__class__):
-            return (self.name == other.name and self.state == other.state and self.bond == other.bond)
+            return self.name == other.name and self.state == other.state and self.bond == other.bond
         return False
 
     def __ne__(self, other):
@@ -516,8 +599,8 @@ class CPattern:
         # Find all permutations of all node types (possible node mappings)
         per_node_tuples = []
         for n in node_name_dict.keys():
-            op = node_name_dict[n] # Original permutation of node type n
-            perms = list(it.permutations(op)) # All permutations of node type n
+            op = node_name_dict[n]  # Original permutation of node type n
+            perms = list(it.permutations(op))  # All permutations of node type n
 
             # Convert each permutation into a list of tuples.  The list is a
             # mapping from the original ordering to a permutation.  Tuples is a

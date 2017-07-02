@@ -100,6 +100,7 @@ class TestPrint:
         assert self.s1.write_as_kappa() == r'site1?'
 
     def test_molec_def(self):
+        print self.md0.write_as_bngl()
         assert self.md0.write_as_bngl() == r'Test0(site0~state~state2,site1,site2)'
         assert self.md0.write_as_kappa() == r'%agent: Test0(site0~state~state2,site1,site2)'
         assert self.md2.write_as_bngl() == r'Test2(a,a,a,a,b,c,c)'
