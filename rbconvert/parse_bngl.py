@@ -126,8 +126,7 @@ class MoleculeDef:
         return "%%agent: %s"%self._write(is_bngl=False)
 
     def __repr__(self):
-        sites_string = ','.join(['%s->%s' % (k, v) for k, v in self.sites])
-        return "MoleculeDef(name: %s, sites: %s)" % (self.name, sites_string)
+        return "MoleculeDef(name: %s, sites: %s)" % (self.name, self.sites)
 
 
 class Molecule:
@@ -193,7 +192,7 @@ class Molecule:
     def _check_overlap(self, ms):
         pass
 
-    def _enumerate_site(self, site_name, index, mdef, state=False):
+    def _enumerate_site(self, site_name, index, mdef, need_state=False):
         """
         Provides a list of sites in bound and unbound bond states, optionally
         enumerating all potential states as well
@@ -205,7 +204,7 @@ class Molecule:
         index : int
             Index of site in molecule
         mdef : MoleculeDef
-        state : bool
+        need_state : bool
             If True, enumerate site states as well as bond state, otherwise
             only bond states.
 
@@ -215,13 +214,38 @@ class Molecule:
             List of Sites
         """
         ss = []
-        if state:
-            for sn, ss in mdef.sites:
-                ss.append(Site(site_name))
+        if need_state:
+            for s in mdef.sites:
+                if site_name == s.name:
+                    for state in s.state_list:
+                        ss.append(Site(site_name, index, state, b=Bond(-1, w=True)))
+                        ss.append(Site(site_name, index, state, b=None))
+                    break
         else:
             ss.append(Site(site_name, index, b=Bond(-1, w=True)))
             ss.append(Site(site_name, index, b=None))
-            return ss
+        return ss
+
+    @staticmethod
+    def _site_state_present(ss):
+        """
+        Checks to see if a Site in a list of Site instances has a defined state
+
+        Parameters
+        ----------
+        ss : list
+            List of Site instances
+
+        Returns
+        -------
+        bool
+            True if at least one site has a defined state, False otherwise
+
+        """
+        for s in ss:
+            if s.state:
+                return True
+        return False
 
     # TODO
     # consider cases with potential for double counting events.  For example, if expanding a BNGL
@@ -254,8 +278,11 @@ class Molecule:
                 un_configs_per_site[s.name][s] = 0
             un_configs_per_site[s.name][s] += 1
 
+        def rename_site(name, site):
+            return Site(name, site.index, s=site.state, b=site.bond)
+
         def rename_sites(names, site):
-            return tuple([Site(name, site.index, s=site.state, b=site.bond) for name in names])
+            return tuple([rename_site(name, site) for name in names])
 
         # Check for the possibility of overlapping patterns
         possible_overlap = {k: False for k in un_configs_per_site.keys()}
@@ -272,6 +299,7 @@ class Molecule:
             k_configs[sn] = []
             k_sn_names = set(mdef.inv_site_name_map[sn])
             cur_combs = []
+
             for s, n in un_configs_per_site[sn].iteritems():
                 if len(cur_combs) == 0:
                     cur_combs = [rename_sites(names, s) for names in it.combinations(k_sn_names, n)]
@@ -283,18 +311,23 @@ class Molecule:
                         for nc in new_combs:
                             tmp_combs.append(cc + nc)
                     cur_combs = tmp_combs
-            k_configs[sn] = cur_combs
+
             if possible_overlap[sn]:
+                need_state = self._site_state_present(un_configs_per_site[sn])
+                indices = range(len(un_configs_per_site[sn]), len(mdef.inv_site_name_map[k]))
 
-                # generate all possible configurations of site sn
-                # for remaining (unseen) sites, enumerate configurations
+                for idx in indices:
+                    possible_sites = self._enumerate_site(sn, idx, mdef, need_state)
+                    tmp_combs = []
+                    for cc in cur_combs:
+                        rem_names = k_sn_names - set(map(lambda l: l.name, cc))
+                        new_combs = [rename_site(x, y) for x, y in it.product(rem_names, possible_sites)]
+                        for nc in new_combs:
+                            tmp_combs.append(cc + (nc, ))
+                    cur_combs = tmp_combs
 
-                for idx in range(len(cur_combs),len(mdef.inv_site_name_map[k])):
-                    new_combs = gen_configs(idx)
-
-
-                bound_configs = [Site(sn, i, state, 'w')]
-                unbound_configs = []
+            # TODO FILTER REDUNDANT SITE TUPLES (MOVE THIS TO RULE CLASS)
+            k_configs[sn] = cur_combs
 
         k_prod = list(it.product(*k_configs.values()))
 
@@ -934,7 +967,7 @@ class Rate:
 
 
 # TODO implement check for rate as raw number before writing
-# TODO add check for automorphisms in CPatterns
+# TODO need to identify the rule's action (parsing step probably)
 class Rule:
     """Defines a rule"""
 
