@@ -729,9 +729,8 @@ class CPattern:
         seen = set()
         un_k_patterns = []
         for pat in k_patterns:
-            s_pat = tuple(sorted(pat))
-            if s_pat not in seen:
-                seen.add(s_pat)
+            if pat not in seen:
+                seen.add(pat)
                 un_k_patterns.append(CPattern(pat))
         return un_k_patterns
 
@@ -764,6 +763,18 @@ class CPattern:
     def write_as_kappa(self):
         """Write the CPattern as a Kappa string"""
         return self._write(False)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return frozenset(self.molecule_list) == frozenset(other.molecule_list)
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash(frozenset(self.molecule_list))
 
     def __repr__(self):
         return '\n'.join([str(x) for x in self.molecule_list])
