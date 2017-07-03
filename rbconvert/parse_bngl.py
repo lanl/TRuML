@@ -367,6 +367,18 @@ class Molecule:
             raise NotConvertedException
         return self._write(False)
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.name == other.name and frozenset(self.sites) == frozenset(other.sites)
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash((self.name, frozenset(self.sites)))
+
     def __repr__(self):
         return 'Molecule(name: %s, sites: %s)' % (self.name, ', '.join([str(x) for x in self.sites]))
 
@@ -518,14 +530,14 @@ class Bond:
         Returns
         -------
         bool
-            True if both bond numbers are positive or if both bonds are
+            True if both bond numbers are equal or if both bonds are
             wild or any.
         """
         if isinstance(other, self.__class__):
             num_check = False
             if (self.num < 0 and other.num < 0) or (self.num == other.num):
                 num_check = True
-            return (self.wild == other.wild and self.any == other.any and num_check)
+            return self.wild == other.wild and self.any == other.any and num_check
         return False
 
     def __ne__(self, other):
@@ -533,7 +545,7 @@ class Bond:
         return not self == other
 
     def __hash__(self):
-        return hash((self.num, self.wild, self.any))
+        return hash((-1 if self.num < 0 else self.num, self.wild, self.any))
 
     def __repr__(self):
         b_string = str(self.num)
