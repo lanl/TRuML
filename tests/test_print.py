@@ -25,7 +25,7 @@ class TestPrint:
         cls.sd0 = SiteDef('site0', ['state', 'state2'])
         cls.sd1 = SiteDef('site1', [])
         cls.sd2 = SiteDef('site2', [])
-        cls.sd3 = SiteDef('a', [])
+        cls.sd3 = SiteDef('a', ['0', '1', '2'])
         cls.sd4 = SiteDef('b', [])
         cls.sd5 = SiteDef('c', [])
 
@@ -34,8 +34,8 @@ class TestPrint:
         cls.md1 = MoleculeDef('Test1', [cls.sd1], {'site1': 'site1'})
         cls.md2 = MoleculeDef('Test2', [cls.sd3, cls.sd3, cls.sd3, cls.sd3, cls.sd4, cls.sd5, cls.sd5],
                               {'a0': 'a', 'a1': 'a', 'a2': 'a', 'a3': 'a', 'b': 'b', 'c0': 'c', 'c1': 'c'}, hss=True)
-        cls.md3 = MoleculeDef('A', [], {})
-        cls.md4 = MoleculeDef('B', [], {})
+        cls.md3 = MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
+        cls.md4 = MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
 
         cls.m0 = Molecule('Test0', [cls.s0, cls.s2])
         cls.m1 = Molecule('Test1', [cls.s1])
@@ -44,12 +44,19 @@ class TestPrint:
         cls.m4 = Molecule('Test2', [Site('a', 0), Site('a', 1, b=Bond(1)), Site('c', 2)])
         cls.m5 = Molecule('Test2', [Site('a', 0), Site('a', 1, b=Bond(1)), Site('a', 2), Site('b', 3)])
         cls.m6 = Molecule('Test2', [Site('a', 0), Site('a', 1, b=Bond(1)), Site('a', 2, Bond(2)), Site('b', 3)])
+        cls.m7 = Molecule('A', [Site('a', 0, b=Bond(-1, w=True)), Site('a', 1)])
+        cls.m8 = Molecule('B', [Site('b', 0)])
+        cls.m9 = Molecule('A', [Site('a', 0, b=Bond(-1, w=True)), Site('a', 1, b=Bond(1))])
+        cls.m10 = Molecule('B', [Site('b', 0, b=Bond(1))])
 
         cls.p0 = CPattern([cls.m0, Molecule('Test0', [cls.s0])])
         cls.p1 = CPattern([Molecule('Test0', [cls.s3, cls.s2]), Molecule('Test0', [cls.s3])])
         cls.p2 = CPattern([Molecule('A', [])])
         cls.p3 = CPattern([Molecule('B', [])])
         cls.p4 = CPattern([cls.m2, cls.m0])
+        cls.p5 = CPattern([cls.m7])
+        cls.p6 = CPattern([cls.m8])
+        cls.p7 = CPattern([cls.m9, cls.m10])
 
         cls.i0 = InitialCondition(cls.p0, 10)
         # implement functionality to print initial condition as kappa/bngl expression
@@ -68,6 +75,7 @@ class TestPrint:
         cls.rule0 = Rule([cls.p2], [cls.p3], cls.rate0)
         cls.rule1 = Rule([cls.p2], [cls.p3], cls.rate1, False, cls.rate2)
         cls.rule2 = Rule([cls.p2], [cls.p3], cls.rate0, True, cls.rate2)
+        cls.rule3 = Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
 
         cls.obs0 = Observable("Obs0", [cls.p3], 'm')
         cls.obs1 = Observable("Obs1", [cls.p2, cls.p3], 's')
@@ -100,11 +108,10 @@ class TestPrint:
         assert self.s1.write_as_kappa() == r'site1?'
 
     def test_molec_def(self):
-        print self.md0.write_as_bngl()
         assert self.md0.write_as_bngl() == r'Test0(site0~state~state2,site1,site2)'
         assert self.md0.write_as_kappa() == r'%agent: Test0(site0~state~state2,site1,site2)'
-        assert self.md2.write_as_bngl() == r'Test2(a,a,a,a,b,c,c)'
-        assert self.md2.write_as_kappa() == r'%agent: Test2(a0,a1,a2,a3,b,c0,c1)'
+        assert self.md2.write_as_bngl() == r'Test2(a~0~1~2,a~0~1~2,a~0~1~2,a~0~1~2,b,c,c)'
+        assert self.md2.write_as_kappa() == r'%agent: Test2(a0~0~1~2,a1~0~1~2,a2~0~1~2,a3~0~1~2,b,c0,c1)'
 
     def test_molecules(self):
         assert self.m0.write_as_bngl() == r'Test0(site0~state!3,site2!+)'
@@ -118,11 +125,11 @@ class TestPrint:
         km4 = self.m4.convert(self.md2)
         km5 = self.m5.convert(self.md2)
         km6 = self.m6.convert(self.md2)
-        assert len(km2) == 4  # 4 choose 1
-        assert len(km3) == 6  # 4 choose 2
-        assert len(km4) == 24  # (4 choose 2) * (2 choose 1) * (2 choose 1)
-        assert len(km5) == 12  # (4 choose 2) * (2 choose 1)
-        assert len(km6) == 24  # (4 choose 1) * (3 choose 1) * (2 choose 1)
+        assert len(km2) == 4    # 4 choose 1
+        assert len(km3) == 48   # (4 choose 2) * 2^2 * 2^1
+        assert len(km4) == 192  # km3 * 2 * 2^1
+        assert len(km5) == 24   # (4 choose 2) * (2 choose 1) * 2
+        assert len(km6) == 144  # (4 choose 1) * (3 choose 1) * (2 choose 1) * 3 * 2
 
     def test_patterns(self):
         assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
@@ -162,11 +169,14 @@ class TestPrint:
 
     def test_rule(self):
         assert self.rule0.write_as_bngl() == r'A() -> B() 3'
-        # assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
+        assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
         assert self.rule1.write_as_bngl() == r'A() -> B() ln(10)+x-356'
-        # assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10)+'x'-356"
+        assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10)+'x'-356"
         assert self.rule2.write_as_bngl() == r'A() <-> B() 3,rate'
-        # assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
+        assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
+
+    def test_rule_expansion(self):
+        assert len(self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])) == 18
 
     def test_obs(self):
         assert self.obs0.write_as_bngl() == r'Molecules Obs0 B()'

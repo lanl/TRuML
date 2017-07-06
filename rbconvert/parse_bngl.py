@@ -27,6 +27,7 @@ class NotConvertedException(Exception):
     def __init__(self):
         print "Must convert object due to identically named sites"
 
+
 class SiteDef:
     """A site definition composed of a name and a finite set of states"""
 
@@ -36,7 +37,7 @@ class SiteDef:
 
     def _write(self):
         if self.state_list:
-            return "%s~%s"%(self.name, '~'.join(self.state_list))
+            return "%s~%s" % (self.name, '~'.join(self.state_list))
         else:
             return self.name
 
@@ -47,7 +48,10 @@ class SiteDef:
         return self._write()
 
     def __repr__(self):
-        return "SiteDef(%s: %s)"%(self.name, ','.join(self.state_list))
+        if not self.state_list:
+            return "SiteDef(%s)" % self.name
+        else:
+            return "SiteDef(%s: %s)" % (self.name, ','.join(self.state_list))
 
 
 class MoleculeDef:
@@ -123,7 +127,7 @@ class MoleculeDef:
 
     def write_as_kappa(self):
         """Writes MoleculeDef as Kappa string"""
-        return "%%agent: %s"%self._write(is_bngl=False)
+        return "%%agent: %s" % self._write(is_bngl=False)
 
     def __repr__(self):
         return "MoleculeDef(name: %s, sites: %s)" % (self.name, self.sites)
@@ -295,18 +299,18 @@ class Molecule:
                     break
 
         k_configs = {}
-        for sn in un_configs_per_site.keys():
+        for sn in sorted(un_configs_per_site.keys()):
             k_configs[sn] = []
             k_sn_names = set(mdef.inv_site_name_map[sn])
             cur_combs = []
 
-            for s, n in un_configs_per_site[sn].iteritems():
+            for s, n in sorted(un_configs_per_site[sn].iteritems()):
                 if len(cur_combs) == 0:
-                    cur_combs = [rename_sites(names, s) for names in it.combinations(k_sn_names, n)]
+                    cur_combs = [rename_sites(names, s) for names in it.combinations(sorted(list(k_sn_names)), n)]
                 else:
                     tmp_combs = []
                     for cc in cur_combs:
-                        rem_names = k_sn_names - set(map(lambda l: l.name, cc))
+                        rem_names = sorted(list(k_sn_names - set(map(lambda l: l.name, cc))))
                         new_combs = [rename_sites(names, s) for names in it.combinations(rem_names, n)]
                         for nc in new_combs:
                             tmp_combs.append(cc + nc)
@@ -314,19 +318,18 @@ class Molecule:
 
             if possible_overlap[sn]:
                 need_state = self._site_state_present(un_configs_per_site[sn])
-                indices = range(len(un_configs_per_site[sn]), len(mdef.inv_site_name_map[k]))
+                indices = range(sum(un_configs_per_site[sn].values()), len(mdef.inv_site_name_map[k]))
 
                 for idx in indices:
                     possible_sites = self._enumerate_site(sn, idx, mdef, need_state)
                     tmp_combs = []
                     for cc in cur_combs:
-                        rem_names = k_sn_names - set(map(lambda l: l.name, cc))
+                        rem_names = sorted(list(k_sn_names - set(map(lambda l: l.name, cc))))
                         new_combs = [rename_site(x, y) for x, y in it.product(rem_names, possible_sites)]
                         for nc in new_combs:
-                            tmp_combs.append(cc + (nc, ))
+                            tmp_combs.append(cc + (nc,))
                     cur_combs = tmp_combs
 
-            # TODO FILTER REDUNDANT SITE TUPLES (MOVE THIS TO RULE CLASS)
             k_configs[sn] = cur_combs
 
         k_prod = list(it.product(*k_configs.values()))
@@ -725,14 +728,15 @@ class CPattern:
                 if m.name == md.name:
                     k_str_mol_list.append(m.convert(md))
         k_patterns = it.product(*k_str_mol_list)
-        # Remove doubles and preserve molecule order
-        seen = set()
-        un_k_patterns = []
-        for pat in k_patterns:
-            if pat not in seen:
-                seen.add(pat)
-                un_k_patterns.append(CPattern(pat))
-        return un_k_patterns
+        return [CPattern(pat) for pat in k_patterns]
+        # # Remove doubles and preserve molecule order
+        # seen = set()
+        # un_k_patterns = []
+        # for pat in k_patterns:
+        #     if pat not in seen:
+        #         seen.add(pat)
+        #         un_k_patterns.append(CPattern(pat))
+        # return un_k_patterns
 
     def _write(self, bngl=True):
         """
@@ -990,7 +994,6 @@ class Rate:
 
 
 # TODO implement check for rate as raw number before writing
-# TODO need to identify the rule's action (parsing step probably)
 class Rule:
     """Defines a rule"""
 
@@ -1020,6 +1023,37 @@ class Rule:
         self.arrow = '->' if not rev else '<->'
         self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
 
+    def convert(self, lhs_mdefs, rhs_mdefs):
+        """
+        Converts a Rule to a Kappa-compatible naming scheme
+
+        Parameters
+        ----------
+        lhs_mdefs : list
+            List of MoleculeDef instances corresponding to CPatterns on the
+            Rule's left-hand side
+        rhs_mdefs : list
+            List of MoleculeDef instances corresponding to CPatterns on the
+            Rule's right-hand side
+        Returns
+        -------
+        list
+            List of Rule instances
+        """
+        k_lhs, k_rhs = [], []
+        for cp in self.lhs:
+            k_lhs.append(cp.convert(lhs_mdefs))
+        for cp in self.rhs:
+            k_rhs.append(cp.convert(rhs_mdefs))
+        all_lhs = it.product(*k_lhs)
+        all_rhs = it.product(*k_rhs)
+
+        z = zip(all_lhs, all_rhs) # order in lhs and rhs conversions are preserved
+        rs = []
+        for l, r in z:
+            rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate))
+        return list(set(rs))
+
     def write_as_bngl(self):
         """Writes the rule as a BNGL string"""
 
@@ -1031,7 +1065,7 @@ class Rule:
             rate_string = self.rate.write_as_bngl()
         return '%s %s %s %s' % (lhs_string, self.arrow, rhs_string, rate_string)
 
-    def write_as_kappa(self, mdefs):
+    def write_as_kappa(self):
         """Writes the rule as a Kappa string"""
 
         # possible actions  (root object is list (rule.lhs and rule.rhs))
@@ -1039,20 +1073,30 @@ class Rule:
         #  - type_changes (binding, unbinding)
         #  - value_changes (state change)
 
-        def kappa_rule_string(lhss, ars, rhss, rs):
-            return '%s %s %s @ %s' % (lhss, ars, rhss, rs)
+        lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
+        rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
+        if self.rev:
+            rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
+        else:
+            rate_string = self.rate.write_as_kappa()
+        return '%s %s %s @ %s' % (lhs_string, self.arrow, rhs_string, rate_string)
 
-        lhs_strings = it.product(*[p.write_as_kappa(mdefs) for p in self.lhs])
+    def __eq__(self, other):
+        """Tests for Rule equality with another Rule.  Only considers LHS and RHS patterns
+        and reversibility."""
+        if isinstance(other, self.__class__):
+            lhs_check = frozenset(self.lhs) == frozenset(other.lhs)
+            rhs_check = frozenset(self.rhs) == frozenset(other.rhs)
+            rev_check = self.rev == other.rev
+            return lhs_check and rhs_check and rev_check
+        else:
+            return False
 
-        pass
+    def __ne__(self, other):
+        return not self == other
 
-    # lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
-    # rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
-    # if self.rev:
-    # 	rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
-    # else:
-    # 	rate_string = self.rate.write_as_kappa()
-    # return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
+    def __hash__(self):
+        return hash((self.lhs, self.rhs, self.rev))
 
     def __repr__(self):
         if not self.rev:
