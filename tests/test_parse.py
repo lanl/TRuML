@@ -6,7 +6,12 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
-class TestParse:
+class TestParseKappa:
+    def __init__(self):
+        pass
+
+
+class TestParseBNGL:
     def __init__(self):
         pass
 
