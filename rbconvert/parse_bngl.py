@@ -1308,7 +1308,89 @@ class Reader:
 
 # ignores perturbation and action commands
 class KappaReader(Reader):
-    pass
+    """Reader for Kappa model files"""
+
+    def __init__(self, file_name):
+        """
+        Kappa initialization function
+
+        Parameters
+        ----------
+        file_name : str
+        """
+        super(Reader, self).__init__(file_name)
+
+    def parse(self):
+        cur_line = ''
+        model = Model(self.file_name)
+        for i, l in enumerate(self.lines):
+            if re.search("\\\\\s*$", l):
+                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
+                cur_line += re.sub('\\\\', '', l.strip())
+                continue
+            else:
+                cur_line += l.strip()
+                if re.match('%init', cur_line):
+                    model.add_init(self.parse_init(cur_line))
+                elif re.match('%agent', cur_line):
+                    model.add_molecule(self.parse_mtype(cur_line))
+                elif re.match('%var', cur_line):
+                    # TODO IMPLEMENT VAR_AS_OBS FLAG
+                    if self.var_is_pattern(cur_line) and var_as_obs:
+                        model.add_obs(self.parse_var_as_obs(cur_line))
+                    else:
+                        if self.var_is_dynamic(cur_line):
+                            model.add_func(self.parse_var_as_func(cur_line))
+                        else:
+                            model.add_parameter(self.parse_var_as_param(cur_line))
+                elif re.match('%obs', cur_line):
+                    model.add_obs(self.parse_obs(cur_line))
+                elif re.search('@', cur_line):
+                    model.add_rule(self.parse_rule(cur_line))
+                else:
+                    continue
+                cur_line = ''
+
+        return model
+
+    # TODO determine if var is static or dynamic
+    def var_is_dynamic(self, line):
+        # variables that are present in other variables must be previously defined
+        # if contains [E] or [T]
+        # if contains pattern
+        pass
+
+    @staticmethod
+    def var_is_pattern(line):
+        pass
+
+    @staticmethod
+    def parse_init(line):
+        pass
+
+    @staticmethod
+    def parse_mtype(line):
+        pass
+
+    @staticmethod
+    def parse_obs(line):
+        pass
+
+    @staticmethod
+    def parse_rule(line):
+        pass
+
+    @staticmethod
+    def parse_var_as_obs(line):
+        pass
+
+    @staticmethod
+    def parse_var_as_func(line):
+        pass
+
+    @staticmethod
+    def parse_var_as_param(line):
+        pass
 
 
 # ignores action commands
