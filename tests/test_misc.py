@@ -1,4 +1,5 @@
 from rbconvert.objects import *
+from rbconvert.readers import *
 from nose.tools import raises
 
 import os
@@ -46,6 +47,6 @@ class TestMisc:
         assert BNGLReader.parse_cpattern(self.pattern).automorphisms() == 1
         assert BNGLReader.parse_cpattern(self.pattern3).automorphisms() == 8
 
-    @raises(NotConvertedException)
+    @raises(exceptions.NotConvertedException)
     def test_not_converted(self):
         BNGLReader.parse_cpattern(self.pattern2).automorphisms()

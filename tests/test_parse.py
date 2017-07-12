@@ -1,4 +1,5 @@
 from rbconvert.objects import *
+from rbconvert.readers import *
 
 import os
 import sys
