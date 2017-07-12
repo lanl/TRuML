@@ -1,4 +1,4 @@
-from rbconvert.parse_bngl import *
+from rbconvert.objects import *
 from nose.tools import raises
 
 import os
