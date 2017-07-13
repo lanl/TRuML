@@ -134,7 +134,7 @@ class KappaReader(Reader):
                     site_list.append(Site(name, i, s=bsplit[0], b=bond))
                 elif re.search('\?$', s):
                     bond = Bond(-1, a=True)
-                    site_list.append(Site(name, i, s=tsplit[1], b=bond))
+                    site_list.append(Site(name, i, s=tsplit[1].strip('?'), b=bond))
                 else:
                     site_list.append(Site(name, i, s=tsplit[1]))
             else:
@@ -152,7 +152,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_cpattern(s):
-        pass
+        mol_list = []
+        in_par = 0
+        cur_mol = ''
+        for c in s:
+            if re.match('\(', c):
+                in_par += 1
+            elif re.match('\)', c):
+                in_par -= 1
+            if re.match(',', c) and in_par == 0:
+                mol_list.append(KappaReader.parse_molecule(cur_mol))
+                cur_mol = ''
+                continue
+            cur_mol += c
+        mol_list.append(KappaReader.parse_molecule(cur_mol))
+        return CPattern(mol_list)
 
     @staticmethod
     def parse_obs(line):

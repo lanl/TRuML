@@ -19,11 +19,20 @@ class TestParseKappa:
         cls.mol1 = "M(x,y,z~0!_)"
         cls.mol2 = "M+_2-985798f(x?,y,z~0)"
 
+        cls.cp0 = "A(),B(x!1),C(y!1,z~s?)"
+
         cls.init0 = "%init: 10 A(x)"
         cls.init1 = "%init: 10 + 'x' B(),C()"
 
         cls.expr0 = "10 + 'x'"
         cls.expr1 = "[log] 100 / [max] 10 100 - [int] 7.342"
+
+    def test_cpattern_parse(self):
+        pcp0 = KappaReader.parse_cpattern(self.cp0)
+        assert len(pcp0.molecule_list) == 3
+        assert pcp0.molecule_list[2].sites[0].bond.num == 1
+        assert not pcp0.molecule_list[0].sites
+        assert pcp0.molecule_list[2].sites[1].state == 's'
 
     def test_init_parse(self):
         assert KappaReader.parse_init(self.init0).write_as_kappa() == "%init: 10 A(x)"
