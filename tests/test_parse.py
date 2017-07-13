@@ -15,6 +15,10 @@ class TestParseKappa:
     def setup_class(cls):
         cls.mdef0 = "%agent: M(x,y,z~0~1)"
 
+        cls.mol0 = "M(x,y,z~0)"
+        cls.mol1 = "M(x,y,z~0!_)"
+        cls.mol2 = "M+_2-985798f(x?,y,z~0)"
+
         cls.init0 = "%init: 10 A(x)"
         cls.init1 = "%init: 10 + 'x' B(),C()"
 
@@ -32,6 +36,17 @@ class TestParseKappa:
 
     def test_mdef_parse(self):
         assert KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z~0~1)"
+
+    def test_mol_parse(self):
+        assert KappaReader.parse_molecule(self.mol0).write_as_kappa() == "M(x,y,z~0)"
+        pmol1 = KappaReader.parse_molecule(self.mol1)
+        assert pmol1.write_as_kappa() == "M(x,y,z~0!_)"
+        assert pmol1.sites[2].bond.wild
+        pmol2 = KappaReader.parse_molecule(self.mol2)
+        assert pmol2.write_as_kappa() == "M+_2-985798f(x?,y,z~0)"
+        assert pmol2.sites[0].bond.any
+        assert pmol2.name == "M+_2-985798f"
+
 
 class TestParseBNGL:
     def __init__(self):

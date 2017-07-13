@@ -112,6 +112,47 @@ class KappaReader(Reader):
 
         return MoleculeDef(name, site_defs, site_name_map, False)
 
+    @staticmethod
+    def parse_molecule(mstr):
+        smstr = mstr.strip()
+        msplit = re.split('\(', smstr)
+        mname = msplit[0]
+        if not re.match('[A-Za-z][-+\w]*\(.*\)\s*$', smstr):
+            raise exceptions.NotAMoleculeException(smstr)
+        sites = re.split(',', msplit[1].strip(')'))
+        if not sites[0]:
+            return Molecule(mname, [])
+        site_list = []
+        for i in range(len(sites)):
+            s = sites[i]
+            if '~' in s:
+                tsplit = re.split('~', s)
+                name = tsplit[0]
+                if '!' in s:
+                    bsplit = re.split('!', tsplit[1])
+                    bond = Bond(-1, w=True) if re.match('_', bsplit[1]) else Bond(int(bsplit[1]))
+                    site_list.append(Site(name, i, s=bsplit[0], b=bond))
+                elif re.search('\?$', s):
+                    bond = Bond(-1, a=True)
+                    site_list.append(Site(name, i, s=tsplit[1], b=bond))
+                else:
+                    site_list.append(Site(name, i, s=tsplit[1]))
+            else:
+                if '!' in s:
+                    bsplit = re.split('!', s)
+                    name = bsplit[0]
+                    bond = Bond(-1, w=True) if re.match('_', bsplit[1]) else Bond(int(bsplit[1]))
+                    site_list.append(Site(name, i, b=bond))
+                elif re.search('\?$', s):
+                    bond = Bond(-1, a=True)
+                    site_list.append(Site(s.strip('?'), i, b=bond))
+                else:
+                    site_list.append(Site(s, i))
+        return Molecule(mname, site_list)
+
+    @staticmethod
+    def parse_cpattern(s):
+        pass
 
     @staticmethod
     def parse_obs(line):
