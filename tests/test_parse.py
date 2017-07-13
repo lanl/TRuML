@@ -11,6 +11,27 @@ class TestParseKappa:
     def __init__(self):
         pass
 
+    @classmethod
+    def setup_class(cls):
+        cls.mdef0 = "%agent: M(x,y,z~0~1)"
+
+        cls.init0 = "%init: 10 A(x)"
+        cls.init1 = "%init: 10 + 'x' B(),C()"
+
+        cls.expr0 = "10 + 'x'"
+        cls.expr1 = "[log] 100 / [max] 10 100 - [int] 7.342"
+
+    def test_init_parse(self):
+        assert KappaReader.parse_init(self.init0).write_as_kappa() == "%init: 10 A(x)"
+        assert KappaReader.parse_init(self.init1).write_as_kappa() == "%init: 10+'x' B(),C()"
+
+    def test_eq_parse(self):
+        assert KappaReader.parse_math_expr(self.expr0).asList() == ['10', '+', 'x']
+        assert KappaReader.parse_math_expr(self.expr1).asList() == \
+               ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
+
+    def test_mdef_parse(self):
+        assert KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z~0~1)"
 
 class TestParseBNGL:
     def __init__(self):

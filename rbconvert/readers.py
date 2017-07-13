@@ -2,8 +2,7 @@ import exceptions
 
 from deepdiff import DeepDiff
 from objects import *
-from pyparsing import Literal, CaselessLiteral, Word, Combine, Optional, \
-    ZeroOrMore, Forward, nums, alphas
+import pyparsing as pp
 
 
 class Reader:
@@ -85,11 +84,34 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_init(line):
+        # sline = re.split('\s+', line)
+        # amount = ' '.join(sline[1:-1])
+        # TODO convert pattern to CPattern
+        # pattern = sline[-1]
+        # amount_is_number = True if is_number(amount) else False
+        # if not amount_is_number:
+        #     amount = Expression(KappaReader.parse_math_expr(amount))
+        # return InitialCondition(pattern, amount, amount_is_number)
         pass
 
     @staticmethod
     def parse_mtype(line):
-        pass
+        sline = re.split('\s+', line.strip())
+
+        psplit = re.split('\(', sline[1])
+        name = psplit[0]
+
+        site_name_map = {}  # tracks conversion to kappa by mapping BNGL site names to Kappa site namess
+
+        sites = re.split(',', psplit[1].strip(')'))
+        site_defs = []
+        for s in sites:
+            site_split = re.split('~', s)
+            site_name = site_split[0]
+            site_defs.append(SiteDef(site_name, [] if len(site_split) == 1 else site_split[1:]))
+
+        return MoleculeDef(name, site_defs, site_name_map, False)
+
 
     @staticmethod
     def parse_obs(line):
@@ -110,6 +132,73 @@ class KappaReader(Reader):
     @staticmethod
     def parse_var_as_param(line):
         pass
+
+    @staticmethod
+    def parse_math_expr(estr):
+        point = pp.Literal(".")
+        e = pp.CaselessLiteral("E")
+        fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
+                             pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
+                             pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
+
+        # infix operators
+        plus = pp.Literal("+")
+        minus = pp.Literal("-")
+        mult = pp.Literal("*")
+        div = pp.Literal("/")
+        mod = pp.Literal("[mod]")
+        lpar = pp.Literal("(")
+        rpar = pp.Literal(")")
+        expop = pp.Literal("^")
+
+        addop = plus | minus
+        multop = mult | div | mod
+
+        # constants
+        inf = pp.Literal("inf")
+        pi = pp.Literal("[pi]")
+        events = pp.Literal("[E]")
+        null_events = pp.Literal("[E-]")
+        event_limit = pp.Literal("[Emax]")
+        time = pp.Literal("[T]")
+        cpu_time = pp.Literal("[Tsim]")
+        time_limit = pp.Literal("[Tmax]")
+        plot_points = pp.Literal("[pp]")
+
+        constant = inf | pi | events | null_events | event_limit | time | cpu_time | time_limit | plot_points
+
+        # variables
+        variable = pp.Suppress(pp.Literal("'")) + pp.Word(pp.alphanums + "_") + pp.Suppress(pp.Literal("'"))
+
+        # unary functions (one arg)
+        logfunc = pp.Literal("[log]")
+        expfunc = pp.Literal("[exp]")
+        sinfunc = pp.Literal("[sin]")
+        cosfunc = pp.Literal("[cos]")
+        tanfunc = pp.Literal("[tan]")
+        sqrtfunc = pp.Literal("[sqrt]")
+        floorfunc = pp.Literal("[int]")
+
+        unary_one_funcs = logfunc | expfunc | sinfunc | cosfunc | tanfunc | sqrtfunc | floorfunc
+
+        # unary functions (two args)
+        maxfunc = pp.Literal("[max]")
+        minfunc = pp.Literal("[min]")
+
+        unary_two_funcs = maxfunc | minfunc
+
+        expr = pp.Forward()
+        atom = (pp.Optional("-") + (
+        constant | variable | fnumber | lpar + expr + rpar | unary_one_funcs + expr | unary_two_funcs + expr + expr))
+
+        factor = pp.Forward()
+        factor << atom + pp.ZeroOrMore((expop + factor))
+
+        term = factor + pp.ZeroOrMore((multop + factor))
+        expr << term + pp.ZeroOrMore((addop + term))
+        pattern = expr
+
+        return pattern.parseString(estr.strip())
 
 
 # ignores action commands
@@ -575,34 +664,34 @@ class BNGLReader(Reader):
             List of algebraic tokens, including functions, variables, numbers, and operators
         """
 
-        point = Literal(".")
-        e = CaselessLiteral("E")
-        fnumber = Combine(Word("+-" + nums, nums) +
-                          Optional(point + Optional(Word(nums))) +
-                          Optional(e + Word("+-" + nums, nums)))
-        ident = Word(alphas, alphas + nums + "_$")
+        point = pp.Literal(".")
+        e = pp.CaselessLiteral("E")
+        fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
+                          pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
+                          pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
+        ident = pp.Word(pp.alphas, pp.alphas + pp.nums + "_$")
 
-        plus = Literal("+")
-        minus = Literal("-")
-        mult = Literal("*")
-        div = Literal("/")
-        lpar = Literal("(")
-        rpar = Literal(")")
+        plus = pp.Literal("+")
+        minus = pp.Literal("-")
+        mult = pp.Literal("*")
+        div = pp.Literal("/")
+        lpar = pp.Literal("(")
+        rpar = pp.Literal(")")
         addop = plus | minus
         multop = mult | div
-        expop = Literal("^")
-        pi = CaselessLiteral("PI")
+        expop = pp.Literal("^")
+        pi = pp.CaselessLiteral("PI")
 
-        expr = Forward()
-        atom = (Optional("-") + (pi | e | fnumber | ident + lpar + expr + rpar | ident) | (lpar + expr + rpar))
+        expr = pp.Forward()
+        atom = (pp.Optional("-") + (pi | e | fnumber | ident + lpar + expr + rpar | ident) | (lpar + expr + rpar))
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
-        factor = Forward()
-        factor << atom + ZeroOrMore((expop + factor))
+        factor = pp.Forward()
+        factor << atom + pp.ZeroOrMore((expop + factor))
 
-        term = factor + ZeroOrMore((multop + factor))
-        expr << term + ZeroOrMore((addop + term))
+        term = factor + pp.ZeroOrMore((multop + factor))
+        expr << term + pp.ZeroOrMore((addop + term))
         pattern = expr
 
         return pattern.parseString(estr.strip())
