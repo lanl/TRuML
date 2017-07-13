@@ -84,15 +84,13 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_init(line):
-        # sline = re.split('\s+', line)
-        # amount = ' '.join(sline[1:-1])
-        # TODO convert pattern to CPattern
-        # pattern = sline[-1]
-        # amount_is_number = True if is_number(amount) else False
-        # if not amount_is_number:
-        #     amount = Expression(KappaReader.parse_math_expr(amount))
-        # return InitialCondition(pattern, amount, amount_is_number)
-        pass
+        sline = re.split('\s+', line)
+        amount = ' '.join(sline[1:-1])
+        pattern = KappaReader.parse_cpattern(sline[-1])
+        amount_is_number = True if is_number(amount) else False
+        if not amount_is_number:
+            amount = Expression(KappaReader.parse_math_expr(amount))
+        return InitialCondition(pattern, amount, amount_is_number)
 
     @staticmethod
     def parse_mtype(line):
