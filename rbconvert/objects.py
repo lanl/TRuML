@@ -973,13 +973,13 @@ class Rate:
         return "Rate: %s" % self.rate
 
 
-# TODO implement check for rate as raw number before writing
+# TODO ALLOW INTER/INTRA NOTATION FOR RULES WRITTEN AS KAPPA
 class Rule:
     """Defines a rule"""
 
     # lhs, rhs are lists of CPatterns, rate/rev_rate are Rates, rev is bool (true for reversible rules),
     # amb_mol is boolean denoting a rule that (in Kappa) has ambiguous molecularity
-    def __init__(self, lhs, rhs, rate, rev=False, rev_rate=None):
+    def __init__(self, lhs, rhs, rate, rev=False, rev_rate=None, label=None):
         """
         Rule initialization function
 
@@ -995,6 +995,7 @@ class Rule:
             True if the rule is reversible, False otherwise (default)
         rev_rate : Rate
             Rate for the reverse rhs -> lhs reaction if present
+        label : str
         """
         self.lhs = lhs
         self.rhs = rhs
@@ -1002,6 +1003,7 @@ class Rule:
         self.rev = rev
         self.arrow = '->' if not rev else '<->'
         self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
+        self.label = label
 
     def convert(self, lhs_mdefs, rhs_mdefs):
         """
@@ -1076,7 +1078,7 @@ class Rule:
         return not self == other
 
     def __hash__(self):
-        return hash((self.lhs, self.rhs, self.rev))
+        return hash((self.lhs, self.rhs, self.rev, self.label))
 
     def __repr__(self):
         if not self.rev:

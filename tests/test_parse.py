@@ -27,6 +27,29 @@ class TestParseKappa:
         cls.expr0 = "10 + 'x'"
         cls.expr1 = "[log] 100 / [max] 10 100 - [int] 7.342"
 
+        cls.rule0 = 'A(x),B(x) -> A(x!1),B(x!1) @ 1'
+        cls.rule1 = "'rule' %s" % cls.rule0
+        cls.rule2 = "A(a~0),B(y) <-> A(a~1),B(y) @ %s {1}, 0.1 {10}" % cls.expr0
+        cls.rule3 = "A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
+        cls.rule4 = "A(x),B(x) <-> A(x!1),B(x!1) @ 1, 0.1"
+
+    def test_rule_parse(self):
+        rule0s = KappaReader.parse_rule(self.rule0)
+        assert len(rule0s) == 1
+        assert not rule0s[0].rev
+        rule1s = KappaReader.parse_rule(self.rule1)
+        assert rule1s[0].lhs == rule0s[0].lhs
+        assert rule1s[0].label == 'rule'
+        rule2s = KappaReader.parse_rule(self.rule2)
+        assert len(rule2s) == 4
+        for r in rule2s:
+            assert not r.rev
+        rule3s = KappaReader.parse_rule(self.rule3)
+        assert len(rule3s) == 3
+        rule4s = KappaReader.parse_rule(self.rule4)
+        assert len(rule4s) == 1
+        assert rule4s[0].rev
+
     def test_cpattern_parse(self):
         pcp0 = KappaReader.parse_cpattern(self.cp0)
         assert len(pcp0.molecule_list) == 3
