@@ -1,5 +1,4 @@
-import exceptions
-
+import rbexceptions
 from deepdiff import DeepDiff
 from objects import *
 import pyparsing as pp
@@ -149,7 +148,7 @@ class KappaReader(Reader):
         msplit = re.split('\(', smstr)
         mname = msplit[0]
         if not re.match('[A-Za-z][-+\w]*\(.*\)\s*$', smstr):
-            raise exceptions.NotAMoleculeException(smstr)
+            raise rbexceptions.NotAMoleculeException(smstr)
         sites = re.split(',', msplit[1].strip(')'))
         if not sites[0]:
             return Molecule(mname, [])
@@ -457,7 +456,7 @@ class BNGLReader(Reader):
         msplit = re.split('\(', smstr)
         mname = msplit[0]
         if not re.match('[A-Za-z]\w*\(.*\)\s*$', smstr):
-            raise exceptions.NotAMoleculeException(smstr)
+            raise rbexceptions.NotAMoleculeException(smstr)
         sites = re.split(',', msplit[1].strip(')'))
         if not sites[0]:
             return Molecule(mname, [])
@@ -638,7 +637,7 @@ class BNGLReader(Reader):
             for i, t in enumerate(rem):
                 try:
                     cls.parse_cpattern(t)
-                except exceptions.NotAMoleculeException:
+                except rbexceptions.NotAMoleculeException:
                     one_past_final_mol_index = i
                     break
             last_split = re.split('\s+', rem[one_past_final_mol_index])
@@ -714,7 +713,7 @@ class BNGLReader(Reader):
         name, func = re.split(s_char, sline)
         if re.search('\(.\)',
                      name):  # a variable in between the parentheses means the function is local (not Kappa compatible)
-            raise exceptions.NotCompatibleException("Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
+            raise rbexceptions.NotCompatibleException("Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
         p_func = cls.parse_math_expr(func)
         return Expression(name, p_func.asList())
 

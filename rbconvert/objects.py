@@ -2,7 +2,7 @@ import re
 import itertools as it
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
-import exceptions
+import rbexceptions
 
 
 class SiteDef:
@@ -344,7 +344,7 @@ class Molecule:
     def write_as_kappa(self):
         """Writes Molecule as Kappa string and checks for conversion if necessary"""
         if len(set([s.name for s in self.sites])) < len(self.sites):
-            raise exceptions.NotConvertedException
+            raise rbexceptions.NotConvertedException
         return self._write(False)
 
     def __eq__(self, other):
@@ -662,7 +662,7 @@ class CPattern:
         # Check to make sure conversion to Kappa compatible site names has occurred
         for m in self.molecule_list:
             if m.has_identical_sites():
-                raise exceptions.NotConvertedException
+                raise rbexceptions.NotConvertedException
         # If all molecules are unique, exit with count 1.  Otherwise calculate the
         # number of automorphisms
         if len([m._node_name() for m in self.molecule_list]) == len(set([m.name for m in self.molecule_list])):
