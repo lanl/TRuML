@@ -39,8 +39,8 @@ class TestParseKappa:
         assert KappaReader.parse_init(self.init1).write_as_kappa() == "%init: 10+'x' B(),C()"
 
     def test_eq_parse(self):
-        assert KappaReader.parse_math_expr(self.expr0).asList() == ['10', '+', 'x']
-        assert KappaReader.parse_math_expr(self.expr1).asList() == \
+        assert KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', "'x'"]
+        assert KappaReader.parse_alg_expr(self.expr1).asList() == \
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
 
     def test_mdef_parse(self):
@@ -55,6 +55,21 @@ class TestParseKappa:
         assert pmol2.write_as_kappa() == "M+_2-985798f(x?,y,z~0)"
         assert pmol2.sites[0].bond.any
         assert pmol2.name == "M+_2-985798f"
+
+    def test_vars_parse(self):
+        kr = KappaReader()
+        kr.lines = ["%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'"]
+        model = kr.parse()
+        assert len(model.functions) == 1
+        assert model.parameters[0].name == 'a'
+        assert model.parameters[1].name == 'b'
+        assert isinstance(model.parameters[1].value, Expression)
+        cmd = MoleculeDef("C", [SiteDef('x'), SiteDef('y', ['state', 'state2'])], {'x': 'x', 'y': 'y'})
+        assert model.observables[0].write_as_kappa([cmd]) == "%obs: 'c' |C(x!_,y~state?)|"
+        assert len(model.observables) == 2
+        print model.observables[0].name
+        print model.observables[1].name
+        assert model.observables[1].name == "anon_obs0"
 
 
 class TestParseBNGL:

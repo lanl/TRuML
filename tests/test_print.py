@@ -175,7 +175,11 @@ class TestPrint:
         assert self.rule2.write_as_bngl() == r'A() <-> B() 3,rate'
         assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
 
+    # TODO CHECK this
     def test_rule_expansion(self):
+        x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
+        print x
+        print len(x)
         assert len(self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])) == 18
 
     def test_obs(self):

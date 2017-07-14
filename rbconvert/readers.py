@@ -5,7 +5,7 @@ from objects import *
 import pyparsing as pp
 
 
-class Reader:
+class Reader(object):
     """Inherited class for reading rule-based modeling files."""
 
     def __init__(self, file_name):
@@ -17,18 +17,21 @@ class Reader:
         file_name : str
             Rule-based model file
         """
-        f = open(file_name)
-        d = f.readlines()
-        f.close()
-        self.lines = d
         self.file_name = file_name
+        if self.file_name is not None:
+            f = open(file_name)
+            d = f.readlines()
+            f.close()
+            self.lines = d
+        else:
+            self.lines = []
 
 
 # ignores perturbation and action commands
 class KappaReader(Reader):
     """Reader for Kappa model files"""
 
-    def __init__(self, file_name):
+    def __init__(self, file_name=None):
         """
         Kappa initialization function
 
@@ -36,11 +39,15 @@ class KappaReader(Reader):
         ----------
         file_name : str
         """
-        super(Reader, self).__init__(file_name)
+        super(KappaReader, self).__init__(file_name)
+        # var_dict keeps track of read variables and what type they are
+        # Variables can be constant values (c), patterns (p), or dynamic expressions (d)
+        self.var_dict = {}
+        self.num_anon_pats = 0
 
     def parse(self):
         cur_line = ''
-        model = Model(self.file_name)
+        model = Model()
         for i, l in enumerate(self.lines):
             if re.search("\\\\\s*$", l):
                 # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
@@ -53,14 +60,22 @@ class KappaReader(Reader):
                 elif re.match('%agent', cur_line):
                     model.add_molecule(self.parse_mtype(cur_line))
                 elif re.match('%var', cur_line):
-                    # TODO IMPLEMENT VAR_AS_OBS FLAG
-                    if self.var_is_pattern(cur_line) and var_as_obs:
-                        model.add_obs(self.parse_var_as_obs(cur_line))
-                    else:
-                        if self.var_is_dynamic(cur_line):
-                            model.add_func(self.parse_var_as_func(cur_line))
+                    scur_line = re.split('\s+', cur_line)
+                    name = scur_line[1].strip("'")
+                    expr_list = KappaReader.parse_alg_expr(' '.join(scur_line[2:])).asList()
+                    if self.var_contains_pattern(expr_list):
+                        if len(expr_list) == 1:
+                            model.add_obs(Observable(name, [self.parse_cpattern(expr_list[0].strip('|'))]))
                         else:
-                            model.add_parameter(self.parse_var_as_param(cur_line))
+                            pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
+                            for p in pat_dict.keys():
+                                model.add_obs(Observable(p, [self.parse_cpattern(pat_dict[p].strip('|'))]))
+                            model.add_func(Function(name, Expression(subst_expr_list)))
+                    elif self.var_is_dynamic_no_pat(expr_list):
+                        model.add_func(Function(name, Expression(expr_list)))
+                    else:
+                        model.add_parameter(Parameter(name, Expression(expr_list)))
+
                 elif re.match('%obs', cur_line):
                     model.add_obs(self.parse_obs(cur_line))
                 elif re.search('@', cur_line):
@@ -71,16 +86,34 @@ class KappaReader(Reader):
 
         return model
 
-    # TODO determine if var is static or dynamic
-    def var_is_dynamic(self, line):
-        # variables that are present in other variables must be previously defined
-        # if contains [E] or [T]
-        # if contains pattern
-        pass
+    def var_is_dynamic_no_pat(self, expr_list):
+        for atom in expr_list:
+            if re.match('\[T', atom) or self.var_contains_pattern(expr_list):
+                return True
+            for k, v in self.var_dict.iteritems():
+                if re.match("'%s'" % k, atom) and (v == 'd' or v == 'p'):
+                    return True
+        return False
 
     @staticmethod
-    def var_is_pattern(line):
-        pass
+    def var_contains_pattern(expr_list):
+        for atom in expr_list:
+            if re.match('\|', atom):
+                return True
+        return False
+
+    def get_var_patterns(self, expr_list):
+        pat_dict = {}
+        new_expr_list = []
+        for atom in expr_list:
+            if re.match('\|', atom):
+                anon = "anon_obs%s" % self.num_anon_pats
+                self.num_anon_pats += 1
+                pat_dict[anon] = atom
+                new_expr_list.append(anon)
+            else:
+                new_expr_list.append(atom)
+        return pat_dict, new_expr_list
 
     @staticmethod
     def parse_init(line):
@@ -89,7 +122,7 @@ class KappaReader(Reader):
         pattern = KappaReader.parse_cpattern(sline[-1])
         amount_is_number = True if is_number(amount) else False
         if not amount_is_number:
-            amount = Expression(KappaReader.parse_math_expr(amount))
+            amount = Expression(KappaReader.parse_alg_expr(amount))
         return InitialCondition(pattern, amount, amount_is_number)
 
     @staticmethod
@@ -167,27 +200,11 @@ class KappaReader(Reader):
         return CPattern(mol_list)
 
     @staticmethod
-    def parse_obs(line):
-        pass
-
-    @staticmethod
     def parse_rule(line):
         pass
 
     @staticmethod
-    def parse_var_as_obs(line):
-        pass
-
-    @staticmethod
-    def parse_var_as_func(line):
-        pass
-
-    @staticmethod
-    def parse_var_as_param(line):
-        pass
-
-    @staticmethod
-    def parse_math_expr(estr):
+    def parse_alg_expr(estr):
         point = pp.Literal(".")
         e = pp.CaselessLiteral("E")
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
@@ -221,7 +238,10 @@ class KappaReader(Reader):
         constant = inf | pi | events | null_events | event_limit | time | cpu_time | time_limit | plot_points
 
         # variables
-        variable = pp.Suppress(pp.Literal("'")) + pp.Word(pp.alphanums + "_") + pp.Suppress(pp.Literal("'"))
+        variable = pp.Combine(pp.Literal("'") + pp.Word(pp.alphanums + "_") + pp.Literal("'"))
+
+        # patterns
+        pattern = pp.Combine(pp.Literal("|") + pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar + pp.Literal("|"))
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")
@@ -242,23 +262,23 @@ class KappaReader(Reader):
 
         expr = pp.Forward()
         atom = (pp.Optional("-") + (
-        constant | variable | fnumber | lpar + expr + rpar | unary_one_funcs + expr | unary_two_funcs + expr + expr))
+        constant | variable | fnumber | lpar + expr + rpar | unary_one_funcs + expr | unary_two_funcs + expr + expr | pattern))
 
         factor = pp.Forward()
         factor << atom + pp.ZeroOrMore((expop + factor))
 
         term = factor + pp.ZeroOrMore((multop + factor))
         expr << term + pp.ZeroOrMore((addop + term))
-        pattern = expr
+        fullExpr = expr
 
-        return pattern.parseString(estr.strip())
+        return fullExpr.parseString(estr.strip())
 
 
 # ignores action commands
 class BNGLReader(Reader):
     """Reader for BNGL model files"""
 
-    def __init__(self, file_name):
+    def __init__(self, file_name=None):
         """
         BNGLReader initialization function
 
@@ -282,7 +302,7 @@ class BNGLReader(Reader):
         This function assumes that the file has the molecule types block before the rules block
         """
         cur_line = ''  # used for line continuation
-        model = Model(self.file_name)
+        model = Model()
         for i, l in enumerate(self.lines):
             if re.match('begin parameters', l):
                 self.is_param_block = True

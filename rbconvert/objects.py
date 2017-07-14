@@ -8,7 +8,7 @@ import exceptions
 class SiteDef:
     """A site definition composed of a name and a finite set of states"""
 
-    def __init__(self, n, ss):
+    def __init__(self, n, ss=[]):
         self.name = n
         self.state_list = ss
 
@@ -826,13 +826,14 @@ class Parameter:
 
     def __init__(self, n, v):
         """
-        Parameter initialization function
+        Parameter initialization function.  The value can be an integer or a constant
+        algebraic expression (cannot contain dynamic quantities such as observables)
 
         Parameters
         ----------
         n : str
             Parameter name
-        v : float or int
+        v : float or int or Expression
             Parameter value
         """
         self.name = n
@@ -840,11 +841,13 @@ class Parameter:
 
     def write_as_bngl(self):
         """Writes Parameter as BNGL string"""
-        return '%s %s' % (self.name, self.value)
+        val = self.value.write_as_bngl() if isinstance(self.value, Expression) else self.value
+        return '%s %s' % (self.name, val)
 
     def write_as_kappa(self):
         """Writes Parameter as Kappa string"""
-        return '%%var: \'%s\' %s' % (self.name, self.value)
+        val = self.value.write_as_kappa() if isinstance(self.value, Expression) else self.value
+        return '%%var: \'%s\' %s' % (self.name, val)
 
     def __repr__(self):
         return "Parameter(name: %s, value: %s)" % (self.name, self.value)
