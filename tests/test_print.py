@@ -1,10 +1,5 @@
-from rbconvert.objects import *
+from .context import objects
 from nose.tools import raises
-
-import os
-import sys
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 class TestPrint:
@@ -13,73 +8,73 @@ class TestPrint:
 
     @classmethod
     def setup_class(cls):
-        cls.num_bond = Bond(3)
-        cls.wild_bond = Bond(-1, w=True)
-        cls.any_bond = Bond(-3, a=True)
+        cls.num_bond = objects.Bond(3)
+        cls.wild_bond = objects.Bond(-1, w=True)
+        cls.any_bond = objects.Bond(-3, a=True)
 
-        cls.s0 = Site('site0', 0, s='state', b=cls.num_bond)
-        cls.s1 = Site('site1', 0, b=cls.any_bond)
-        cls.s2 = Site('site2', 1, b=cls.wild_bond)
-        cls.s3 = Site('site0', 0, s='state')
+        cls.s0 = objects.Site('site0', 0, s='state', b=cls.num_bond)
+        cls.s1 = objects.Site('site1', 0, b=cls.any_bond)
+        cls.s2 = objects.Site('site2', 1, b=cls.wild_bond)
+        cls.s3 = objects.Site('site0', 0, s='state')
 
-        cls.sd0 = SiteDef('site0', ['state', 'state2'])
-        cls.sd1 = SiteDef('site1', [])
-        cls.sd2 = SiteDef('site2', [])
-        cls.sd3 = SiteDef('a', ['0', '1', '2'])
-        cls.sd4 = SiteDef('b', [])
-        cls.sd5 = SiteDef('c', [])
+        cls.sd0 = objects.SiteDef('site0', ['state', 'state2'])
+        cls.sd1 = objects.SiteDef('site1', [])
+        cls.sd2 = objects.SiteDef('site2', [])
+        cls.sd3 = objects.SiteDef('a', ['0', '1', '2'])
+        cls.sd4 = objects.SiteDef('b', [])
+        cls.sd5 = objects.SiteDef('c', [])
 
-        cls.md0 = MoleculeDef('Test0', [cls.sd0, cls.sd1, cls.sd2],
+        cls.md0 = objects.MoleculeDef('Test0', [cls.sd0, cls.sd1, cls.sd2],
                               {'site0': 'site0', 'site1': 'site1', 'site2': 'site2'})
-        cls.md1 = MoleculeDef('Test1', [cls.sd1], {'site1': 'site1'})
-        cls.md2 = MoleculeDef('Test2', [cls.sd3, cls.sd3, cls.sd3, cls.sd3, cls.sd4, cls.sd5, cls.sd5],
+        cls.md1 = objects.MoleculeDef('Test1', [cls.sd1], {'site1': 'site1'})
+        cls.md2 = objects.MoleculeDef('Test2', [cls.sd3, cls.sd3, cls.sd3, cls.sd3, cls.sd4, cls.sd5, cls.sd5],
                               {'a0': 'a', 'a1': 'a', 'a2': 'a', 'a3': 'a', 'b': 'b', 'c0': 'c', 'c1': 'c'}, hss=True)
-        cls.md3 = MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
-        cls.md4 = MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
+        cls.md3 = objects.MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
+        cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
 
-        cls.m0 = Molecule('Test0', [cls.s0, cls.s2])
-        cls.m1 = Molecule('Test1', [cls.s1])
-        cls.m2 = Molecule('Test2', [Site('a', 0)])
-        cls.m3 = Molecule('Test2', [Site('a', 0), Site('a', 1)])
-        cls.m4 = Molecule('Test2', [Site('a', 0), Site('a', 1, b=Bond(1)), Site('c', 2)])
-        cls.m5 = Molecule('Test2', [Site('a', 0), Site('a', 1, b=Bond(1)), Site('a', 2), Site('b', 3)])
-        cls.m6 = Molecule('Test2', [Site('a', 0), Site('a', 1, b=Bond(1)), Site('a', 2, Bond(2)), Site('b', 3)])
-        cls.m7 = Molecule('A', [Site('a', 0, b=Bond(-1, w=True)), Site('a', 1)])
-        cls.m8 = Molecule('B', [Site('b', 0)])
-        cls.m9 = Molecule('A', [Site('a', 0, b=Bond(-1, w=True)), Site('a', 1, b=Bond(1))])
-        cls.m10 = Molecule('B', [Site('b', 0, b=Bond(1))])
+        cls.m0 = objects.Molecule('Test0', [cls.s0, cls.s2])
+        cls.m1 = objects.Molecule('Test1', [cls.s1])
+        cls.m2 = objects.Molecule('Test2', [objects.Site('a', 0)])
+        cls.m3 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1)])
+        cls.m4 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)])
+        cls.m5 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2), objects.Site('b', 3)])
+        cls.m6 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)])
+        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)])
+        cls.m8 = objects.Molecule('B', [objects.Site('b', 0)])
+        cls.m9 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1, b=objects.Bond(1))])
+        cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))])
 
-        cls.p0 = CPattern([cls.m0, Molecule('Test0', [cls.s0])])
-        cls.p1 = CPattern([Molecule('Test0', [cls.s3, cls.s2]), Molecule('Test0', [cls.s3])])
-        cls.p2 = CPattern([Molecule('A', [])])
-        cls.p3 = CPattern([Molecule('B', [])])
-        cls.p4 = CPattern([cls.m2, cls.m0])
-        cls.p5 = CPattern([cls.m7])
-        cls.p6 = CPattern([cls.m8])
-        cls.p7 = CPattern([cls.m9, cls.m10])
+        cls.p0 = objects.CPattern([cls.m0, objects.Molecule('Test0', [cls.s0])])
+        cls.p1 = objects.CPattern([objects.Molecule('Test0', [cls.s3, cls.s2]), objects.Molecule('Test0', [cls.s3])])
+        cls.p2 = objects.CPattern([objects.Molecule('A', [])])
+        cls.p3 = objects.CPattern([objects.Molecule('B', [])])
+        cls.p4 = objects.CPattern([cls.m2, cls.m0])
+        cls.p5 = objects.CPattern([cls.m7])
+        cls.p6 = objects.CPattern([cls.m8])
+        cls.p7 = objects.CPattern([cls.m9, cls.m10])
 
-        cls.i0 = InitialCondition(cls.p0, 10)
+        cls.i0 = objects.InitialCondition(cls.p0, 10)
         # implement functionality to print initial condition as kappa/bngl expression
-        cls.i1 = InitialCondition(cls.p0, Expression(['x', '+', '10']), False)
+        cls.i1 = objects.InitialCondition(cls.p0, objects.Expression(['x', '+', '10']), False)
 
-        cls.par0 = Parameter('rate', 1e6)
+        cls.par0 = objects.Parameter('rate', 1e6)
 
-        expr0 = Expression(['ln', '(', '10', ')', '+', 'x', '-', '356'])
-        cls.func0 = Function('rate_expr', expr0)
+        expr0 = objects.Expression(['ln', '(', '10', ')', '+', 'x', '-', '356'])
+        cls.func0 = objects.Function('rate_expr', expr0)
 
-        cls.rate0 = Rate(3)
-        cls.rate1 = Rate(expr0)
-        cls.rate2 = Rate('rate')
-        cls.rate3 = Rate(5, intra=True)
+        cls.rate0 = objects.Rate(3)
+        cls.rate1 = objects.Rate(expr0)
+        cls.rate2 = objects.Rate('rate')
+        cls.rate3 = objects.Rate(5, intra=True)
 
-        cls.rule0 = Rule([cls.p2], [cls.p3], cls.rate0)
-        cls.rule1 = Rule([cls.p2], [cls.p3], cls.rate1, False, cls.rate2)
-        cls.rule2 = Rule([cls.p2], [cls.p3], cls.rate0, True, cls.rate2)
-        cls.rule3 = Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
+        cls.rule0 = objects.Rule([cls.p2], [cls.p3], cls.rate0)
+        cls.rule1 = objects.Rule([cls.p2], [cls.p3], cls.rate1, False, cls.rate2)
+        cls.rule2 = objects.Rule([cls.p2], [cls.p3], cls.rate0, True, cls.rate2)
+        cls.rule3 = objects.Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
 
-        cls.obs0 = Observable("Obs0", [cls.p3], 'm')
-        cls.obs1 = Observable("Obs1", [cls.p2, cls.p3], 's')
-        cls.obs2 = Observable("Obs2", [CPattern([cls.m2])], 'm')
+        cls.obs0 = objects.Observable("Obs0", [cls.p3], 'm')
+        cls.obs1 = objects.Observable("Obs1", [cls.p2, cls.p3], 's')
+        cls.obs2 = objects.Observable("Obs2", [objects.CPattern([cls.m2])], 'm')
 
     @classmethod
     def teardown_class(cls):
@@ -95,11 +90,11 @@ class TestPrint:
 
     @raises(AssertionError)
     def test_invalid_bond_0(self):
-        Bond(-3)
+        objects.Bond(-3)
 
     @raises(ValueError)
     def test_invalid_bond_1(self):
-        Bond('hello')
+        objects.Bond('hello')
 
     def test_sites(self):
         assert self.s0.write_as_bngl() == r'site0~state!3'
@@ -192,4 +187,4 @@ class TestPrint:
 
     @raises(Exception)
     def test_invalid_obs(self):
-        Observable("InvalidType", [self.p2], 'f')
+        objects.Observable("InvalidType", [self.p2], 'f')
