@@ -1,6 +1,6 @@
 from .context import objects
 from nose.tools import raises
-
+import itertools as it
 
 class TestPrint:
     def __init__(self):
@@ -170,12 +170,17 @@ class TestPrint:
         assert self.rule2.write_as_bngl() == r'A() <-> B() 3,rate'
         assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
 
-    # TODO CHECK this
+    def test_molecule_conversion_determinism(self):
+        x = self.m7.convert(self.md3)
+        assert x[0].write_as_bngl() == "A(a0!+,a1,a2!+)"
+        for i in range(1, len(x)):
+            assert x[i-1] < x[i]
+
     def test_rule_expansion(self):
         x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
-        print x
-        print len(x)
-        assert len(self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])) == 18
+        # print '\n'.join([i.write_as_bngl() for i in x])
+        # print len(x)
+        assert len(x) == 18
 
     def test_obs(self):
         assert self.obs0.write_as_bngl() == r'Molecules Obs0 B()'
