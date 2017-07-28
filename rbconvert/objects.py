@@ -228,11 +228,6 @@ class Molecule:
                 return True
         return False
 
-    # TODO
-    # consider cases with potential for double counting events.  For example, if expanding a BNGL
-    # molecule with identical sites, direct expansion (i.e. enumerating the renamed sites) may not
-    # be appropriate.  There may be overlap in the rules, so we must enumerate binding or general
-    # site state possibilities in this case
     def convert(self, mdef):
         """
         Converts a molecule that may have multiple identically named sites
@@ -311,7 +306,7 @@ class Molecule:
 
         k_prod = it.product(*k_configs.values())
 
-        return sorted([Molecule(self.name, [e for t in tt for e in t]) for tt in k_prod])
+        return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)]) for tt in k_prod])
 
     def _write(self, bngl=True):
         """
@@ -447,6 +442,9 @@ class Site:
     def __ne__(self, other):
         """Check for inequality with another Site"""
         return not self == other
+
+    def __lt__(self, other):
+        return self.write_as_bngl() < other.write_as_bngl()
 
     def __hash__(self):
         return hash((self.name, self.state, self.bond))
@@ -1127,7 +1125,7 @@ class Observable:
         obs_strs = []
         for p in self.cpatterns:
             # sorted for determinism (testing)
-            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in p.convert(mdefs)]))
+            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in set(p.convert(mdefs))]))
             obs_strs.append(kos)
 
         obs = '+'.join(obs_strs)

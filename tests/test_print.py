@@ -1,6 +1,7 @@
 from .context import objects
 from nose.tools import raises
-import itertools as it
+import re
+
 
 class TestPrint:
     def __init__(self):
@@ -25,10 +26,11 @@ class TestPrint:
         cls.sd5 = objects.SiteDef('c', [])
 
         cls.md0 = objects.MoleculeDef('Test0', [cls.sd0, cls.sd1, cls.sd2],
-                              {'site0': 'site0', 'site1': 'site1', 'site2': 'site2'})
+                                      {'site0': 'site0', 'site1': 'site1', 'site2': 'site2'})
         cls.md1 = objects.MoleculeDef('Test1', [cls.sd1], {'site1': 'site1'})
         cls.md2 = objects.MoleculeDef('Test2', [cls.sd3, cls.sd3, cls.sd3, cls.sd3, cls.sd4, cls.sd5, cls.sd5],
-                              {'a0': 'a', 'a1': 'a', 'a2': 'a', 'a3': 'a', 'b': 'b', 'c0': 'c', 'c1': 'c'}, hss=True)
+                                      {'a0': 'a', 'a1': 'a', 'a2': 'a', 'a3': 'a', 'b': 'b', 'c0': 'c', 'c1': 'c'},
+                                      hss=True)
         cls.md3 = objects.MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
         cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
 
@@ -36,12 +38,17 @@ class TestPrint:
         cls.m1 = objects.Molecule('Test1', [cls.s1])
         cls.m2 = objects.Molecule('Test2', [objects.Site('a', 0)])
         cls.m3 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1)])
-        cls.m4 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)])
-        cls.m5 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2), objects.Site('b', 3)])
-        cls.m6 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)])
+        cls.m4 = objects.Molecule('Test2',
+                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)])
+        cls.m5 = objects.Molecule('Test2',
+                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2),
+                                   objects.Site('b', 3)])
+        cls.m6 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)),
+                                            objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)])
         cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)])
         cls.m8 = objects.Molecule('B', [objects.Site('b', 0)])
-        cls.m9 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1, b=objects.Bond(1))])
+        cls.m9 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
+                                        objects.Site('a', 1, b=objects.Bond(1))])
         cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))])
 
         cls.p0 = objects.CPattern([cls.m0, objects.Molecule('Test0', [cls.s0])])
@@ -75,6 +82,7 @@ class TestPrint:
         cls.obs0 = objects.Observable("Obs0", [cls.p3], 'm')
         cls.obs1 = objects.Observable("Obs1", [cls.p2, cls.p3], 's')
         cls.obs2 = objects.Observable("Obs2", [objects.CPattern([cls.m2])], 'm')
+        cls.obs3 = objects.Observable("Obs3", [objects.CPattern([cls.m3])], 'm')
 
     @classmethod
     def teardown_class(cls):
@@ -120,10 +128,10 @@ class TestPrint:
         km4 = self.m4.convert(self.md2)
         km5 = self.m5.convert(self.md2)
         km6 = self.m6.convert(self.md2)
-        assert len(km2) == 4    # 4 choose 1
-        assert len(km3) == 48   # (4 choose 2) * 2^2 * 2^1
+        assert len(km2) == 4  # 4 choose 1
+        assert len(km3) == 48  # (4 choose 2) * 2^2 * 2^1
         assert len(km4) == 192  # km3 * 2 * 2^1
-        assert len(km5) == 24   # (4 choose 2) * (2 choose 1) * 2
+        assert len(km5) == 24  # (4 choose 2) * (2 choose 1) * 2
         assert len(km6) == 144  # (4 choose 1) * (3 choose 1) * (2 choose 1) * 3 * 2
 
     def test_patterns(self):
@@ -174,7 +182,7 @@ class TestPrint:
         x = self.m7.convert(self.md3)
         assert x[0].write_as_bngl() == "A(a0!+,a1,a2!+)"
         for i in range(1, len(x)):
-            assert x[i-1] < x[i]
+            assert x[i - 1] < x[i]
 
     def test_rule_expansion(self):
         x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
@@ -189,6 +197,22 @@ class TestPrint:
         assert self.obs1.write_as_kappa([self.md4, self.md3]) == r"%obs: 'Obs1' |A()|+|B()|"
         assert self.obs2.write_as_bngl() == r'Molecules Obs2 Test2(a)'
         assert self.obs2.write_as_kappa([self.md2]) == r"%obs: 'Obs2' |Test2(a0)|+|Test2(a1)|+|Test2(a2)|+|Test2(a3)|"
+        print self.obs3.write_as_kappa([self.md2])
+        ostr = ("%obs: 'Obs3' "
+                "|Test2(a0,a1,a2!_,a3!_)|+"
+                "|Test2(a0,a1,a2!_,a3)|+"
+                "|Test2(a0,a1,a2,a3!_)|+"
+                "|Test2(a0,a1,a2,a3)|+"
+                "|Test2(a0,a2,a1!_,a3!_)|+"
+                "|Test2(a0,a2,a1!_,a3)|+"
+                "|Test2(a0,a3,a1!_,a2!_)|+"
+                "|Test2(a1,a2,a0!_,a3!_)|+"
+                "|Test2(a1,a2,a0!_,a3)|+"
+                "|Test2(a1,a3,a0!_,a2!_)|+"
+                "|Test2(a2,a3,a0!_,a1!_)|"
+                )
+        print ostr
+        assert self.obs3.write_as_kappa([self.md2]) == ostr
 
     @raises(Exception)
     def test_invalid_obs(self):
