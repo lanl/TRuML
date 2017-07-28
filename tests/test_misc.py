@@ -14,6 +14,9 @@ class TestMisc:
         cls.bond1 = objects.Bond(-1, w=True)
         cls.bond2 = objects.Bond(-2, w=True)
 
+        cls.m0 = objects.Molecule('A', [])
+        cls.m1 = objects.Molecule('B', [])
+
         cls.pattern = 'A(x!1).A(x!1,y!2).B(y!2)'
         cls.pattern2 = 'BSA(DNP!+,DNP!+,DNP!1,DNP).IgE(Fab!1,Fab!2).BSA(DNP!2,DNP!3).IgE(Fab!3,Fab)'
         cls.pattern3 = 'A(x!1,y!2).A(x!2,y!3).A(x!3,y!4).A(x!4,y!1)'
@@ -27,6 +30,9 @@ class TestMisc:
         assert self.bond0 != objects.Bond(2)
         assert self.bond0 != self.bond1
         assert self.bond1 == self.bond2
+
+    def test_molecule_ordering(self):
+        assert sorted([self.m1, self.m0]) == [self.m0, self.m1]
 
     def test_graph_builder(self):
         graph = readers.BNGLReader.parse_cpattern(self.pattern)._build_graph()

@@ -356,6 +356,9 @@ class Molecule:
     def __ne__(self, other):
         return not self == other
 
+    def __lt__(self, other):
+        return self.write_as_bngl() < other.write_as_bngl()
+
     def __hash__(self):
         return hash((self.name, frozenset(self.sites)))
 
@@ -691,7 +694,7 @@ class CPattern:
         Parameters
         ----------
         mdefs : list
-            List of MoleculeDefs corresponding to Molecules in the CPattern
+            List of MoleculeDef instances corresponding to Molecule instances in the CPattern
 
         Returns
         -------
