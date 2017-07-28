@@ -1,37 +1,40 @@
 import re
-from pyparsing import Literal, CaselessLiteral, Word, Combine, Optional, \
-    ZeroOrMore, Forward, nums, alphas
-from deepdiff import DeepDiff
 import itertools as it
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
+import rbexceptions
 
 
-class NotAMoleculeException(Exception):
-    """Raised when a string is expected to, but does not, conform to molecule syntax"""
+class SiteDef:
+    """A site definition composed of a name and a finite set of states"""
 
-    def __init__(self, s):
-        print "%s is not a molecule" % s
+    def __init__(self, n, ss=[]):
+        self.name = n
+        self.state_list = ss
 
+    def _write(self):
+        if self.state_list:
+            return "%s~%s" % (self.name, '~'.join(self.state_list))
+        else:
+            return self.name
 
-class NotCompatibleException(Exception):
-    """Raised when a BNGL string or model cannot be converted to Kappa"""
+    def write_as_bngl(self):
+        return self._write()
 
-    def __init__(self, s):
-        print s
+    def write_as_kappa(self):
+        return self._write()
 
-
-class NotConvertedException(Exception):
-    """Raised when a string (if required) has not been converted to Kappa compatible syntax"""
-
-    def __init__(self):
-        print "Must convert object due to identically named sites"
+    def __repr__(self):
+        if not self.state_list:
+            return "SiteDef(%s)" % self.name
+        else:
+            return "SiteDef(%s: %s)" % (self.name, ','.join(self.state_list))
 
 
 class MoleculeDef:
     """A BNGL molecule type or Kappa agent signature"""
 
-    def __init__(self, n, st, snm, hss=False):
+    def __init__(self, n, sds, snm, hss=False):
         """
         MoleculeDef initialization function that calculates inverse site name mapping.
 
@@ -40,7 +43,7 @@ class MoleculeDef:
         n : str
             Alphanumeric string that identifies the molecule type
         st : list
-            List of the molecule's sites
+            List of SiteDef instances
         snm : dict
             Dictionary that maps Kappa site names to BNGL site names
         hss : bool
@@ -48,7 +51,7 @@ class MoleculeDef:
 
         """
         self.name = n
-        self.sites = st
+        self.sites = sds
         self.site_name_map = snm
         self.has_site_symmetry = hss
         self._invert_site_name_map()
@@ -63,48 +66,48 @@ class MoleculeDef:
             else:
                 self.inv_site_name_map[v].append(k)
 
-    def _all_site_states(self, is_bngl=True):
+    def convert(self):
+        """Converts MoleculeDef to use Kappa-compatible site names if necessary"""
+        ss = []
+        snm = {}
+        k_track = {s: list(reversed(sorted(self.inv_site_name_map[s]))) for s in self.inv_site_name_map.keys()}
+        for s in self.sites:
+            name = k_track[s.name].pop()
+            ss.append(SiteDef(name, s.state_list))
+            snm[name] = s.name
+        return MoleculeDef(self.name, ss, snm)
+
+    def _write(self, is_bngl=True):
         """
-        Builds a string of all the molecule type's sites' states.
+        Writes MoleculeDef as string
 
         Parameters
         ----------
         is_bngl : bool
-            True if writing to BNGL syntax, False if Kappa
+            If True, writes as BNGL string, else Kappa string
 
         Returns
         -------
         str
-            Kappa or BNGL string defining a molecule
+            MoleculeDef as BNGL molecule type or Kappa agent signature
         """
-        ss = []
-        if not is_bngl:
-            k_track = {s: list(reversed(sorted(self.inv_site_name_map[s]))) for s in self.inv_site_name_map.keys()}
-        # ordered for easy testing
-        for k, v in self.sites:
-            site_name = None
-            if is_bngl:
-                site_name = k
-            else:
-                site_name = k_track[k].pop()
-            if not v:
-                ss.append(site_name)
-            else:
-                ss.append('%s~%s' % (site_name, '~'.join(v)))
-        return ','.join(ss)
+        if is_bngl or not self.has_site_symmetry:
+            ss = [s.write_as_bngl() for s in self.sites]
+        else:
+            md = self.convert()
+            ss = [s.write_as_kappa() for s in md.sites]
+        return "%s(%s)" % (self.name, ','.join(ss))
 
     def write_as_bngl(self):
         """Writes MoleculeDef as BNGL string"""
-        return "%s(%s)" % (self.name, self._all_site_states())
-
-        """Writes MoleculeDef as Kappa string"""
+        return self._write()
 
     def write_as_kappa(self):
-        return "%%agent: %s(%s)" % (self.name, self._all_site_states(False))
+        """Writes MoleculeDef as Kappa string"""
+        return "%%agent: %s" % self._write(is_bngl=False)
 
     def __repr__(self):
-        sites_string = ','.join(['%s->%s' % (k, v) for k, v in self.sites])
-        return "MoleculeDef(name: %s, sites: %s)" % (self.name, sites_string)
+        return "MoleculeDef(name: %s, sites: %s)" % (self.name, self.sites)
 
 
 class Molecule:
@@ -167,8 +170,64 @@ class Molecule:
         sn_set = set([s.name for s in self.sites])
         return len(sn_set) != len(self.sites)
 
-    # TODO consider cases with potential for double counting (cases where identical sites are omitted from a rule)
-    # TODO must enumerate binding or general site state possibilities in this case
+    def _check_overlap(self, ms):
+        pass
+
+    def _enumerate_site(self, site_name, index, mdef, need_state=False):
+        """
+        Provides a list of sites in bound and unbound bond states, optionally
+        enumerating all potential states as well
+
+        Parameters
+        ----------
+        site_name : str
+            Kappa-compatible name of site
+        index : int
+            Index of site in molecule
+        mdef : MoleculeDef
+        need_state : bool
+            If True, enumerate site states as well as bond state, otherwise
+            only bond states.
+
+        Returns
+        -------
+        list
+            List of Sites
+        """
+        ss = []
+        if need_state:
+            for s in mdef.sites:
+                if site_name == s.name:
+                    for state in s.state_list:
+                        ss.append(Site(site_name, index, state, b=Bond(-1, w=True)))
+                        ss.append(Site(site_name, index, state, b=None))
+                    break
+        else:
+            ss.append(Site(site_name, index, b=Bond(-1, w=True)))
+            ss.append(Site(site_name, index, b=None))
+        return ss
+
+    @staticmethod
+    def _site_state_present(ss):
+        """
+        Checks to see if a Site in a list of Site instances has a defined state
+
+        Parameters
+        ----------
+        ss : list
+            List of Site instances
+
+        Returns
+        -------
+        bool
+            True if at least one site has a defined state, False otherwise
+
+        """
+        for s in ss:
+            if s.state:
+                return True
+        return False
+
     def convert(self, mdef):
         """
         Converts a molecule that may have multiple identically named sites
@@ -195,14 +254,28 @@ class Molecule:
                 un_configs_per_site[s.name][s] = 0
             un_configs_per_site[s.name][s] += 1
 
+        def rename_site(name, site):
+            return Site(name, site.index, s=site.state, b=site.bond)
+
         def rename_sites(names, site):
-            return tuple([Site(name, site.index, s=site.state, b=site.bond) for name in names])
+            return tuple([rename_site(name, site) for name in names])
+
+        # Check for the possibility of overlapping patterns
+        possible_overlap = {k: False for k in un_configs_per_site.keys()}
+        for k in un_configs_per_site.keys():
+            num_identical_sites = len(mdef.inv_site_name_map[k])
+            if num_identical_sites > 1 and k in un_configs_per_site.keys():
+                num_present_sites = sum(un_configs_per_site[k].values())
+                if num_identical_sites > num_present_sites > 1:
+                    possible_overlap[k] = True
+                    break
 
         k_configs = {}
         for sn in un_configs_per_site.keys():
             k_configs[sn] = []
             k_sn_names = set(mdef.inv_site_name_map[sn])
             cur_combs = []
+
             for s, n in un_configs_per_site[sn].iteritems():
                 if len(cur_combs) == 0:
                     cur_combs = [rename_sites(names, s) for names in it.combinations(k_sn_names, n)]
@@ -214,11 +287,26 @@ class Molecule:
                         for nc in new_combs:
                             tmp_combs.append(cc + nc)
                     cur_combs = tmp_combs
+
+            if possible_overlap[sn]:
+                need_state = self._site_state_present(un_configs_per_site[sn])
+                indices = range(sum(un_configs_per_site[sn].values()), len(mdef.inv_site_name_map[k]))
+
+                for idx in indices:
+                    possible_sites = self._enumerate_site(sn, idx, mdef, need_state)
+                    tmp_combs = []
+                    for cc in cur_combs:
+                        rem_names = k_sn_names - set(map(lambda l: l.name, cc))
+                        new_combs = [rename_site(x, y) for x, y in it.product(rem_names, possible_sites)]
+                        for nc in new_combs:
+                            tmp_combs.append(cc + (nc,))
+                    cur_combs = tmp_combs
+
             k_configs[sn] = cur_combs
 
-        k_prod = list(it.product(*k_configs.values()))
+        k_prod = it.product(*k_configs.values())
 
-        return [Molecule(self.name, [e for t in tt for e in t]) for tt in k_prod]
+        return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)]) for tt in k_prod])
 
     def _write(self, bngl=True):
         """
@@ -251,11 +339,27 @@ class Molecule:
     def write_as_kappa(self):
         """Writes Molecule as Kappa string and checks for conversion if necessary"""
         if len(set([s.name for s in self.sites])) < len(self.sites):
-            raise NotConvertedException("Kappa molecules cannot have identically named sites.  Convert first")
+            raise rbexceptions.NotConvertedException
         return self._write(False)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return self.name == other.name and frozenset(self.sites) == frozenset(other.sites)
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __lt__(self, other):
+        return self.write_as_bngl() < other.write_as_bngl()
+
+    def __hash__(self):
+        return hash((self.name, frozenset(self.sites)))
 
     def __repr__(self):
         return 'Molecule(name: %s, sites: %s)' % (self.name, ', '.join([str(x) for x in self.sites]))
+
 
 class Site:
     """
@@ -332,12 +436,15 @@ class Site:
             True if Sites are equivalent in terms of name, state, and bond
         """
         if isinstance(other, self.__class__):
-            return (self.name == other.name and self.state == other.state and self.bond == other.bond)
+            return self.name == other.name and self.state == other.state and self.bond == other.bond
         return False
 
     def __ne__(self, other):
         """Check for inequality with another Site"""
         return not self == other
+
+    def __lt__(self, other):
+        return self.write_as_bngl() < other.write_as_bngl()
 
     def __hash__(self):
         return hash((self.name, self.state, self.bond))
@@ -404,14 +511,14 @@ class Bond:
         Returns
         -------
         bool
-            True if both bond numbers are positive or if both bonds are
+            True if both bond numbers are equal or if both bonds are
             wild or any.
         """
         if isinstance(other, self.__class__):
             num_check = False
             if (self.num < 0 and other.num < 0) or (self.num == other.num):
                 num_check = True
-            return (self.wild == other.wild and self.any == other.any and num_check)
+            return self.wild == other.wild and self.any == other.any and num_check
         return False
 
     def __ne__(self, other):
@@ -419,7 +526,7 @@ class Bond:
         return not self == other
 
     def __hash__(self):
-        return hash((self.num, self.wild, self.any))
+        return hash((-1 if self.num < 0 else self.num, self.wild, self.any))
 
     def __repr__(self):
         b_string = str(self.num)
@@ -518,8 +625,8 @@ class CPattern:
         # Find all permutations of all node types (possible node mappings)
         per_node_tuples = []
         for n in node_name_dict.keys():
-            op = node_name_dict[n] # Original permutation of node type n
-            perms = list(it.permutations(op)) # All permutations of node type n
+            op = node_name_dict[n]  # Original permutation of node type n
+            perms = list(it.permutations(op))  # All permutations of node type n
 
             # Convert each permutation into a list of tuples.  The list is a
             # mapping from the original ordering to a permutation.  Tuples is a
@@ -556,7 +663,7 @@ class CPattern:
         # Check to make sure conversion to Kappa compatible site names has occurred
         for m in self.molecule_list:
             if m.has_identical_sites():
-                raise NotConvertedException
+                raise rbexceptions.NotConvertedException
         # If all molecules are unique, exit with count 1.  Otherwise calculate the
         # number of automorphisms
         if len([m._node_name() for m in self.molecule_list]) == len(set([m.name for m in self.molecule_list])):
@@ -585,7 +692,7 @@ class CPattern:
         Parameters
         ----------
         mdefs : list
-            List of MoleculeDefs corresponding to Molecules in the CPattern
+            List of MoleculeDef instances corresponding to Molecule instances in the CPattern
 
         Returns
         -------
@@ -599,15 +706,15 @@ class CPattern:
                 if m.name == md.name:
                     k_str_mol_list.append(m.convert(md))
         k_patterns = it.product(*k_str_mol_list)
-        # Remove doubles and preserve molecule order
-        seen = set()
-        un_k_patterns = []
-        for pat in k_patterns:
-            s_pat = tuple(sorted(pat))
-            if s_pat not in seen:
-                seen.add(s_pat)
-                un_k_patterns.append(CPattern(pat))
-        return un_k_patterns
+        return [CPattern(pat) for pat in k_patterns]
+        # # Remove doubles and preserve molecule order
+        # seen = set()
+        # un_k_patterns = []
+        # for pat in k_patterns:
+        #     if pat not in seen:
+        #         seen.add(pat)
+        #         un_k_patterns.append(CPattern(pat))
+        # return un_k_patterns
 
     def _write(self, bngl=True):
         """
@@ -638,6 +745,18 @@ class CPattern:
     def write_as_kappa(self):
         """Write the CPattern as a Kappa string"""
         return self._write(False)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            return frozenset(self.molecule_list) == frozenset(other.molecule_list)
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __hash__(self):
+        return hash(frozenset(self.molecule_list))
 
     def __repr__(self):
         return '\n'.join([str(x) for x in self.molecule_list])
@@ -708,13 +827,14 @@ class Parameter:
 
     def __init__(self, n, v):
         """
-        Parameter initialization function
+        Parameter initialization function.  The value can be an integer or a constant
+        algebraic expression (cannot contain dynamic quantities such as observables)
 
         Parameters
         ----------
         n : str
             Parameter name
-        v : float or int
+        v : float or int or Expression
             Parameter value
         """
         self.name = n
@@ -722,11 +842,13 @@ class Parameter:
 
     def write_as_bngl(self):
         """Writes Parameter as BNGL string"""
-        return '%s %s' % (self.name, self.value)
+        val = self.value.write_as_bngl() if isinstance(self.value, Expression) else self.value
+        return '%s %s' % (self.name, val)
 
     def write_as_kappa(self):
         """Writes Parameter as Kappa string"""
-        return '%%var: \'%s\' %s' % (self.name, self.value)
+        val = self.value.write_as_kappa() if isinstance(self.value, Expression) else self.value
+        return '%%var: \'%s\' %s' % (self.name, val)
 
     def __repr__(self):
         return "Parameter(name: %s, value: %s)" % (self.name, self.value)
@@ -845,21 +967,20 @@ class Rate:
         try:
             rate_string = self.rate.write_as_kappa()
         except AttributeError:
-            rate_string = str(self.rate) if _is_number(self.rate) else "'%s'" % self.rate
+            rate_string = str(self.rate) if is_number(self.rate) else "'%s'" % self.rate
         return rate_string if not self.intra_binding else '0 {%s}' % rate_string
 
     def __repr__(self):
         return "Rate: %s" % self.rate
 
 
-# TODO implement check for rate as raw number before writing
-# TODO add check for automorphisms in CPatterns
+# TODO ALLOW INTER/INTRA NOTATION FOR RULES WRITTEN AS KAPPA
 class Rule:
     """Defines a rule"""
 
     # lhs, rhs are lists of CPatterns, rate/rev_rate are Rates, rev is bool (true for reversible rules),
     # amb_mol is boolean denoting a rule that (in Kappa) has ambiguous molecularity
-    def __init__(self, lhs, rhs, rate, rev=False, rev_rate=None):
+    def __init__(self, lhs, rhs, rate, rev=False, rev_rate=None, label=None):
         """
         Rule initialization function
 
@@ -875,6 +996,7 @@ class Rule:
             True if the rule is reversible, False otherwise (default)
         rev_rate : Rate
             Rate for the reverse rhs -> lhs reaction if present
+        label : str
         """
         self.lhs = lhs
         self.rhs = rhs
@@ -882,6 +1004,38 @@ class Rule:
         self.rev = rev
         self.arrow = '->' if not rev else '<->'
         self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
+        self.label = label
+
+    def convert(self, lhs_mdefs, rhs_mdefs):
+        """
+        Converts a Rule to a Kappa-compatible naming scheme
+
+        Parameters
+        ----------
+        lhs_mdefs : list
+            List of MoleculeDef instances corresponding to CPatterns on the
+            Rule's left-hand side
+        rhs_mdefs : list
+            List of MoleculeDef instances corresponding to CPatterns on the
+            Rule's right-hand side
+        Returns
+        -------
+        list
+            List of Rule instances
+        """
+        k_lhs, k_rhs = [], []
+        for cp in self.lhs:
+            k_lhs.append(cp.convert(lhs_mdefs))
+        for cp in self.rhs:
+            k_rhs.append(cp.convert(rhs_mdefs))
+        all_lhs = it.product(*k_lhs)
+        all_rhs = it.product(*k_rhs)
+
+        z = zip(all_lhs, all_rhs) # order in lhs and rhs conversions are preserved
+        rs = []
+        for l, r in z:
+            rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate))
+        return list(set(rs))
 
     def write_as_bngl(self):
         """Writes the rule as a BNGL string"""
@@ -894,7 +1048,7 @@ class Rule:
             rate_string = self.rate.write_as_bngl()
         return '%s %s %s %s' % (lhs_string, self.arrow, rhs_string, rate_string)
 
-    def write_as_kappa(self, mdefs):
+    def write_as_kappa(self):
         """Writes the rule as a Kappa string"""
 
         # possible actions  (root object is list (rule.lhs and rule.rhs))
@@ -902,20 +1056,30 @@ class Rule:
         #  - type_changes (binding, unbinding)
         #  - value_changes (state change)
 
-        def kappa_rule_string(lhss, ars, rhss, rs):
-            return '%s %s %s @ %s' % (lhss, ars, rhss, rs)
+        lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
+        rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
+        if self.rev:
+            rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
+        else:
+            rate_string = self.rate.write_as_kappa()
+        return '%s %s %s @ %s' % (lhs_string, self.arrow, rhs_string, rate_string)
 
-        lhs_strings = it.product(*[p.write_as_kappa(mdefs) for p in self.lhs])
+    def __eq__(self, other):
+        """Tests for Rule equality with another Rule.  Only considers LHS and RHS patterns
+        and reversibility."""
+        if isinstance(other, self.__class__):
+            lhs_check = frozenset(self.lhs) == frozenset(other.lhs)
+            rhs_check = frozenset(self.rhs) == frozenset(other.rhs)
+            rev_check = self.rev == other.rev
+            return lhs_check and rhs_check and rev_check
+        else:
+            return False
 
-        pass
+    def __ne__(self, other):
+        return not self == other
 
-    # lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
-    # rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
-    # if self.rev:
-    # 	rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
-    # else:
-    # 	rate_string = self.rate.write_as_kappa()
-    # return '%s %s %s @ %s'%(lhs_string,self.arrow,rhs_string,rate_string)
+    def __hash__(self):
+        return hash((self.lhs, self.rhs, self.rev, self.label))
 
     def __repr__(self):
         if not self.rev:
@@ -961,7 +1125,7 @@ class Observable:
         obs_strs = []
         for p in self.cpatterns:
             # sorted for determinism (testing)
-            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in p.convert(mdefs)]))
+            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in set(p.convert(mdefs))]))
             obs_strs.append(kos)
 
         obs = '+'.join(obs_strs)
@@ -1106,527 +1270,7 @@ class Model:
         self.parameters.append(param)
 
 
-class Reader:
-    """Inherited class for reading rule-based modeling files."""
-
-    def __init__(self, file_name):
-        """
-        Reader initialization function
-
-        Parameters
-        ----------
-        file_name : str
-            Rule-based model file
-        """
-        f = open(file_name)
-        d = f.readlines()
-        f.close()
-        self.lines = d
-        self.file_name = file_name
-
-
-# ignores perturbation and action commands
-class KappaReader(Reader):
-    pass
-
-
-# ignores action commands
-class BNGLReader(Reader):
-    """Reader for BNGL model files"""
-
-    def __init__(self, file_name):
-        """
-        BNGLReader initialization function
-
-        Parameters
-        ----------
-        file_name : str
-        """
-        super(Reader, self).__init__(file_name)
-        self.is_def_block = False
-        self.is_init_block = False
-        self.is_param_block = False
-        self.is_rule_block = False
-        self.is_obs_block = False
-        self.is_func_block = False
-
-    # TODO implement as simple grammar
-    def parse(self):
-        """
-        Function to parse BNGL model files
-
-        This function assumes that the file has the molecule types block before the rules block
-        """
-        cur_line = ''  # used for line continuation
-        model = Model(self.file_name)
-        for i, l in enumerate(self.lines):
-            if re.match('begin parameters', l):
-                self.is_param_block = True
-                continue
-            elif re.match('end parameters'):
-                self.is_param_block = False
-                continue
-            elif re.match('begin molecule types', l):
-                self.is_def_block = True
-                continue
-            elif re.match('end molecule types', l):
-                self.is_def_block = False
-                continue
-            elif re.match('begin seed species', l):
-                self.is_init_block = True
-                continue
-            elif re.match('end seed species', l):
-                self.is_init_block = False
-                continue
-            elif re.match('begin observables', l):
-                self.is_obs_block = True
-                continue
-            elif re.match('end observables', l):
-                self.is_obs_block = False
-                continue
-            elif re.match('begin functions', l):
-                self.is_func_block = True
-                continue
-            elif re.match('end functions', l):
-                self.is_func_block = False
-                continue
-            elif re.match('begin reaction rules', l):
-                self.is_rule_block = True
-                continue
-            elif re.match('end reaction rules', l):
-                self.is_rule_block = False
-                continue
-
-            # determines presence of line continuation, file cannot have backslashes in other contexts
-            if re.search("\\\\\s*$", l):
-                # saves current line, stripping trailing and leading whitespace, continues to subsequent line
-                cur_line += re.sub('\\\\', '', l.strip())
-                continue
-            else:
-                cur_line += l.strip()
-                if self.is_param_block:
-                    model.add_parameter(self.parse_param(cur_line))
-                elif self.is_def_block:
-                    model.add_molecule(self.parse_mtype(cur_line))
-                elif self.is_init_block:
-                    model.add_init(self.parse_init(cur_line))
-                elif self.is_obs_block:
-                    model.add_obs(self.parse_obs(cur_line))
-                elif self.is_func_block:
-                    model.add_func(self.parse_func(cur_line))
-                elif self.is_rule_block:
-                    model.add_rule(self.parse_rule(cur_line))
-                else:
-                    continue
-                cur_line = ''
-
-        return model
-
-    @staticmethod
-    def parse_bond(b):
-        """
-        Function that parses bonds
-
-        Parameters
-        ----------
-        b : str
-            BNGL string that represents a bond
-
-        Returns
-        -------
-        Bond
-            Converts BNGL string to Bond instance. Raises ValueError if the string
-            is malformed.
-        """
-        if re.match('\+', b):
-            return Bond(-1, w=True)
-        elif re.match('\?', b):
-            return Bond(-1, a=True)
-        elif b.isdigit():
-            return Bond(b)
-        else:
-            raise ValueError("Illegal bond: %s" % b)
-
-    @staticmethod
-    def parse_mtype(line):
-        """
-        Function that parses molecule type definitions
-
-        Parameters
-        ----------
-        line : str
-            Line from BNGL file that represents a molecule type definition
-
-        Returns
-        -------
-        MoleculeDef
-            Builds MoleculeDef
-        """
-        psplit = re.split('\(', line.strip())
-        name = psplit[0]
-
-        site_name_map = {}  # tracks conversion to kappa by mapping BNGL site names to Kappa site namess
-
-        sites = re.split(',', psplit[1].strip(')'))
-        site_defs = []
-        site_name_counter = {}
-        has_site_symmetry = False
-        for s in sites:
-            site_split = re.split('~', s)
-            site_name = site_split[0]
-            site_defs.append((site_name, [] if len(site_split) == 1 else site_split[1:]))
-            if site_name in site_name_counter.keys():
-                site_name_counter[site_name] += 1
-                if not has_site_symmetry:
-                    has_site_symmetry = True
-            else:
-                site_name_counter[site_name] = 1
-
-        for sn in site_name_counter.keys():
-            if site_name_counter[sn] == 1:
-                site_name_counter.pop(sn)
-                site_name_map[sn] = sn
-
-        for sn in site_name_counter.keys():
-            while site_name_counter[sn] > 0:
-                site_name_map[sn + str(site_name_counter[sn] - 1)] = sn
-                site_name_counter[sn] -= 1
-
-        return MoleculeDef(name, site_defs, site_name_map, has_site_symmetry)
-
-    @classmethod
-    def parse_molecule(cls, mstr):
-        """
-        Function that parses molecules.
-
-        Parameters
-        ----------
-        mstr : str
-            String in BNGL file that represents a single molecule
-
-        Returns
-        -------
-        Molecule
-            Builds a Molecule or raises a NotAMoleculeException
-        """
-        smstr = mstr.strip()
-        msplit = re.split('\(', smstr)
-        mname = msplit[0]
-        if not re.match('[A-Za-z]\w*\(.*\)\s*$', smstr):
-            raise NotAMoleculeException(smstr)
-        sites = re.split(',', msplit[1].strip(')'))
-        if not sites[0]:
-            return Molecule(mname, [])
-        site_list = []
-        for i in range(len(sites)):
-            s = sites[i]
-            if '~' in s:
-                tsplit = re.split('~', s)
-                name = tsplit[0]
-                if '!' in s:
-                    bsplit = re.split('!', tsplit[1])
-                    bond = cls.parse_bond(bsplit[1])
-                    site_list.append(Site(name, i, s=bsplit[0], b=bond))
-                else:
-                    site_list.append(Site(name, i, s=tsplit[1]))
-            else:
-                if '!' in s:
-                    bsplit = re.split('!', s)
-                    name = bsplit[0]
-                    bond = cls.parse_bond(bsplit[1])
-                    site_list.append(Site(name, i, b=bond))
-                else:
-                    site_list.append(Site(s, i))
-        return Molecule(mname, site_list)
-
-    # TODO implement parsing for expression (need to identify variables for conversion to kappa syntax)
-    @classmethod
-    def parse_init(cls, line):
-        """
-        Function that parses initial conditions
-
-        Parameters
-        ----------
-        line : str
-            Line in BNGL file that represents an initial condition
-
-        Returns
-        -------
-        InitialCondition
-        """
-        isplit = re.split('\s+', line.strip())
-        spec = cls.parse_cpattern(isplit[0])
-        amount = ' '.join(isplit[1:])
-        amount_is_number = _is_number(amount)
-        p_amount = float(amount) if amount_is_number else Expression(cls.parse_math_expr(amount))
-        return InitialCondition(spec, p_amount, amount_is_number)
-
-    @classmethod
-    def parse_cpattern(cls, pstr):
-        """
-        Function that parses patterns connected by the '.' operator
-
-        Parameters
-        ----------
-        pstr : str
-            String in BNGL file that represents a pattern
-
-        Returns
-        -------
-        CPattern
-        """
-        spstr = re.split('(?<=\))\.', pstr.strip())
-        m_list = []
-        for s in spstr:
-            m_list.append(cls.parse_molecule(s))
-        return CPattern(m_list)
-
-    @classmethod
-    def parse_obs(cls, line):
-        """
-        Function that parses observables
-
-        Parameters
-        ----------
-        line : str
-            Line in BNGL file that represents an observable
-
-        Returns
-        -------
-        Observable
-        """
-        osplit = re.split('\s+', line.strip())
-        otype = osplit[0][0]
-        oname = osplit[1]
-        oCPattern = [cls.parse_cpattern(p) for p in osplit[2:]]
-        return Observable(oname, oCPattern, otype)
-
-    @staticmethod
-    def parse_param(line):
-        """
-        Function that parses parameters
-
-        Parameters
-        ----------
-        line : str
-            Line in BNGL file that represents a parameter
-
-        Returns
-        -------
-        Parameter
-        """
-        sline = line.strip()
-        s_char = ''
-        for x in sline:
-            if re.match('\s', x) or re.match('=', x):
-                s_char = x
-                break
-        psplit = re.split(s_char, sline)
-        pname = psplit[0]
-        pexpr = s_char.join(psplit[1:])
-        return Parameter(pname, pexpr)
-
-    # assumes that pattern mapping is left to right and that there is
-    # only 1 component on either side of the rule (doesn't make sense to
-    # have components that aren't operated on).  The change will be from
-    # a Site with bond = None to a Site with a Bond object containing a
-    # link to another Molecule in the same component
-    @staticmethod
-    def _has_intramolecular_binding(lhs_cp, rhs_cp):
-        """
-        Function that determines whether or not there is intramolecular binding
-
-            This assumes that pattern mapping is left to right and that there is
-            only 1 component on either side of the rule, since it doesn't make sense to
-            have components that aren't operated on.  The change will be from
-            a Site with bond = None to a Site with a Bond object containing a
-            link to another Molecule in the same component
-
-        Parameters
-        ----------
-        lhs_cp : CPattern
-            Rule's left-hand side (the reactants)
-        rhs_cp : CPattern
-            Rule's right-hand side (the products)
-
-        Returns
-        -------
-        bool
-            True if the number of bonds changed is two (intramolecular bond formation),
-            False if not
-        """
-        d = DeepDiff(lhs_cp, rhs_cp)
-        try:
-            changed = d.get('type_changes').keys()
-        except AttributeError:
-            return False
-        num_changed_bonds = 0
-        for c in changed:
-            if re.search('sites\[.\]\.bond$', c):
-                num_changed_bonds += 1
-        return num_changed_bonds == 2
-
-    # TODO parse rule label, change so that lhs and rule 'action' is returned
-    @classmethod
-    def parse_rule(cls, line):
-        """
-        Function that parses rules
-
-        Parameters
-        ----------
-        line : str
-            Line in BNGL file that represents a reaction rule
-
-        Returns
-        -------
-        Rule
-        """
-        sline = line.strip()
-        rhs = ''
-        lhs = ''
-        is_reversible = True if re.search('<->', sline) else False
-        parts = re.split('->', sline)
-        lhs_cpatterns = [cls.parse_cpattern(x) for x in re.split('(?<!!)\+', parts[0].rstrip('<'))]
-        rem = [x.strip() for x in re.split('(?<!!)\+', parts[1].strip())]
-        # if the rule is an unbinding rule or has a '+' in its rate expression
-        if len(rem) > 1:
-            one_past_final_mol_index = 0
-            for i, t in enumerate(rem):
-                try:
-                    cls.parse_cpattern(t)
-                except NotAMoleculeException:
-                    one_past_final_mol_index = i
-                    break
-            last_split = re.split('\s+', rem[one_past_final_mol_index])
-            mol, first_rate_part = last_split[0], ' '.join(last_split[1:])
-            rhs_cpatterns = [cls.parse_cpattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
-            rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
-            if is_reversible:
-                rate0, rate1 = re.split(',', rate_string)
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1))
-            else:
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible)
-        else:
-            rem_parts = re.split('(?<!!)\s+', parts[1].strip())
-            rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
-            is_intra_l_to_r = False
-            if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
-                is_intra_l_to_r = cls._has_intramolecular_binding(lhs_cpatterns[0], rhs_cpatterns[0])
-            rate_string = ' '.join(rem_parts[1:])
-            if is_reversible:
-                is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0], lhs_cpatterns[0])
-                rate0_string, rate1_string = re.split(',', rate_string)
-                rate0 = cls.parse_rate(rate0_string, is_intra_l_to_r)
-                rate1 = cls.parse_rate(rate1_string, is_intra_r_to_l)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1)
-            else:
-                rate0 = cls.parse_rate(rate_string, is_intra_l_to_r)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible)
-
-    @classmethod
-    def parse_rate(cls, rs, is_intra=False):
-        """
-        Function for parsing rates
-
-        Parameters
-        ----------
-        rs : str
-            String in BNGL file corresponding to rate
-        is_intra : bool
-            True if the rate string is an intramolecular association rate, False otherwise
-
-        Returns
-        -------
-        Rate
-        """
-        rss = rs.strip()
-        expr = cls.parse_math_expr(rss)
-        if len(expr) > 1:
-            return Rate(Expression(expr), is_intra)
-        else:
-            return Rate(rs, is_intra)
-
-    # needs to identify other user-defined functions + stuff in parse_math_expr
-    @classmethod
-    def parse_func(cls, line):
-        """
-        Function to parse BNGL functions
-
-        Parameters
-        ----------
-        line : str
-            Line in BNGL file that represents a function (i.e. a dynamic quantity)
-
-        Returns
-        -------
-        Expression
-        """
-        sline = line.strip()
-        s_char = ''
-        for x in sline:
-            if re.match('\s', x) or re.match('=', x):
-                s_char = x
-                break
-        name, func = re.split(s_char, sline)
-        if re.search('\(.\)',
-                     name):  # a variable in between the parentheses means the function is local (not Kappa compatible)
-            raise NotCompatibleException("Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
-        p_func = cls.parse_math_expr(func)
-        return Expression(name, p_func.asList())
-
-    # needs to be able to identify built in functions, numbers, variables, (previously defined functions?)
-    # functions are an alphanumeric string starting with a letter; they are preceded by an operator or parenthesis and encompass something in parentheses
-    # parameters are also alphanumeric strings starting with a letter; they are preceded by operators or parentheses and succeeded by operators
-    @staticmethod
-    def parse_math_expr(estr):
-        """
-        Function to parse algebraic expressions
-
-        Parameters
-        ----------
-        estr : str
-            String in BNGL file corresponding to an algebraic expression
-
-        Returns
-        -------
-        list
-            List of algebraic tokens, including functions, variables, numbers, and operators
-        """
-
-        point = Literal(".")
-        e = CaselessLiteral("E")
-        fnumber = Combine(Word("+-" + nums, nums) +
-                          Optional(point + Optional(Word(nums))) +
-                          Optional(e + Word("+-" + nums, nums)))
-        ident = Word(alphas, alphas + nums + "_$")
-
-        plus = Literal("+")
-        minus = Literal("-")
-        mult = Literal("*")
-        div = Literal("/")
-        lpar = Literal("(")
-        rpar = Literal(")")
-        addop = plus | minus
-        multop = mult | div
-        expop = Literal("^")
-        pi = CaselessLiteral("PI")
-
-        expr = Forward()
-        atom = (Optional("-") + (pi | e | fnumber | ident + lpar + expr + rpar | ident) | (lpar + expr + rpar))
-
-        # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
-        # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
-        factor = Forward()
-        factor << atom + ZeroOrMore((expop + factor))
-
-        term = factor + ZeroOrMore((multop + factor))
-        expr << term + ZeroOrMore((addop + term))
-        pattern = expr
-
-        return pattern.parseString(estr.strip())
-
-
-def _is_number(n):
+def is_number(n):
     try:
         float(n)
     except (ValueError, AttributeError):
