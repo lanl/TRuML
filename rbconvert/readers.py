@@ -18,10 +18,13 @@ class Reader(object):
         """
         self.file_name = file_name
         if self.file_name is not None:
-            f = open(file_name)
-            d = f.readlines()
-            f.close()
-            self.lines = d
+            try:
+                f = open(file_name)
+                d = f.readlines()
+                f.close()
+                self.lines = d
+            except IOError:
+                raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
 
