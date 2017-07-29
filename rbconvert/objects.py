@@ -1179,8 +1179,8 @@ class Model:
             s += '\t%s\n' % o.write_as_bngl()
         s += '\nend observables\n\n'
         s += 'begin functions\n\n'
-        for f in self.functions:
-            s += '\t%s\n' % f.write_as_bngl()
+        for wf in self.functions:
+            s += '\t%s\n' % wf.write_as_bngl()
         s += '\nend functions\n\n'
         s += 'begin reaction rules'
         for r in self.rules:
@@ -1188,17 +1188,19 @@ class Model:
         s += 'end reaction rules\n\n'
         s += 'end model\n'
 
-        f = open('%s' % file_name)
-        f.write(s)
-        f.close()
+        wf = open(file_name, 'w')
+        wf.write(s)
+        wf.close()
 
     # check for rules with molecular ambiguity
-    def write_as_kappa(self, func_as_obs=False):
+    def write_as_kappa(self, file_name, func_as_obs):
         """
         Writes Model as Kappa file
 
         Parameters
         ----------
+        file_name : str
+            Name of file to write
         func_as_obs : bool
             If True, writes functions as observables, otherwise as variables
         """
@@ -1221,6 +1223,9 @@ class Model:
         for r in self.rules:
             s += '%s\n' % r.write_as_kappa()
         s += '\n'
+        wf = open(file_name, 'w')
+        wf.write(s)
+        wf.close()
 
     def add_molecule(self, mol):
         """

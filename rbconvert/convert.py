@@ -14,8 +14,6 @@ def main():
                         help='writes dynamic quantities as variables instead of observables (Kappa)')
     args = parser.parse_args()
 
-    print args
-
     if args.bngl_files is None and args.kappa_files is None:
         raise rbexceptions.NoModelsException("\nNo models specified.  See `convert.py -h` for information\n")
     elif args.bngl_files is None:
@@ -27,7 +25,7 @@ def main():
         for bf in args.bngl_files:
             br = readers.BNGLReader(bf)
             model = br.parse()
-            model.write_as_kappa(re.sub('bngl', 'ka', bf), args.print_funcs)
+            model.write_as_kappa(re.sub('bngl', 'ka', bf), args.no_print_funcs)
 
 
 if __name__ == "__main__":

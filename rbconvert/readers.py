@@ -436,10 +436,13 @@ class BNGLReader(Reader):
         cur_line = ''  # used for line continuation
         model = Model()
         for i, l in enumerate(self.lines):
+            if re.match('\s*\n', l) or re.match('\s*#', l):
+                continue
+
             if re.match('begin parameters', l):
                 self.is_param_block = True
                 continue
-            elif re.match('end parameters'):
+            elif re.match('end parameters', l):
                 self.is_param_block = False
                 continue
             elif re.match('begin molecule types', l):
