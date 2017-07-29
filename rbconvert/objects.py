@@ -1,5 +1,6 @@
 import re
 import itertools as it
+import logging
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 import rbexceptions
@@ -1227,14 +1228,15 @@ class Model:
         wf.write(s)
         wf.close()
 
-    def add_molecule(self, mol):
+    def add_molecule_def(self, mol):
         """
-        Adds a Molecule to Model
+        Adds a MoleculeDef to Model
 
         Parameters
         ----------
-        mol : Molecule
+        mol : MoleculeDef
         """
+        logging.debug("Added a molecule definition to the model: %s" % mol)
         self.molecules.append(mol)
 
     def add_init(self, init):
@@ -1245,6 +1247,7 @@ class Model:
         ----------
         init : InitialCondition
         """
+        logging.debug("Added an initial condition to the model: %s" % init)
         self.initial_cond.append(init)
 
     def add_obs(self, obs):
@@ -1255,6 +1258,7 @@ class Model:
         ----------
         obs : Observable
         """
+        logging.debug("Added an observable to the model: %s" % obs)
         self.observables.append(obs)
 
     def add_func(self, func):
@@ -1265,6 +1269,7 @@ class Model:
         ----------
         func : Function
         """
+        logging.debug("Added a function to the model: %s" % func)
         self.functions.append(func)
 
     def add_rule(self, rule):
@@ -1275,6 +1280,7 @@ class Model:
         ----------
         rule : Rule
         """
+        logging.debug("Added a rule to the model: %s" % rule)
         self.rules.append(rule)
 
     def add_parameter(self, param):
@@ -1285,6 +1291,7 @@ class Model:
         ----------
         param : Parameter
         """
+        logging.debug("Added a parameter to the model: %s" % param)
         self.parameters.append(param)
 
 

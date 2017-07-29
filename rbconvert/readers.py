@@ -1,6 +1,7 @@
 import rbexceptions
 from deepdiff import DeepDiff
 from objects import *
+import logging
 import pyparsing as pp
 
 
@@ -23,7 +24,9 @@ class Reader(object):
                 d = f.readlines()
                 f.close()
                 self.lines = d
+                logging.info("Read file %s" % self.file_name)
             except IOError:
+                logging.error("Cannot find model file %s" % file_name)
                 raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
@@ -51,16 +54,20 @@ class KappaReader(Reader):
         cur_line = ''
         model = Model()
         for i, l in enumerate(self.lines):
+
+            logging.debug("Line %s: %s" % (i, l))
+
             if re.search("\\\\\s*$", l):
                 # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
                 cur_line += re.sub('\\\\', '', l.strip())
                 continue
             else:
+                logging.debug("Full line: %s" % cur_line)
                 cur_line += l.strip()
                 if re.match('%init', cur_line):
                     model.add_init(self.parse_init(cur_line))
                 elif re.match('%agent', cur_line):
-                    model.add_molecule(self.parse_mtype(cur_line))
+                    model.add_molecule_def(self.parse_mtype(cur_line))
                 elif re.match('%var', cur_line):
                     scur_line = re.split('\s+', cur_line)
                     name = scur_line[1].strip("'")
@@ -86,6 +93,7 @@ class KappaReader(Reader):
                     continue
                 cur_line = ''
 
+        logging.info("Parsed Kappa model file %s" % self.file_name)
         return model
 
     def var_is_dynamic_no_pat(self, expr_list):
@@ -486,7 +494,7 @@ class BNGLReader(Reader):
                 if self.is_param_block:
                     model.add_parameter(self.parse_param(cur_line))
                 elif self.is_def_block:
-                    model.add_molecule(self.parse_mtype(cur_line))
+                    model.add_molecule_def(self.parse_mtype(cur_line))
                 elif self.is_init_block:
                     model.add_init(self.parse_init(cur_line))
                 elif self.is_obs_block:
@@ -499,6 +507,7 @@ class BNGLReader(Reader):
                     continue
                 cur_line = ''
 
+        logging.info("Parsed BNGL model file: %s" % self.file_name)
         return model
 
     @staticmethod
