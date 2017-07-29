@@ -1,4 +1,5 @@
 import argparse as ap
+import logging
 import rbexceptions
 import readers
 import re
@@ -12,7 +13,13 @@ def main():
     parser.add_argument('-k', '--kappa_files', nargs='+', metavar='model.ka', help='Kappa files to convert to BNGL')
     parser.add_argument('-nf', '--no_print_funcs', action='store_false',
                         help='writes dynamic quantities as variables instead of observables (Kappa)')
+    parser.add_argument('-v', '--verbose', action='store_true', help='prints information useful for debugging')
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.WARNING)
 
     if args.bngl_files is None and args.kappa_files is None:
         raise rbexceptions.NoModelsException("\nNo models specified.  See `convert.py -h` for information\n")
