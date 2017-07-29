@@ -55,15 +55,17 @@ class KappaReader(Reader):
         model = Model()
         for i, l in enumerate(self.lines):
 
-            logging.debug("Line %s: %s" % (i, l))
+            logging.debug("Line %s: %s" % (i, l.strip()))
 
             if re.search("\\\\\s*$", l):
                 # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
                 cur_line += re.sub('\\\\', '', l.strip())
                 continue
             else:
-                logging.debug("Full line: %s" % cur_line)
                 cur_line += l.strip()
+                if l != cur_line:
+                    logging.debug("Full line: %s" % cur_line)
+
                 if re.match('%init', cur_line):
                     model.add_init(self.parse_init(cur_line))
                 elif re.match('%agent', cur_line):
@@ -311,7 +313,8 @@ class KappaReader(Reader):
                 inter_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[0].strip()).asList()))
                 intra_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[1].strip()).asList()), True)
                 inter_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[0].strip()).asList()))
-                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()), True)
+                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
+                                   True)
                 inter_frule = Rule([lhs_patt], [rhs_patt], inter_frate, label=label)
                 intra_frule = Rule([lhs_patt], [rhs_patt], intra_frate, label=label)
                 inter_rrule = Rule([rhs_patt], [lhs_patt], inter_rrate, label=label)
@@ -329,7 +332,8 @@ class KappaReader(Reader):
             elif re.search('{', rate_cps[1]):
                 rrate_cps = re.split('{', rate_cps[1].strip())
                 inter_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[0].strip()).asList()))
-                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()), True)
+                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
+                                   True)
                 frate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[0].strip()).asList()))
                 inter_rrule = Rule([rhs_patt], [lhs_patt], inter_rrate, label=label)
                 intra_rrule = Rule([rhs_patt], [lhs_patt], intra_rrate, label=label)
@@ -381,7 +385,8 @@ class KappaReader(Reader):
         variable = pp.Combine(pp.Literal("'") + pp.Word(pp.alphanums + "_") + pp.Literal("'"))
 
         # patterns
-        pattern = pp.Combine(pp.Literal("|") + pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar + pp.Literal("|"))
+        pattern = pp.Combine(pp.Literal("|") + pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (
+        pp.Empty() ^ pp.CharsNotIn(")(")) + rpar + pp.Literal("|"))
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")
@@ -402,7 +407,7 @@ class KappaReader(Reader):
 
         expr = pp.Forward()
         atom = (pp.Optional("-") + (
-        constant | variable | fnumber | lpar + expr + rpar | unary_one_funcs + expr | unary_two_funcs + expr + expr | pattern))
+            constant | variable | fnumber | lpar + expr + rpar | unary_one_funcs + expr | unary_two_funcs + expr + expr | pattern))
 
         factor = pp.Forward()
         factor << atom + pp.ZeroOrMore((expop + factor))
@@ -447,41 +452,67 @@ class BNGLReader(Reader):
             if re.match('\s*\n', l) or re.match('\s*#', l):
                 continue
 
+            logging.debug("Line %s: %s" % (i, l.strip()))
+
             if re.match('begin parameters', l):
+                logging.debug("Entering parameter block")
                 self.is_param_block = True
+                cur_line = ''
                 continue
             elif re.match('end parameters', l):
+                logging.debug("Leaving parameter block")
                 self.is_param_block = False
+                cur_line = ''
                 continue
             elif re.match('begin molecule types', l):
+                logging.debug("Entering molecule types block")
                 self.is_def_block = True
+                cur_line = ''
                 continue
             elif re.match('end molecule types', l):
+                logging.debug("Leaving molecule types block")
                 self.is_def_block = False
+                cur_line = ''
                 continue
             elif re.match('begin seed species', l):
+                logging.debug("Entering initial conditions block")
                 self.is_init_block = True
+                cur_line = ''
                 continue
             elif re.match('end seed species', l):
+                logging.debug("Leaving initial conditions block")
                 self.is_init_block = False
+                cur_line = ''
                 continue
             elif re.match('begin observables', l):
+                logging.debug("Entering observables block")
                 self.is_obs_block = True
+                cur_line = ''
                 continue
             elif re.match('end observables', l):
+                logging.debug("Leaving observables block")
                 self.is_obs_block = False
+                cur_line = ''
                 continue
             elif re.match('begin functions', l):
+                logging.debug("Entering functions block")
                 self.is_func_block = True
+                cur_line = ''
                 continue
             elif re.match('end functions', l):
+                logging.debug("Leaving functions block")
                 self.is_func_block = False
+                cur_line = ''
                 continue
             elif re.match('begin reaction rules', l):
+                logging.debug("Entering rules block")
                 self.is_rule_block = True
+                cur_line = ''
                 continue
             elif re.match('end reaction rules', l):
+                logging.debug("Leaving rules block")
                 self.is_rule_block = False
+                cur_line = ''
                 continue
 
             # determines presence of line continuation, file cannot have backslashes in other contexts
@@ -491,6 +522,9 @@ class BNGLReader(Reader):
                 continue
             else:
                 cur_line += l.strip()
+                if l != cur_line:
+                    logging.debug("Full line: %s" % cur_line)
+
                 if self.is_param_block:
                     model.add_parameter(self.parse_param(cur_line))
                 elif self.is_def_block:
@@ -504,6 +538,7 @@ class BNGLReader(Reader):
                 elif self.is_rule_block:
                     model.add_rule(self.parse_rule(cur_line))
                 else:
+                    cur_line = ''
                     continue
                 cur_line = ''
 
@@ -704,13 +739,12 @@ class BNGLReader(Reader):
         Parameter
         """
         sline = line.strip()
-        s_char = ''
-        for x in sline:
-            if re.match('\s', x) or re.match('=', x):
-                s_char = x
-                break
+        if re.search('=', sline):
+            s_char = '='
+        else:
+            s_char = ' '
         psplit = re.split(s_char, sline)
-        pname = psplit[0]
+        pname = psplit[0].strip()
         pexpr = s_char.join(psplit[1:])
         return Parameter(pname, pexpr)
 
@@ -858,7 +892,8 @@ class BNGLReader(Reader):
         name, func = re.split(s_char, sline)
         if re.search('\(.\)',
                      name):  # a variable in between the parentheses means the function is local (not Kappa compatible)
-            raise rbexceptions.NotCompatibleException("Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
+            raise rbexceptions.NotCompatibleException(
+                "Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
         p_func = cls.parse_math_expr(func)
         return Expression(name, p_func.asList())
 
@@ -884,8 +919,8 @@ class BNGLReader(Reader):
         point = pp.Literal(".")
         e = pp.CaselessLiteral("E")
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
-                          pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
-                          pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
+                             pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
+                             pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
         ident = pp.Word(pp.alphas, pp.alphas + pp.nums + "_$")
 
         plus = pp.Literal("+")

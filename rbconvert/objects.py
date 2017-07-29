@@ -1193,6 +1193,8 @@ class Model:
         wf.write(s)
         wf.close()
 
+        logging.info("Wrote model to file (BNGL): %s" % file_name)
+
     # check for rules with molecular ambiguity
     def write_as_kappa(self, file_name, func_as_obs):
         """
@@ -1208,25 +1210,34 @@ class Model:
         s = ''
         for m in self.molecules:
             s += '%s\n' % m.write_as_kappa()
-        s += '\n'
+        if len(self.molecules) > 0:
+            s += '\n'
         for p in self.parameters:
             s += '%s\n' % p.write_as_kappa()
-        s += '\n'
+        if len(self.parameters) > 0:
+            s += '\n'
         for o in self.observables:
             s += '%s\n' % o.write_as_kappa()
-        s += '\n'
+        if len(self.observables) > 0:
+            s += '\n'
         for f in self.functions:
             s += '%s\n' % f.write_as_kappa(func_as_obs)  # defaults to printing all "functions" as observables
-        s += '\n'
+        if len(self.functions) > 0:
+            s += '\n'
         for i in self.initial_cond:
             s += '%s\n' % i.write_as_kappa()
-        s += '\n'
+        if len(self.initial_cond) > 0:
+            s += '\n'
         for r in self.rules:
             s += '%s\n' % r.write_as_kappa()
-        s += '\n'
+        if len(self.rules) > 0:
+            s += '\n'
+
         wf = open(file_name, 'w')
         wf.write(s)
         wf.close()
+
+        logging.info("Wrote model to file (Kappa): %s" % file_name)
 
     def add_molecule_def(self, mol):
         """
