@@ -521,8 +521,9 @@ class BNGLReader(Reader):
                 cur_line += re.sub('\\\\', '', l.strip())
                 continue
             else:
-                cur_line += l.strip()
-                if l != cur_line:
+                sl = l.strip()
+                cur_line += sl
+                if sl != cur_line:
                     logging.debug("Full line: %s" % cur_line)
 
                 if self.is_param_block:
