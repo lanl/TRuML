@@ -14,10 +14,16 @@ def main():
     parser.add_argument('-nf', '--no_print_funcs', action='store_false',
                         help='writes dynamic quantities as variables instead of observables (Kappa)')
     parser.add_argument('-v', '--verbose', action='store_true', help='prints information useful for debugging')
+    parser.add_argument('-l', '--log_file', nargs=1, metavar='convert.log', help='Specify log file')
     args = parser.parse_args()
 
-    if args.verbose:
+    # TODO LOOK UP LOG FILE SAVING MECHANISM
+    if args.verbose and args.log_file:
+        logging.basicConfig(filename=args.log_file, level=logging.DEBUG)
+    elif args.verbose:
         logging.basicConfig(level=logging.DEBUG)
+    elif args.log_file:
+        logging.basicConfig(filename=args.log_file, level=logging.WARNING)
     else:
         logging.basicConfig(level=logging.WARNING)
 
