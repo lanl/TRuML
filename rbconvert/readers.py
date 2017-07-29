@@ -418,7 +418,7 @@ class BNGLReader(Reader):
         ----------
         file_name : str
         """
-        super(Reader, self).__init__(file_name)
+        super(BNGLReader, self).__init__(file_name)
         self.is_def_block = False
         self.is_init_block = False
         self.is_param_block = False
