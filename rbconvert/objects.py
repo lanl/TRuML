@@ -774,6 +774,7 @@ class CPattern:
         return '\n'.join([str(x) for x in self.molecule_list])
 
 
+# TODO prevent dynamic quantities from being used as the initial amount
 class InitialCondition:
     """Initial conditions for seeding simulation"""
 
