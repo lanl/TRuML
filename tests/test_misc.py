@@ -16,6 +16,8 @@ class TestMisc:
 
         cls.m0 = objects.Molecule('A', [])
         cls.m1 = objects.Molecule('B', [])
+        cls.m2 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1))])
+        cls.m3 = objects.Molecule('A', [objects.Site("s", 1, b=objects.Bond(1))])
 
         cls.pattern = 'A(x!1).A(x!1,y!2).B(y!2)'
         cls.pattern2 = 'BSA(DNP!+,DNP!+,DNP!1,DNP).IgE(Fab!1,Fab!2).BSA(DNP!2,DNP!3).IgE(Fab!3,Fab)'
@@ -52,3 +54,8 @@ class TestMisc:
     @raises(rbexceptions.NotConvertedException)
     def test_not_converted(self):
         readers.BNGLReader.parse_cpattern(self.pattern2).automorphisms()
+
+    def test_bound_to(self):
+        assert not self.m3.bound_to(self.bond0)
+        assert self.m3.bound_to(self.m2)
+        assert not self.m3.bound_to(self.m0)

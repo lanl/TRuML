@@ -308,6 +308,18 @@ class Molecule:
 
         return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)]) for tt in k_prod])
 
+    def bound_to(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        else:
+            for s in self.sites:
+                for t in other.sites:
+                    if s.bond is None or t.bond is None:
+                        continue
+                    if s.bond.num == t.bond.num and s.bond.num > -1:
+                        return True
+            return False
+
     def _write(self, bngl=True):
         """
         Writes the Molecule in Kappa or BNGL syntax
