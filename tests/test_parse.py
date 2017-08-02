@@ -46,15 +46,18 @@ class TestParseKappa:
         assert rule4s[0].rev
 
     def test_cpattern_parse(self):
-        pcp0 = readers.KappaReader.parse_cpattern(self.cp0)
-        assert len(pcp0.molecule_list) == 3
-        assert pcp0.molecule_list[2].sites[0].bond.num == 1
-        assert not pcp0.molecule_list[0].sites
-        assert pcp0.molecule_list[2].sites[1].state == 's'
+        pcp0 = readers.KappaReader.parse_cpatterns(self.cp0)
+        assert len(pcp0) == 2
+        assert len(pcp0[1].molecule_list) == 2
+        assert len(pcp0[0].molecule_list) == 1
+        assert pcp0[1].molecule_list[1].sites[0].bond.num == 1
+        assert not pcp0[0].molecule_list[0].sites
+        assert pcp0[1].molecule_list[1].sites[1].state == 's'
 
     def test_init_parse(self):
-        assert readers.KappaReader.parse_init(self.init0).write_as_kappa() == "%init: 10 A(x)"
-        assert readers.KappaReader.parse_init(self.init1).write_as_kappa() == "%init: 10+'x' B(),C()"
+        assert readers.KappaReader.parse_init(self.init0)[0].write_as_kappa() == "%init: 10 A(x)"
+        assert readers.KappaReader.parse_init(self.init1)[0].write_as_kappa() == "%init: 10+'x' B()"
+        assert readers.KappaReader.parse_init(self.init1)[1].write_as_kappa() == "%init: 10+'x' C()"
 
     def test_eq_parse(self):
         assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', "'x'"]

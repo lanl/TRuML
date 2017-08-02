@@ -64,11 +64,11 @@ class KappaReader(Reader):
                     expr_list = KappaReader.parse_alg_expr(' '.join(scur_line[2:])).asList()
                     if self.var_contains_pattern(expr_list):
                         if len(expr_list) == 1:
-                            model.add_obs(Observable(name, [self.parse_cpattern(expr_list[0].strip('|'))]))
+                            model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
                         else:
                             pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
                             for p in pat_dict.keys():
-                                model.add_obs(Observable(p, [self.parse_cpattern(pat_dict[p].strip('|'))]))
+                                model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'))))
                             model.add_func(Function(name, Expression(subst_expr_list)))
                     elif self.var_is_dynamic_no_pat(expr_list):
                         model.add_func(Function(name, Expression(expr_list)))
@@ -118,11 +118,11 @@ class KappaReader(Reader):
     def parse_init(line):
         sline = re.split('\s+', line)
         amount = ' '.join(sline[1:-1])
-        pattern = KappaReader.parse_cpattern(sline[-1])
+        patterns = KappaReader.parse_cpatterns(sline[-1])
         amount_is_number = True if is_number(amount) else False
         if not amount_is_number:
             amount = Expression(KappaReader.parse_alg_expr(amount))
-        return InitialCondition(pattern, amount, amount_is_number)
+        return [InitialCondition(pattern, amount, amount_is_number) for pattern in patterns]
 
     @staticmethod
     def parse_mtype(line):
@@ -252,7 +252,7 @@ class KappaReader(Reader):
         return cmps
 
     @staticmethod
-    def parse_cpattern(s):
+    def parse_cpatterns(s):
         mol_list = []
         in_par = 0
         cur_mol = ''
@@ -267,7 +267,8 @@ class KappaReader(Reader):
                 continue
             cur_mol += c
         mol_list.append(KappaReader.parse_molecule(cur_mol))
-        return CPattern(mol_list)
+        conn_cmps = KappaReader._get_components(mol_list)
+        return [CPattern(c) for c in conn_cmps]
 
     @staticmethod
     def parse_rule(line):
@@ -284,12 +285,12 @@ class KappaReader(Reader):
         if re.match("'.*?'", rule_cps[0]):
             lhs_cps = re.split('\s+', rule_cps[0])
             label = lhs_cps[0].strip("'")
-            lhs_patt = KappaReader.parse_cpattern(lhs_cps[1])
+            lhs_patt = KappaReader.parse_cpatterns(lhs_cps[1])
         else:
-            lhs_patt = KappaReader.parse_cpattern(rule_cps[0])
+            lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
 
         rhs_cps = re.split('@', rule_cps[1])
-        rhs_patt = KappaReader.parse_cpattern(rhs_cps[0].strip())
+        rhs_patt = KappaReader.parse_cpatterns(rhs_cps[0].strip())
 
         if reversible:
             rate_cps = re.split(',', rhs_cps[1])
