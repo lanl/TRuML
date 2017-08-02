@@ -17,11 +17,15 @@ class TestMisc:
         cls.m0 = objects.Molecule('A', [])
         cls.m1 = objects.Molecule('B', [])
         cls.m2 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1))])
-        cls.m3 = objects.Molecule('A', [objects.Site("s", 1, b=objects.Bond(1))])
+        cls.m3 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1)), objects.Site("t", 1, b=objects.Bond(2))])
+        cls.m4 = objects.Molecule('B', [objects.Site("s", 0, b=objects.Bond(2))])
 
         cls.pattern = 'A(x!1).A(x!1,y!2).B(y!2)'
         cls.pattern2 = 'BSA(DNP!+,DNP!+,DNP!1,DNP).IgE(Fab!1,Fab!2).BSA(DNP!2,DNP!3).IgE(Fab!3,Fab)'
         cls.pattern3 = 'A(x!1,y!2).A(x!2,y!3).A(x!3,y!4).A(x!4,y!1)'
+
+        cls.pattern4 = 'A(x!1),A(x!1,y!2),B(x!2),C(y)'
+        cls.pattern4 = 'A(x!1),A(x!1,y!2),C(y!2)'
 
     @classmethod
     def teardown_class(cls):
@@ -59,3 +63,15 @@ class TestMisc:
         assert not self.m3.bound_to(self.bond0)
         assert self.m3.bound_to(self.m2)
         assert not self.m3.bound_to(self.m0)
+
+    def test_adj_list(self):
+        al0 = readers.KappaReader._build_adj_list([self.m2, self.m3, self.m4])
+        assert al0 == [[1], [0, 2], [1]]
+        al1 = readers.KappaReader._build_adj_list([self.m2, self.m3, self.m0, self.m4])
+        assert al1 == [[1], [0, 3], [], [1]]
+
+    def test_get_comps(self):
+        cmps0 = readers.KappaReader._get_components([self.m2, self.m3, self.m4])
+        assert cmps0 == [[self.m2, self.m3, self.m4]]
+        cmps1 = readers.KappaReader._get_components([self.m2, self.m3, self.m0, self.m4])
+        assert cmps1 == [[self.m2, self.m3, self.m4], [self.m0]]
