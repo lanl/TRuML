@@ -59,9 +59,9 @@ class TestPrint:
         cls.p5 = objects.CPattern([cls.m7])
         cls.p6 = objects.CPattern([cls.m8])
         cls.p7 = objects.CPattern([cls.m9, cls.m10])
+        cls.p8 = objects.CPattern([cls.m10, cls.m10])
 
         cls.i0 = objects.InitialCondition(cls.p0, 10)
-        # implement functionality to print initial condition as kappa/bngl expression
         cls.i1 = objects.InitialCondition(cls.p0, objects.Expression(['x', '+', '10']), False)
 
         cls.par0 = objects.Parameter('rate', 1e6)
@@ -80,6 +80,7 @@ class TestPrint:
         cls.rule3 = objects.Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
         cls.rule4 = objects.Rule([], [cls.p2], cls.rate0)
         cls.rule5 = objects.Rule([cls.p2], [], cls.rate0)
+        cls.rule6 = objects.Rule([cls.p6, cls.p6], [cls.p8], cls.rate0)
 
         cls.obs0 = objects.Observable("Obs0", [cls.p3], 'm')
         cls.obs1 = objects.Observable("Obs1", [cls.p2, cls.p3], 's')
@@ -183,6 +184,9 @@ class TestPrint:
         assert self.rule4.write_as_bngl() == r"0 -> A() 3"
         assert self.rule5.write_as_kappa() == r"A() ->  @ 3"
         assert self.rule5.write_as_bngl() == r"A() -> 0 3"
+        assert self.rule6.write_as_kappa() == r"B(b),B(b) -> B(b!1),B(b!1) @ 3"
+        assert self.rule6.write_as_bngl() == r"B(b)+B(b) -> B(b!1).B(b!1) 3"
+        assert self.rule6.write_as_bngl(True) == r"B(b).B(b) -> B(b!1).B(b!1) 3"
 
     def test_molecule_conversion_determinism(self):
         x = self.m7.convert(self.md3)

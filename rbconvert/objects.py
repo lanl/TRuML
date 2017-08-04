@@ -1051,15 +1051,19 @@ class Rule:
             rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate))
         return list(set(rs))
 
-    def write_as_bngl(self):
+    def write_as_bngl(self, dot=False):
         """Writes the rule as a BNGL string"""
 
         if not self.lhs:
             lhs_string = '0'
+        elif dot:
+            lhs_string = '.'.join([p.write_as_bngl() for p in self.lhs])
         else:
             lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
         if not self.rhs:
             rhs_string = '0'
+        elif dot:
+            rhs_string = '.'.join([p.write_as_bngl() for p in self.rhs])
         else:
             rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
         if self.rev:
@@ -1169,7 +1173,7 @@ class Model:
         self.rules = []
         self.parameters = []
 
-    def write_as_bngl(self, file_name):
+    def write_as_bngl(self, file_name, dnp):
         """Writes Model as BNGL file"""
         s = 'begin model\n\nbegin parameters\n\n'
         for p in self.parameters:
@@ -1194,6 +1198,8 @@ class Model:
         s += 'begin reaction rules'
         for r in self.rules:
             s += '\t%s\n' % r.write_as_bngl()
+            if dnp:
+                s += '\t%s\n' % r.write_as_bngl(dnp)
         s += 'end reaction rules\n\n'
         s += 'end model\n'
 
