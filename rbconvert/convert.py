@@ -13,20 +13,24 @@ def main():
     parser.add_argument('-k', '--kappa_files', nargs='+', metavar='model.ka', help='Kappa files to convert to BNGL')
     parser.add_argument('-nf', '--no_print_funcs', action='store_false',
                         help='writes dynamic quantities as variables instead of observables (Kappa)')
-    parser.add_argument('-v', '--verbose', action='store_true', help='prints information useful for debugging')
+    parser.add_argument('-v', '--verbose', action='store_true', help='verbose output')
+    parser.add_argument('-d', '--debug', action='store_true', help='verbose output useful for debugging')
     parser.add_argument('-l', '--log_file', metavar='convert.log', help='Specify log file')
     args = parser.parse_args()
 
     log_format = "%(name)s\t%(levelname)s\t%(message)s"
 
-    if args.verbose and args.log_file:
-        logging.basicConfig(format=log_format, filename=args.log_file, level=logging.DEBUG)
+    # Assign logging level
+    ll = logging.WARNING
+    if args.debug:
+        ll = logging.DEBUG
     elif args.verbose:
-        logging.basicConfig(format=log_format, level=logging.DEBUG)
-    elif args.log_file:
-        logging.basicConfig(format=log_format, filename=args.log_file, level=logging.WARNING)
+        ll = logging.INFO
+
+    if args.log_file:
+        logging.basicConfig(format=log_format, filename=args.log_file, level=ll)
     else:
-        logging.basicConfig(format=log_format, level=logging.WARNING)
+        logging.basicConfig(format=log_format, level=ll)
 
     if args.bngl_files is None and args.kappa_files is None:
         raise rbexceptions.NoModelsException("\nNo models specified.  See `convert.py -h` for information\n")
