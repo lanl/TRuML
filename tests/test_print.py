@@ -78,6 +78,8 @@ class TestPrint:
         cls.rule1 = objects.Rule([cls.p2], [cls.p3], cls.rate1, False, cls.rate2)
         cls.rule2 = objects.Rule([cls.p2], [cls.p3], cls.rate0, True, cls.rate2)
         cls.rule3 = objects.Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
+        cls.rule4 = objects.Rule([], [cls.p2], cls.rate0)
+        cls.rule5 = objects.Rule([cls.p2], [], cls.rate0)
 
         cls.obs0 = objects.Observable("Obs0", [cls.p3], 'm')
         cls.obs1 = objects.Observable("Obs1", [cls.p2, cls.p3], 's')
@@ -177,6 +179,10 @@ class TestPrint:
         assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10)+'x'-356"
         assert self.rule2.write_as_bngl() == r'A() <-> B() 3,rate'
         assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
+        assert self.rule4.write_as_kappa() == r" -> A() @ 3"
+        assert self.rule4.write_as_bngl() == r"0 -> A() 3"
+        assert self.rule5.write_as_kappa() == r"A() ->  @ 3"
+        assert self.rule5.write_as_bngl() == r"A() -> 0 3"
 
     def test_molecule_conversion_determinism(self):
         x = self.m7.convert(self.md3)

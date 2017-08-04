@@ -1,6 +1,7 @@
 import rbexceptions
 from deepdiff import DeepDiff
 from objects import *
+import logging
 import pyparsing as pp
 
 
@@ -18,10 +19,15 @@ class Reader(object):
         """
         self.file_name = file_name
         if self.file_name is not None:
-            f = open(file_name)
-            d = f.readlines()
-            f.close()
-            self.lines = d
+            try:
+                f = open(file_name)
+                d = f.readlines()
+                f.close()
+                self.lines = d
+                logging.info("Read file %s" % self.file_name)
+            except IOError:
+                logging.error("Cannot find model file %s" % file_name)
+                raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
 
@@ -48,16 +54,22 @@ class KappaReader(Reader):
         cur_line = ''
         model = Model()
         for i, l in enumerate(self.lines):
+
+            logging.debug("Line %s: %s" % (i, l.strip()))
+
             if re.search("\\\\\s*$", l):
                 # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
                 cur_line += re.sub('\\\\', '', l.strip())
                 continue
             else:
                 cur_line += l.strip()
+                if l != cur_line:
+                    logging.debug("Full line: %s" % cur_line)
+
                 if re.match('%init', cur_line):
                     model.add_init(self.parse_init(cur_line))
                 elif re.match('%agent', cur_line):
-                    model.add_molecule(self.parse_mtype(cur_line))
+                    model.add_molecule_def(self.parse_mtype(cur_line))
                 elif re.match('%var', cur_line):
                     scur_line = re.split('\s+', cur_line)
                     name = scur_line[1].strip("'")
@@ -83,6 +95,7 @@ class KappaReader(Reader):
                     continue
                 cur_line = ''
 
+        logging.info("Parsed Kappa model file %s" % self.file_name)
         return model
 
     def var_is_dynamic_no_pat(self, expr_list):
@@ -285,12 +298,21 @@ class KappaReader(Reader):
         if re.match("'.*?'", rule_cps[0]):
             lhs_cps = re.split('\s+', rule_cps[0])
             label = lhs_cps[0].strip("'")
-            lhs_patt = KappaReader.parse_cpatterns(lhs_cps[1])
+            if lhs_cps[1].strip() == '':
+                lhs_patt = []
+            else:
+                lhs_patt = KappaReader.parse_cpatterns(lhs_cps[1].strip())
         else:
-            lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
+            if rule_cps[0].strip() == '':
+                lhs_patt = []
+            else:
+                lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
 
         rhs_cps = re.split('@', rule_cps[1])
-        rhs_patt = KappaReader.parse_cpatterns(rhs_cps[0].strip())
+        if rhs_cps[0].strip() == '':
+            rhs_patt = []
+        else:
+            rhs_patt = KappaReader.parse_cpatterns(rhs_cps[0].strip())
 
         if reversible:
             rate_cps = re.split(',', rhs_cps[1])
@@ -300,37 +322,39 @@ class KappaReader(Reader):
                 inter_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[0].strip()).asList()))
                 intra_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[1].strip()).asList()), True)
                 inter_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[0].strip()).asList()))
-                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()), True)
-                inter_frule = Rule([lhs_patt], [rhs_patt], inter_frate, label=label)
-                intra_frule = Rule([lhs_patt], [rhs_patt], intra_frate, label=label)
-                inter_rrule = Rule([rhs_patt], [lhs_patt], inter_rrate, label=label)
-                intra_rrule = Rule([rhs_patt], [lhs_patt], intra_rrate, label=label)
+                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
+                                   True)
+                inter_frule = Rule(lhs_patt, rhs_patt, inter_frate, label=label)
+                intra_frule = Rule(lhs_patt, rhs_patt, intra_frate, label=label)
+                inter_rrule = Rule(rhs_patt, lhs_patt, inter_rrate, label=label)
+                intra_rrule = Rule(rhs_patt, lhs_patt, intra_rrate, label=label)
                 return [inter_frule, intra_frule, inter_rrule, intra_rrule]
             elif re.search('{', rate_cps[0]):
                 frate_cps = re.split('{', rate_cps[0].strip())
                 inter_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[0].strip()).asList()))
                 intra_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[1].strip()).asList()), True)
                 rrate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[1].strip()).asList()))
-                inter_frule = Rule([lhs_patt], [rhs_patt], inter_frate, label=label)
-                intra_frule = Rule([lhs_patt], [rhs_patt], intra_frate, label=label)
-                rrule = Rule([rhs_patt], [lhs_patt], rrate, label=label)
+                inter_frule = Rule(lhs_patt, rhs_patt, inter_frate, label=label)
+                intra_frule = Rule(lhs_patt, rhs_patt, intra_frate, label=label)
+                rrule = Rule(rhs_patt, lhs_patt, rrate, label=label)
                 return [inter_frule, intra_frule, rrule]
             elif re.search('{', rate_cps[1]):
                 rrate_cps = re.split('{', rate_cps[1].strip())
                 inter_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[0].strip()).asList()))
-                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()), True)
+                intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
+                                   True)
                 frate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[0].strip()).asList()))
-                inter_rrule = Rule([rhs_patt], [lhs_patt], inter_rrate, label=label)
-                intra_rrule = Rule([rhs_patt], [lhs_patt], intra_rrate, label=label)
-                frule = Rule([lhs_patt], [rhs_patt], frate, label=label)
+                inter_rrule = Rule(rhs_patt, lhs_patt, inter_rrate, label=label)
+                intra_rrule = Rule(rhs_patt, lhs_patt, intra_rrate, label=label)
+                frule = Rule(lhs_patt, rhs_patt, frate, label=label)
                 return [inter_rrule, intra_rrule, frule]
             else:
                 frate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[0].strip()).asList()))
                 rrate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[1].strip()).asList()))
-                return [Rule([lhs_patt], [rhs_patt], frate, reversible, rrate, label=label)]
+                return [Rule(lhs_patt, rhs_patt, frate, reversible, rrate, label=label)]
         else:
             rate = Rate(Expression(KappaReader.parse_alg_expr(rhs_cps[1].strip())))
-            return [Rule([lhs_patt], [rhs_patt], rate, label=label)]
+            return [Rule(lhs_patt, rhs_patt, rate, label=label)]
 
     @staticmethod
     def parse_alg_expr(estr):
@@ -370,7 +394,8 @@ class KappaReader(Reader):
         variable = pp.Combine(pp.Literal("'") + pp.Word(pp.alphanums + "_") + pp.Literal("'"))
 
         # patterns
-        pattern = pp.Combine(pp.Literal("|") + pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar + pp.Literal("|"))
+        pattern = pp.Combine(pp.Literal("|") + pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (
+        pp.Empty() ^ pp.CharsNotIn(")(")) + rpar + pp.Literal("|"))
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")
@@ -391,7 +416,7 @@ class KappaReader(Reader):
 
         expr = pp.Forward()
         atom = (pp.Optional("-") + (
-        constant | variable | fnumber | lpar + expr + rpar | unary_one_funcs + expr | unary_two_funcs + expr + expr | pattern))
+            constant | variable | fnumber | lpar + expr + rpar | unary_one_funcs + expr | unary_two_funcs + expr + expr | pattern))
 
         factor = pp.Forward()
         factor << atom + pp.ZeroOrMore((expop + factor))
@@ -415,7 +440,7 @@ class BNGLReader(Reader):
         ----------
         file_name : str
         """
-        super(Reader, self).__init__(file_name)
+        super(BNGLReader, self).__init__(file_name)
         self.is_def_block = False
         self.is_init_block = False
         self.is_param_block = False
@@ -433,41 +458,70 @@ class BNGLReader(Reader):
         cur_line = ''  # used for line continuation
         model = Model()
         for i, l in enumerate(self.lines):
-            if re.match('begin parameters', l):
-                self.is_param_block = True
+            if re.match('\s*\n', l) or re.match('\s*#', l):
                 continue
-            elif re.match('end parameters'):
+
+            logging.debug("Line %s: %s" % (i, l.strip()))
+
+            if re.match('begin parameters', l):
+                logging.debug("Entering parameter block")
+                self.is_param_block = True
+                cur_line = ''
+                continue
+            elif re.match('end parameters', l):
+                logging.debug("Leaving parameter block")
                 self.is_param_block = False
+                cur_line = ''
                 continue
             elif re.match('begin molecule types', l):
+                logging.debug("Entering molecule types block")
                 self.is_def_block = True
+                cur_line = ''
                 continue
             elif re.match('end molecule types', l):
+                logging.debug("Leaving molecule types block")
                 self.is_def_block = False
+                cur_line = ''
                 continue
             elif re.match('begin seed species', l):
+                logging.debug("Entering initial conditions block")
                 self.is_init_block = True
+                cur_line = ''
                 continue
             elif re.match('end seed species', l):
+                logging.debug("Leaving initial conditions block")
                 self.is_init_block = False
+                cur_line = ''
                 continue
             elif re.match('begin observables', l):
+                logging.debug("Entering observables block")
                 self.is_obs_block = True
+                cur_line = ''
                 continue
             elif re.match('end observables', l):
+                logging.debug("Leaving observables block")
                 self.is_obs_block = False
+                cur_line = ''
                 continue
             elif re.match('begin functions', l):
+                logging.debug("Entering functions block")
                 self.is_func_block = True
+                cur_line = ''
                 continue
             elif re.match('end functions', l):
+                logging.debug("Leaving functions block")
                 self.is_func_block = False
+                cur_line = ''
                 continue
             elif re.match('begin reaction rules', l):
+                logging.debug("Entering rules block")
                 self.is_rule_block = True
+                cur_line = ''
                 continue
             elif re.match('end reaction rules', l):
+                logging.debug("Leaving rules block")
                 self.is_rule_block = False
+                cur_line = ''
                 continue
 
             # determines presence of line continuation, file cannot have backslashes in other contexts
@@ -476,11 +530,15 @@ class BNGLReader(Reader):
                 cur_line += re.sub('\\\\', '', l.strip())
                 continue
             else:
-                cur_line += l.strip()
+                sl = l.strip()
+                cur_line += sl
+                if sl != cur_line:
+                    logging.debug("Full line: %s" % cur_line)
+
                 if self.is_param_block:
                     model.add_parameter(self.parse_param(cur_line))
                 elif self.is_def_block:
-                    model.add_molecule(self.parse_mtype(cur_line))
+                    model.add_molecule_def(self.parse_mtype(cur_line))
                 elif self.is_init_block:
                     model.add_init(self.parse_init(cur_line))
                 elif self.is_obs_block:
@@ -490,9 +548,11 @@ class BNGLReader(Reader):
                 elif self.is_rule_block:
                     model.add_rule(self.parse_rule(cur_line))
                 else:
+                    cur_line = ''
                     continue
                 cur_line = ''
 
+        logging.info("Parsed BNGL model file: %s" % self.file_name)
         return model
 
     @staticmethod
@@ -689,15 +749,18 @@ class BNGLReader(Reader):
         Parameter
         """
         sline = line.strip()
-        s_char = ''
-        for x in sline:
-            if re.match('\s', x) or re.match('=', x):
-                s_char = x
-                break
+        if re.search('=', sline):
+            s_char = '='
+        else:
+            s_char = ' '
         psplit = re.split(s_char, sline)
-        pname = psplit[0]
+        pname = psplit[0].strip()
         pexpr = s_char.join(psplit[1:])
-        return Parameter(pname, pexpr)
+        if re.search('[*/+-]', pexpr):
+            pval = Expression(BNGLReader.parse_math_expr(pexpr))
+        else:
+            pval = pexpr
+        return Parameter(pname, pval)
 
     # assumes that pattern mapping is left to right and that there is
     # only 1 component on either side of the rule (doesn't make sense to
@@ -755,14 +818,32 @@ class BNGLReader(Reader):
         Rule
         """
         sline = line.strip()
-        rhs = ''
-        lhs = ''
+
+        sp = re.split(':', sline)
+        label = None
+        if len(sp) > 1:
+            label = sp[0].strip()
+            sline = sp[1].strip()
+
         is_reversible = True if re.search('<->', sline) else False
         parts = re.split('->', sline)
-        lhs_cpatterns = [cls.parse_cpattern(x) for x in re.split('(?<!!)\+', parts[0].rstrip('<'))]
+
+        lhs = re.split('(?<!!)\+', parts[0].rstrip('<'))
+        if len(lhs) == 1 and lhs[0].strip() == '0':
+            lhs_cpatterns = []
+        else:
+            lhs_cpatterns = [cls.parse_cpattern(x) for x in lhs]
         rem = [x.strip() for x in re.split('(?<!!)\+', parts[1].strip())]
-        # if the rule is an unbinding rule or has a '+' in its rate expression
-        if len(rem) > 1:
+
+        if re.match('0$', rem[0].strip()):
+            rhs_cpatterns = []
+            rate_string = '+'.join(rem[1:])
+            if is_reversible:
+                rate0, rate1 = re.split(',', rate_string)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
+            else:
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
+        elif len(rem) > 1:
             one_past_final_mol_index = 0
             for i, t in enumerate(rem):
                 try:
@@ -776,25 +857,30 @@ class BNGLReader(Reader):
             rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
             if is_reversible:
                 rate0, rate1 = re.split(',', rate_string)
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1))
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
             else:
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
         else:
             rem_parts = re.split('(?<!!)\s+', parts[1].strip())
-            rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
+            if re.match('0$', rem_parts[0].strip()):
+                rhs_cpatterns = []
+            else:
+                rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
             is_intra_l_to_r = False
             if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
                 is_intra_l_to_r = cls._has_intramolecular_binding(lhs_cpatterns[0], rhs_cpatterns[0])
             rate_string = ' '.join(rem_parts[1:])
             if is_reversible:
-                is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0], lhs_cpatterns[0])
-                rate0_string, rate1_string = re.split(',', rate_string)
-                rate0 = cls.parse_rate(rate0_string, is_intra_l_to_r)
-                rate1 = cls.parse_rate(rate1_string, is_intra_r_to_l)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1)
+                is_intra_r_to_l = False
+                if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
+                    is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0], lhs_cpatterns[0])
+                rate_split = re.split(',', rate_string)
+                rate0 = cls.parse_rate(rate_split[0], is_intra_l_to_r)
+                rate1 = cls.parse_rate(rate_split[1], is_intra_r_to_l)
+                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1, label=label)
             else:
                 rate0 = cls.parse_rate(rate_string, is_intra_l_to_r)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible)
+                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, label=label)
 
     @classmethod
     def parse_rate(cls, rs, is_intra=False):
@@ -843,7 +929,8 @@ class BNGLReader(Reader):
         name, func = re.split(s_char, sline)
         if re.search('\(.\)',
                      name):  # a variable in between the parentheses means the function is local (not Kappa compatible)
-            raise rbexceptions.NotCompatibleException("Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
+            raise rbexceptions.NotCompatibleException(
+                "Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
         p_func = cls.parse_math_expr(func)
         return Expression(name, p_func.asList())
 
@@ -869,8 +956,8 @@ class BNGLReader(Reader):
         point = pp.Literal(".")
         e = pp.CaselessLiteral("E")
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
-                          pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
-                          pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
+                             pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
+                             pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
         ident = pp.Word(pp.alphas, pp.alphas + pp.nums + "_$")
 
         plus = pp.Literal("+")

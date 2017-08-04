@@ -1,5 +1,6 @@
 import re
 import itertools as it
+import logging
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 import rbexceptions
@@ -771,9 +772,10 @@ class CPattern:
         return hash(frozenset(self.molecule_list))
 
     def __repr__(self):
-        return '\n'.join([str(x) for x in self.molecule_list])
+        return "CPattern(" + '--'.join([str(x) for x in self.molecule_list]) + ")"
 
 
+# TODO prevent dynamic quantities from being used as the initial amount
 class InitialCondition:
     """Initial conditions for seeding simulation"""
 
@@ -1052,8 +1054,14 @@ class Rule:
     def write_as_bngl(self):
         """Writes the rule as a BNGL string"""
 
-        lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
-        rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
+        if not self.lhs:
+            lhs_string = '0'
+        else:
+            lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
+        if not self.rhs:
+            rhs_string = '0'
+        else:
+            rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
         if self.rev:
             rate_string = self.rate.write_as_bngl() + ',' + self.rev_rate.write_as_bngl()
         else:
@@ -1067,9 +1075,11 @@ class Rule:
         #  - iterable_item_added/removed (binding, unbinding)
         #  - type_changes (binding, unbinding)
         #  - value_changes (state change)
-
-        lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
-        rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
+        lhs_string, rhs_string = '', ''
+        if self.lhs:
+            lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
+        if self.rhs:
+            rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
         if self.rev:
             rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
         else:
@@ -1144,7 +1154,7 @@ class Observable:
         return '%%obs: \'%s\' %s' % (self.name, obs)
 
     def __repr__(self):
-        return "Obs(name: %s, pattern: %s)" % (self.name, ' '.join(self.cpatterns))
+        return "Obs(name: %s, pattern: %s)" % (self.name, ' '.join([str(cp) for cp in self.cpatterns]))
 
 
 class Model:
@@ -1178,8 +1188,8 @@ class Model:
             s += '\t%s\n' % o.write_as_bngl()
         s += '\nend observables\n\n'
         s += 'begin functions\n\n'
-        for f in self.functions:
-            s += '\t%s\n' % f.write_as_bngl()
+        for wf in self.functions:
+            s += '\t%s\n' % wf.write_as_bngl()
         s += '\nend functions\n\n'
         s += 'begin reaction rules'
         for r in self.rules:
@@ -1187,48 +1197,65 @@ class Model:
         s += 'end reaction rules\n\n'
         s += 'end model\n'
 
-        f = open('%s' % file_name)
-        f.write(s)
-        f.close()
+        wf = open(file_name, 'w')
+        wf.write(s)
+        wf.close()
+
+        logging.info("Wrote model to file (BNGL): %s" % file_name)
 
     # check for rules with molecular ambiguity
-    def write_as_kappa(self, func_as_obs=False):
+    def write_as_kappa(self, file_name, func_as_obs):
         """
         Writes Model as Kappa file
 
         Parameters
         ----------
+        file_name : str
+            Name of file to write
         func_as_obs : bool
             If True, writes functions as observables, otherwise as variables
         """
         s = ''
         for m in self.molecules:
             s += '%s\n' % m.write_as_kappa()
-        s += '\n'
+        if len(self.molecules) > 0:
+            s += '\n'
         for p in self.parameters:
             s += '%s\n' % p.write_as_kappa()
-        s += '\n'
+        if len(self.parameters) > 0:
+            s += '\n'
         for o in self.observables:
             s += '%s\n' % o.write_as_kappa()
-        s += '\n'
+        if len(self.observables) > 0:
+            s += '\n'
         for f in self.functions:
             s += '%s\n' % f.write_as_kappa(func_as_obs)  # defaults to printing all "functions" as observables
-        s += '\n'
+        if len(self.functions) > 0:
+            s += '\n'
         for i in self.initial_cond:
             s += '%s\n' % i.write_as_kappa()
-        s += '\n'
+        if len(self.initial_cond) > 0:
+            s += '\n'
         for r in self.rules:
             s += '%s\n' % r.write_as_kappa()
-        s += '\n'
+        if len(self.rules) > 0:
+            s += '\n'
 
-    def add_molecule(self, mol):
+        wf = open(file_name, 'w')
+        wf.write(s)
+        wf.close()
+
+        logging.info("Wrote model to file (Kappa): %s" % file_name)
+
+    def add_molecule_def(self, mol):
         """
-        Adds a Molecule to Model
+        Adds a MoleculeDef to Model
 
         Parameters
         ----------
-        mol : Molecule
+        mol : MoleculeDef
         """
+        logging.debug("Added a molecule definition to the model: %s" % mol)
         self.molecules.append(mol)
 
     def add_init(self, init):
@@ -1239,6 +1266,7 @@ class Model:
         ----------
         init : InitialCondition
         """
+        logging.debug("Added an initial condition to the model: %s" % init)
         self.initial_cond.append(init)
 
     def add_obs(self, obs):
@@ -1249,6 +1277,7 @@ class Model:
         ----------
         obs : Observable
         """
+        logging.debug("Added an observable to the model: %s" % obs)
         self.observables.append(obs)
 
     def add_func(self, func):
@@ -1259,6 +1288,7 @@ class Model:
         ----------
         func : Function
         """
+        logging.debug("Added a function to the model: %s" % func)
         self.functions.append(func)
 
     def add_rule(self, rule):
@@ -1269,6 +1299,7 @@ class Model:
         ----------
         rule : Rule
         """
+        logging.debug("Added a rule to the model: %s" % rule)
         self.rules.append(rule)
 
     def add_parameter(self, param):
@@ -1279,6 +1310,7 @@ class Model:
         ----------
         param : Parameter
         """
+        logging.debug("Added a parameter to the model: %s" % param)
         self.parameters.append(param)
 
 

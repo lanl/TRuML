@@ -17,3 +17,11 @@ class NotConvertedException(Exception):
 
     def __init__(self):
         print "Must convert object due to identically named sites"
+
+
+class NoModelsException(Exception):
+    """Raised when no models are detected either in the command line arguments or the filesystem"""
+
+    def __init__(self, s):
+        if s is not None:
+            print s
