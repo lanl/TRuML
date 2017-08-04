@@ -298,12 +298,21 @@ class KappaReader(Reader):
         if re.match("'.*?'", rule_cps[0]):
             lhs_cps = re.split('\s+', rule_cps[0])
             label = lhs_cps[0].strip("'")
-            lhs_patt = KappaReader.parse_cpatterns(lhs_cps[1])
+            if lhs_cps[1].strip() == '':
+                lhs_patt = []
+            else:
+                lhs_patt = KappaReader.parse_cpatterns(lhs_cps[1].strip())
         else:
-            lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
+            if rule_cps[0].strip() == '':
+                lhs_patt = []
+            else:
+                lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
 
         rhs_cps = re.split('@', rule_cps[1])
-        rhs_patt = KappaReader.parse_cpatterns(rhs_cps[0].strip())
+        if rhs_cps[0].strip() == '':
+            rhs_patt = []
+        else:
+            rhs_patt = KappaReader.parse_cpatterns(rhs_cps[0].strip())
 
         if reversible:
             rate_cps = re.split(',', rhs_cps[1])
@@ -315,19 +324,19 @@ class KappaReader(Reader):
                 inter_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[0].strip()).asList()))
                 intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
                                    True)
-                inter_frule = Rule([lhs_patt], [rhs_patt], inter_frate, label=label)
-                intra_frule = Rule([lhs_patt], [rhs_patt], intra_frate, label=label)
-                inter_rrule = Rule([rhs_patt], [lhs_patt], inter_rrate, label=label)
-                intra_rrule = Rule([rhs_patt], [lhs_patt], intra_rrate, label=label)
+                inter_frule = Rule(lhs_patt, rhs_patt, inter_frate, label=label)
+                intra_frule = Rule(lhs_patt, rhs_patt, intra_frate, label=label)
+                inter_rrule = Rule(rhs_patt, lhs_patt, inter_rrate, label=label)
+                intra_rrule = Rule(rhs_patt, lhs_patt, intra_rrate, label=label)
                 return [inter_frule, intra_frule, inter_rrule, intra_rrule]
             elif re.search('{', rate_cps[0]):
                 frate_cps = re.split('{', rate_cps[0].strip())
                 inter_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[0].strip()).asList()))
                 intra_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[1].strip()).asList()), True)
                 rrate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[1].strip()).asList()))
-                inter_frule = Rule([lhs_patt], [rhs_patt], inter_frate, label=label)
-                intra_frule = Rule([lhs_patt], [rhs_patt], intra_frate, label=label)
-                rrule = Rule([rhs_patt], [lhs_patt], rrate, label=label)
+                inter_frule = Rule(lhs_patt, rhs_patt, inter_frate, label=label)
+                intra_frule = Rule(lhs_patt, rhs_patt, intra_frate, label=label)
+                rrule = Rule(rhs_patt, lhs_patt, rrate, label=label)
                 return [inter_frule, intra_frule, rrule]
             elif re.search('{', rate_cps[1]):
                 rrate_cps = re.split('{', rate_cps[1].strip())
@@ -335,17 +344,17 @@ class KappaReader(Reader):
                 intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
                                    True)
                 frate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[0].strip()).asList()))
-                inter_rrule = Rule([rhs_patt], [lhs_patt], inter_rrate, label=label)
-                intra_rrule = Rule([rhs_patt], [lhs_patt], intra_rrate, label=label)
-                frule = Rule([lhs_patt], [rhs_patt], frate, label=label)
+                inter_rrule = Rule(rhs_patt, lhs_patt, inter_rrate, label=label)
+                intra_rrule = Rule(rhs_patt, lhs_patt, intra_rrate, label=label)
+                frule = Rule(lhs_patt, rhs_patt, frate, label=label)
                 return [inter_rrule, intra_rrule, frule]
             else:
                 frate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[0].strip()).asList()))
                 rrate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[1].strip()).asList()))
-                return [Rule([lhs_patt], [rhs_patt], frate, reversible, rrate, label=label)]
+                return [Rule(lhs_patt, rhs_patt, frate, reversible, rrate, label=label)]
         else:
             rate = Rate(Expression(KappaReader.parse_alg_expr(rhs_cps[1].strip())))
-            return [Rule([lhs_patt], [rhs_patt], rate, label=label)]
+            return [Rule(lhs_patt, rhs_patt, rate, label=label)]
 
     @staticmethod
     def parse_alg_expr(estr):

@@ -772,7 +772,7 @@ class CPattern:
         return hash(frozenset(self.molecule_list))
 
     def __repr__(self):
-        return '\n'.join([str(x) for x in self.molecule_list])
+        return "CPattern(" + '--'.join([str(x) for x in self.molecule_list]) + ")"
 
 
 # TODO prevent dynamic quantities from being used as the initial amount
@@ -1054,8 +1054,14 @@ class Rule:
     def write_as_bngl(self):
         """Writes the rule as a BNGL string"""
 
-        lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
-        rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
+        if not self.lhs:
+            lhs_string = '0'
+        else:
+            lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
+        if not self.rhs:
+            rhs_string = '0'
+        else:
+            rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
         if self.rev:
             rate_string = self.rate.write_as_bngl() + ',' + self.rev_rate.write_as_bngl()
         else:
@@ -1069,9 +1075,11 @@ class Rule:
         #  - iterable_item_added/removed (binding, unbinding)
         #  - type_changes (binding, unbinding)
         #  - value_changes (state change)
-
-        lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
-        rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
+        lhs_string, rhs_string = '', ''
+        if self.lhs:
+            lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
+        if self.rhs:
+            rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
         if self.rev:
             rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
         else:
@@ -1146,7 +1154,7 @@ class Observable:
         return '%%obs: \'%s\' %s' % (self.name, obs)
 
     def __repr__(self):
-        return "Obs(name: %s, pattern: %s)" % (self.name, ' '.join(self.cpatterns))
+        return "Obs(name: %s, pattern: %s)" % (self.name, ' '.join([str(cp) for cp in self.cpatterns]))
 
 
 class Model:

@@ -27,6 +27,8 @@ class TestParseKappa:
         cls.rule2 = "A(a~0),B(y) <-> A(a~1),B(y) @ %s {1}, 0.1 {10}" % cls.expr0
         cls.rule3 = "A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
         cls.rule4 = "A(x),B(x) <-> A(x!1),B(x!1) @ 1, 0.1"
+        cls.rule5 = " <-> A(x) @ 'rate', 'rate'"
+        cls.rule6 = "B(site~state!_) -> @ [log] 3"
 
     def test_rule_parse(self):
         rule0s = readers.KappaReader.parse_rule(self.rule0)
@@ -44,6 +46,11 @@ class TestParseKappa:
         rule4s = readers.KappaReader.parse_rule(self.rule4)
         assert len(rule4s) == 1
         assert rule4s[0].rev
+        rule5s = readers.KappaReader.parse_rule(self.rule5)
+        assert rule5s[0].lhs == []
+        assert rule5s[0].rev
+        rule6s = readers.KappaReader.parse_rule(self.rule6)
+        assert rule6s[0].rhs == []
 
     def test_cpattern_parse(self):
         pcp0 = readers.KappaReader.parse_cpatterns(self.cp0)
