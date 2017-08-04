@@ -747,7 +747,11 @@ class BNGLReader(Reader):
         psplit = re.split(s_char, sline)
         pname = psplit[0].strip()
         pexpr = s_char.join(psplit[1:])
-        return Parameter(pname, pexpr)
+        if re.search('[*/+-]', pexpr):
+            pval = Expression(BNGLReader.parse_math_expr(pexpr))
+        else:
+            pval = pexpr
+        return Parameter(pname, pval)
 
     # assumes that pattern mapping is left to right and that there is
     # only 1 component on either side of the rule (doesn't make sense to
