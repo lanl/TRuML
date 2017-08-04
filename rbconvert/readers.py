@@ -818,14 +818,32 @@ class BNGLReader(Reader):
         Rule
         """
         sline = line.strip()
-        rhs = ''
-        lhs = ''
+
+        sp = re.split(':', sline)
+        label = None
+        if len(sp) > 1:
+            label = sp[0].strip()
+            sline = sp[1].strip()
+
         is_reversible = True if re.search('<->', sline) else False
         parts = re.split('->', sline)
-        lhs_cpatterns = [cls.parse_cpattern(x) for x in re.split('(?<!!)\+', parts[0].rstrip('<'))]
+
+        lhs = re.split('(?<!!)\+', parts[0].rstrip('<'))
+        if len(lhs) == 1 and lhs[0].strip() == '0':
+            lhs_cpatterns = []
+        else:
+            lhs_cpatterns = [cls.parse_cpattern(x) for x in lhs]
         rem = [x.strip() for x in re.split('(?<!!)\+', parts[1].strip())]
-        # if the rule is an unbinding rule or has a '+' in its rate expression
-        if len(rem) > 1:
+
+        if re.match('0$', rem[0].strip()):
+            rhs_cpatterns = []
+            rate_string = '+'.join(rem[1:])
+            if is_reversible:
+                rate0, rate1 = re.split(',', rate_string)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
+            else:
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
+        elif len(rem) > 1:
             one_past_final_mol_index = 0
             for i, t in enumerate(rem):
                 try:
@@ -839,25 +857,30 @@ class BNGLReader(Reader):
             rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
             if is_reversible:
                 rate0, rate1 = re.split(',', rate_string)
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1))
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
             else:
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
         else:
             rem_parts = re.split('(?<!!)\s+', parts[1].strip())
-            rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
+            if re.match('0$', rem_parts[0].strip()):
+                rhs_cpatterns = []
+            else:
+                rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
             is_intra_l_to_r = False
             if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
                 is_intra_l_to_r = cls._has_intramolecular_binding(lhs_cpatterns[0], rhs_cpatterns[0])
             rate_string = ' '.join(rem_parts[1:])
             if is_reversible:
-                is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0], lhs_cpatterns[0])
-                rate0_string, rate1_string = re.split(',', rate_string)
-                rate0 = cls.parse_rate(rate0_string, is_intra_l_to_r)
-                rate1 = cls.parse_rate(rate1_string, is_intra_r_to_l)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1)
+                is_intra_r_to_l = False
+                if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
+                    is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0], lhs_cpatterns[0])
+                rate_split = re.split(',', rate_string)
+                rate0 = cls.parse_rate(rate_split[0], is_intra_l_to_r)
+                rate1 = cls.parse_rate(rate_split[1], is_intra_r_to_l)
+                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1, label=label)
             else:
                 rate0 = cls.parse_rate(rate_string, is_intra_l_to_r)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible)
+                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, label=label)
 
     @classmethod
     def parse_rate(cls, rs, is_intra=False):

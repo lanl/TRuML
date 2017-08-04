@@ -122,6 +122,8 @@ class TestParseBNGL:
         # intramolecular rule
         cls.rule2 = "A(a~s).B(b,c!1).C(c!1) -> A(a~s!2).B(b!2,c!1).C(c!1) kp/log10(10)"
         cls.rule3 = "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
+        cls.rule4 = "A() <-> 0 rate, rate"
+        cls.rule5 = "0 -> B(x) 4"
 
     @classmethod
     def teardown_class(cls):
@@ -167,3 +169,9 @@ class TestParseBNGL:
         assert prule3.rate.intra_binding is False
         assert prule3.write_as_bngl() == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
         # assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
+        prule4 = readers.BNGLReader.parse_rule(self.rule4)
+        assert prule4.rhs == []
+        assert prule4.rate.write_as_bngl() == 'rate'
+        prule5 = readers.BNGLReader.parse_rule(self.rule5)
+        assert prule5.lhs == []
+        assert len(prule5.rhs) == 1
