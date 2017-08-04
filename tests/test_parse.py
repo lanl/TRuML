@@ -25,7 +25,7 @@ class TestParseKappa:
         cls.rule0 = 'A(x),B(x) -> A(x!1),B(x!1) @ 1'
         cls.rule1 = "'rule' %s" % cls.rule0
         cls.rule2 = "A(a~0),B(y) <-> A(a~1),B(y) @ %s {1}, 0.1 {10}" % cls.expr0
-        cls.rule3 = "A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
+        cls.rule3 = "'label with space' A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
         cls.rule4 = "A(x),B(x) <-> A(x!1),B(x!1) @ 1, 0.1"
         cls.rule5 = " <-> A(x) @ 'rate', 'rate'"
         cls.rule6 = "B(site~state!_) -> @ [log] 3"
@@ -43,6 +43,7 @@ class TestParseKappa:
             assert not r.rev
         rule3s = readers.KappaReader.parse_rule(self.rule3)
         assert len(rule3s) == 3
+        assert rule3s[0].label == 'label with space'
         rule4s = readers.KappaReader.parse_rule(self.rule4)
         assert len(rule4s) == 1
         assert rule4s[0].rev
@@ -160,15 +161,15 @@ class TestParseBNGL:
         assert prule0.write_as_bngl() == "A(a)+B(b) <-> A(a!1).B(b!1) kp,km"
         prule1 = readers.BNGLReader.parse_rule(self.rule1)
         assert prule1.write_as_bngl() == "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp/log10(10)"
-        # assert prule1.write_as_kappa() == "A(a~r),B(b,c!1),C(c!1) -> A(a~r!2),B(b!2,c!1),C(c!1) @ 'kp'/([log](10)/[log](10))"
+        assert prule1.write_as_kappa() == "A(a~r),B(b,c!1),C(c!1) -> A(a~r!2),B(b!2,c!1),C(c!1) @ 'kp'/([log](10)/[log](10))"
         prule2 = readers.BNGLReader.parse_rule(self.rule2)
         assert prule2.rate.intra_binding is True
         assert prule2.write_as_bngl() == self.rule2
-        # assert prule2.write_as_kappa() == "A(a~s),B(b,c!1),C(c!1) -> A(a~s!2),B(b!2,c!1),C(c!1) @ 0 {'kp'/([log](10)/[log](10))}"
+        assert prule2.write_as_kappa() == "A(a~s),B(b,c!1),C(c!1) -> A(a~s!2),B(b!2,c!1),C(c!1) @ 0 {'kp'/([log](10)/[log](10))}"
         prule3 = readers.BNGLReader.parse_rule(self.rule3)
         assert prule3.rate.intra_binding is False
         assert prule3.write_as_bngl() == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        # assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
+        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4)
         assert prule4.rhs == []
         assert prule4.rate.write_as_bngl() == 'rate'

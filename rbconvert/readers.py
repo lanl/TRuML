@@ -94,6 +94,7 @@ class KappaReader(Reader):
                 elif re.search('@', cur_line):
                     model.add_rule(self.parse_rule(cur_line))
                 else:
+                    cur_line = ''
                     continue
                 cur_line = ''
 
@@ -297,13 +298,14 @@ class KappaReader(Reader):
 
         # Check to see if there is a rule label
         label = None
-        if re.match("'.*?'", rule_cps[0]):
-            lhs_cps = re.split('\s+', rule_cps[0])
-            label = lhs_cps[0].strip("'")
-            if lhs_cps[1].strip() == '':
+        label_match = re.match("'.*?'", rule_cps[0])
+        if label_match:
+            label = label_match.group(0).strip("'")
+            lhs_cps = rule_cps[0][label_match.end():].strip()
+            if lhs_cps == '':
                 lhs_patt = []
             else:
-                lhs_patt = KappaReader.parse_cpatterns(lhs_cps[1].strip())
+                lhs_patt = KappaReader.parse_cpatterns(lhs_cps)
         else:
             if rule_cps[0].strip() == '':
                 lhs_patt = []
