@@ -68,7 +68,9 @@ class KappaReader(Reader):
                     logging.debug("Full line: %s" % cur_line)
 
                 if re.match('%init', cur_line):
-                    model.add_init(self.parse_init(cur_line))
+                    inits = self.parse_init(cur_line)
+                    for init in inits:
+                        model.add_init(init)
                 elif re.match('%agent', cur_line):
                     model.add_molecule_def(self.parse_mtype(cur_line))
                 elif re.match('%var', cur_line) or re.match('%obs', cur_line):
@@ -89,7 +91,9 @@ class KappaReader(Reader):
                     else:
                         model.add_parameter(Parameter(name, Expression(expr_list)))
                 elif re.search('@', cur_line):
-                    model.add_rule(self.parse_rule(cur_line))
+                    rules = self.parse_rule(cur_line)
+                    for rule in rules:
+                        model.add_rule(rule)
                 else:
                     cur_line = ''
                     continue
@@ -283,7 +287,6 @@ class KappaReader(Reader):
         conn_cmps = KappaReader._get_components(mol_list)
         return [CPattern(c) for c in conn_cmps]
 
-    # TODO ALLOW ARROW STRINGS IN LABEL
     @staticmethod
     def parse_rule(line):
         reversible = False
