@@ -1,8 +1,8 @@
-import rbexceptions
 from deepdiff import DeepDiff
 from objects import *
 import logging
 import pyparsing as pp
+import re
 
 
 class Reader(object):
@@ -23,7 +23,7 @@ class Reader(object):
                 f = open(file_name)
                 d = f.readlines()
                 f.close()
-                self.lines = d
+                self.lines = [re.sub('#.*$', '', l).strip() for l in d]
                 logging.info("Read file %s" % self.file_name)
             except IOError:
                 logging.error("Cannot find model file %s" % file_name)
@@ -88,9 +88,6 @@ class KappaReader(Reader):
                         model.add_func(Function(name, Expression(expr_list)))
                     else:
                         model.add_parameter(Parameter(name, Expression(expr_list)))
-
-                elif re.match('%obs', cur_line):
-                    model.add_obs(self.parse_obs(cur_line))
                 elif re.search('@', cur_line):
                     model.add_rule(self.parse_rule(cur_line))
                 else:
@@ -286,31 +283,29 @@ class KappaReader(Reader):
         conn_cmps = KappaReader._get_components(mol_list)
         return [CPattern(c) for c in conn_cmps]
 
+    # TODO ALLOW ARROW STRINGS IN LABEL
     @staticmethod
     def parse_rule(line):
         reversible = False
-        rule_cps = re.split('->', line)
+        rule_str = line
+
+        label = None
+        label_match = re.match("\s*'(.*?)'", line)
+        if label_match:
+            label = label_match.group(1).strip("'")
+            rule_str = line[label_match.end():].strip()
+
+        rule_cps = re.split('->', rule_str)
 
         # Check to see if the rule is reversible
-        if rule_cps[0][-1] == '<':
+        if re.search('<$', rule_cps[0]):
             reversible = True
             rule_cps[0] = rule_cps[0].strip('<')
 
-        # Check to see if there is a rule label
-        label = None
-        label_match = re.match("'.*?'", rule_cps[0])
-        if label_match:
-            label = label_match.group(0).strip("'")
-            lhs_cps = rule_cps[0][label_match.end():].strip()
-            if lhs_cps == '':
-                lhs_patt = []
-            else:
-                lhs_patt = KappaReader.parse_cpatterns(lhs_cps)
+        if rule_cps[0].strip() == '':
+            lhs_patt = []
         else:
-            if rule_cps[0].strip() == '':
-                lhs_patt = []
-            else:
-                lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
+            lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
 
         rhs_cps = re.split('@', rule_cps[1])
         if rhs_cps[0].strip() == '':
@@ -397,9 +392,11 @@ class KappaReader(Reader):
         # variables
         variable = pp.Combine(pp.Literal("'") + pp.Word(pp.alphanums + "_") + pp.Literal("'"))
 
+        mol = pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar
+
         # patterns
-        pattern = pp.Combine(pp.Literal("|") + pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (
-        pp.Empty() ^ pp.CharsNotIn(")(")) + rpar + pp.Literal("|"))
+        pattern = pp.Combine(
+            pp.Literal("|") + mol + pp.Optional(pp.Literal(",") + pp.ZeroOrMore(mol)) + pp.Literal("|"))
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")
@@ -844,7 +841,8 @@ class BNGLReader(Reader):
             rate_string = '+'.join(rem[1:])
             if is_reversible:
                 rate0, rate1 = re.split(',', rate_string)
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1),
+                            label=label)
             else:
                 return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
         elif len(rem) > 1:
@@ -861,7 +859,8 @@ class BNGLReader(Reader):
             rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
             if is_reversible:
                 rate0, rate1 = re.split(',', rate_string)
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1),
+                            label=label)
             else:
                 return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
         else:

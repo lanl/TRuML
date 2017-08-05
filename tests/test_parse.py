@@ -87,18 +87,19 @@ class TestParseKappa:
 
     def test_vars_parse(self):
         kr = readers.KappaReader()
-        kr.lines = ["%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'"]
+        kr.lines = ["%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'",
+                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|"]
         model = kr.parse()
         assert len(model.functions) == 1
         assert model.parameters[0].name == 'a'
         assert model.parameters[1].name == 'b'
         assert isinstance(model.parameters[1].value, objects.Expression)
-        cmd = objects.MoleculeDef("C", [objects.SiteDef('x'), objects.SiteDef('y', ['state', 'state2'])], {'x': 'x', 'y': 'y'})
+        cmd = objects.MoleculeDef("C", [objects.SiteDef('x'), objects.SiteDef('y', ['state', 'state2'])],
+                                  {'x': 'x', 'y': 'y'})
         assert model.observables[0].write_as_kappa([cmd]) == "%obs: 'c' |C(x!_,y~state?)|"
         assert len(model.observables) == 2
-        print model.observables[0].name
-        print model.observables[1].name
         assert model.observables[1].name == "anon_obs0"
+        assert model.observables[-1].name == "membrane Ste5"
 
 
 class TestParseBNGL:
