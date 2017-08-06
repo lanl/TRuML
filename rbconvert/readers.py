@@ -45,7 +45,7 @@ class KappaReader(Reader):
         file_name : str
         """
         super(KappaReader, self).__init__(file_name)
-        # var_dict keeps track of read variables and what type they are
+        # var_dict keeps track of read variables and observables and what type they are
         # Variables can be constant values (c), patterns (p), or dynamic expressions (d)
         self.var_dict = {}
         self.num_anon_pats = 0
@@ -78,18 +78,24 @@ class KappaReader(Reader):
                     name = match.group(2).strip("'")
                     expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
 
+                    # TODO figure out why FRET in ensemble model is being converted to parameter
                     if self.var_contains_pattern(expr_list):
                         if len(expr_list) == 1:
                             model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
+                            self.var_dict[name] = 'p'
                         else:
                             pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
                             for p in pat_dict.keys():
                                 model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'))))
+                                self.var_dict[p] = 'p'
                             model.add_func(Function(name, Expression(subst_expr_list)))
+                            self.var_dict[name] = 'd'
                     elif self.var_is_dynamic_no_pat(expr_list):
                         model.add_func(Function(name, Expression(expr_list)))
+                        self.var_dict[name] = 'd'
                     else:
                         model.add_parameter(Parameter(name, Expression(expr_list)))
+                        self.var_dict[name] = 'c'
                 elif re.search('@', cur_line):
                     rules = self.parse_rule(cur_line)
                     for rule in rules:
@@ -104,7 +110,7 @@ class KappaReader(Reader):
 
     def var_is_dynamic_no_pat(self, expr_list):
         for atom in expr_list:
-            if re.match('\[T', atom) or self.var_contains_pattern(expr_list):
+            if re.match('\[T', atom):
                 return True
             for k, v in self.var_dict.iteritems():
                 if re.match("'%s'" % k, atom) and (v == 'd' or v == 'p'):
@@ -393,9 +399,9 @@ class KappaReader(Reader):
         constant = inf | pi | events | null_events | event_limit | time | cpu_time | time_limit | plot_points
 
         # variables
-        variable = pp.Combine(pp.Literal("'") + pp.Word(pp.alphanums + "_") + pp.Literal("'"))
+        variable = pp.QuotedString("'", unquoteResults=False)
 
-        mol = pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar
+        mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar)
 
         # patterns
         pattern = pp.Combine(

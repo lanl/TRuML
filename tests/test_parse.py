@@ -68,6 +68,7 @@ class TestParseKappa:
         assert readers.KappaReader.parse_init(self.init1)[1].write_as_kappa() == "%init: 10+'x' C()"
 
     def test_eq_parse(self):
+        print readers.KappaReader.parse_alg_expr(self.expr0).asList()
         assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', "'x'"]
         assert readers.KappaReader.parse_alg_expr(self.expr1).asList() == \
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
@@ -88,16 +89,18 @@ class TestParseKappa:
     def test_vars_parse(self):
         kr = readers.KappaReader()
         kr.lines = ["%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'",
-                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|"]
+                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|", "%var: 'combo' 'membrane Ste5' / 'a'"]
         model = kr.parse()
-        assert len(model.functions) == 1
+        print kr.var_dict
+        assert len(model.functions) == 2
+        assert model.functions[1].name == 'combo'
         assert model.parameters[0].name == 'a'
         assert model.parameters[1].name == 'b'
         assert isinstance(model.parameters[1].value, objects.Expression)
         cmd = objects.MoleculeDef("C", [objects.SiteDef('x'), objects.SiteDef('y', ['state', 'state2'])],
                                   {'x': 'x', 'y': 'y'})
         assert model.observables[0].write_as_kappa([cmd]) == "%obs: 'c' |C(x!_,y~state?)|"
-        assert len(model.observables) == 2
+        assert len(model.observables) == 3
         assert model.observables[1].name == "anon_obs0"
         assert model.observables[-1].name == "membrane Ste5"
 

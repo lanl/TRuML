@@ -1226,10 +1226,10 @@ class Model:
         for m in self.molecules:
             s += '\t%s\n' % m.write_as_bngl()
         s += '\nend molecule types\n\n'
-        s += 'begin initial conditions\n\n'
+        s += 'begin seed species\n\n'
         for i in self.initial_cond:
             s += '\t%s\n' % i.write_as_bngl()
-        s += '\nend initial conditions\n\n'
+        s += '\nend seed species\n\n'
         s += 'begin observables\n\n'
         for o in self.observables:
             nn, bos = p.write_as_bngl(self._bngl_namespace)
@@ -1242,12 +1242,12 @@ class Model:
             self._bngl_namespace.add(nn)
             s += '\t%s\n' % bfs
         s += '\nend functions\n\n'
-        s += 'begin reaction rules'
+        s += 'begin reaction rules\n\n'
         for r in self.rules:
             s += '\t%s\n' % r.write_as_bngl()
             if dnp:
                 s += '\t%s\n' % r.write_as_bngl(dnp)
-        s += 'end reaction rules\n\n'
+        s += '\nend reaction rules\n\n'
         s += 'end model\n'
 
         wf = open(file_name, 'w')
