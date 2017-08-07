@@ -861,12 +861,12 @@ class Parameter:
         if re.search('\W', self.name):
             name = re.sub('\W', '_', name)
             logging.warning(
-                "Exact conversion of parameter %s to BNGL is not possible.  Renamed to %s" % (self.name, name))
+                "Exact conversion of parameter '%s' to BNGL is not possible.  Renamed to '%s'" % (self.name, name))
 
         if name in namespace:
             rename = name + '_'
             logging.warning(
-                "Parameter name %s already exists due to inexact conversion.  Renamed to %s" % (name, rename))
+                "Parameter name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (name, rename))
             name = rename
 
         return name, '%s %s' % (name, val)
@@ -951,12 +951,12 @@ class Function:
         if re.search('\W', self.name):
             name = re.sub('\W', '_', name)
             logging.warning(
-                "Exact conversion of function %s to BNGL is not possible.  Renamed to %s" % (self.name, name))
+                "Exact conversion of function '%s' to BNGL is not possible.  Renamed to '%s'" % (self.name, name))
 
         if name in namespace:
             rename = name + '_'
             logging.warning(
-                "Function name %s already exists due to inexact conversion.  Renamed to %s" % (name, rename))
+                "Function name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (name, rename))
             name = rename
 
         return name, '%s()=%s' % (name, self.expr.write_as_bngl())
@@ -1171,12 +1171,12 @@ class Observable:
         if re.search('\W', self.name):
             name = re.sub('\W', '_', name)
             logging.warning(
-                "Exact conversion of observable %s to BNGL is not possible.  Renamed to %s" % (self.name, name))
+                "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (self.name, name))
 
         if name in namespace:
             rename = name + '_'
             logging.warning(
-                "Observable name %s already exists due to inexact conversion.  Renamed to %s" % (name, rename))
+                "Observable name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (name, rename))
             name = rename
 
         return name, "%s %s %s" % (self.type, name, ' '.join([p.write_as_bngl() for p in self.cpatterns]))
@@ -1212,7 +1212,7 @@ class Model:
         self.parameters = []
 
         # Observable, Function, and Parameter instances may need to be renamed when converting from Kappa to BNGL
-        self._bngl_namespace = {}  # Tracks names
+        self._bngl_namespace = set()  # Tracks names
 
     def write_as_bngl(self, file_name, dnp):
         """Writes Model as BNGL file"""
@@ -1232,7 +1232,7 @@ class Model:
         s += '\nend seed species\n\n'
         s += 'begin observables\n\n'
         for o in self.observables:
-            nn, bos = p.write_as_bngl(self._bngl_namespace)
+            nn, bos = o.write_as_bngl(self._bngl_namespace)
             self._bngl_namespace.add(nn)
             s += '\t%s\n' % bos
         s += '\nend observables\n\n'
