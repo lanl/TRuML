@@ -50,6 +50,7 @@ class KappaReader(Reader):
         self.var_dict = {}
         self.num_anon_pats = 0
 
+    # TODO FIGURE OUT HOW TO CONVERT VARIABLE NAMES FROM KAPPA TO BNGL THAT HAVE INCOMPATIBLE CHARACTERS
     def parse(self):
         cur_line = ''
         model = Model()
@@ -70,10 +71,11 @@ class KappaReader(Reader):
                     model.add_init(self.parse_init(cur_line))
                 elif re.match('%agent', cur_line):
                     model.add_molecule_def(self.parse_mtype(cur_line))
-                elif re.match('%var', cur_line):
-                    scur_line = re.split('\s+', cur_line)
-                    name = scur_line[1].strip("'")
-                    expr_list = KappaReader.parse_alg_expr(' '.join(scur_line[2:])).asList()
+                elif re.match('%var', cur_line) or re.match('%obs', cur_line):
+                    match = re.match("(%[vo][ab][rs]:)\s*('.*?')\s*(.*)$", cur_line)
+                    name = match.group(2).strip("'")
+                    expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
+
                     if self.var_contains_pattern(expr_list):
                         if len(expr_list) == 1:
                             model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
