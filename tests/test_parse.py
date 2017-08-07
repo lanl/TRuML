@@ -147,12 +147,12 @@ class TestParseBNGL:
         assert readers.BNGLReader.parse_init(self.init1).write_as_bngl() == self.mol0 + ' (x+3)/k'
 
     def test_obs_parse(self):
-        assert readers.BNGLReader.parse_obs(self.obs0).write_as_bngl() == self.obs0
-        assert readers.BNGLReader.parse_obs(self.obs1).write_as_bngl() == self.obs1
+        assert readers.BNGLReader.parse_obs(self.obs0).write_as_bngl({})[1] == self.obs0
+        assert readers.BNGLReader.parse_obs(self.obs1).write_as_bngl({})[1] == self.obs1
 
     def test_params_parse(self):
-        assert readers.BNGLReader.parse_param(self.param0).write_as_bngl() == self.param0
-        assert readers.BNGLReader.parse_param(self.param1).write_as_bngl() == "kp km/kd/(NA*V)"
+        assert readers.BNGLReader.parse_param(self.param0).write_as_bngl({})[1] == self.param0
+        assert readers.BNGLReader.parse_param(self.param1).write_as_bngl({})[1] == "kp km/kd/(NA*V)"
 
     def test_rule_parse(self):
         prule0 = readers.BNGLReader.parse_rule(self.rule0)

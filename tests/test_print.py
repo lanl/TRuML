@@ -86,6 +86,8 @@ class TestPrint:
         cls.obs1 = objects.Observable("Obs1", [cls.p2, cls.p3], 's')
         cls.obs2 = objects.Observable("Obs2", [objects.CPattern([cls.m2])], 'm')
         cls.obs3 = objects.Observable("Obs3", [objects.CPattern([cls.m3])], 'm')
+        cls.obs4 = objects.Observable("Obs+", [objects.CPattern([cls.m3])], 'm')
+        cls.obs5 = objects.Observable("Obs-", [cls.p3], 'm')
 
     @classmethod
     def teardown_class(cls):
@@ -157,9 +159,9 @@ class TestPrint:
 
     # TODO write more to check function map functionality
     def test_pars_and_funcs(self):
-        assert self.par0.write_as_bngl() == r'rate 1000000.0'
+        assert self.par0.write_as_bngl({})[1] == r'rate 1000000.0'
         assert self.par0.write_as_kappa() == r"%var: 'rate' 1000000.0"
-        assert self.func0.write_as_bngl() == r'rate_expr()=ln(10)+x-356'
+        assert self.func0.write_as_bngl({})[1] == r'rate_expr()=ln(10)+x-356'
         assert self.func0.write_as_kappa() == r"%obs: 'rate_expr' [log](10)+'x'-356"
         assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr' [log](10)+'x'-356"
 
@@ -201,11 +203,11 @@ class TestPrint:
         assert len(x) == 18
 
     def test_obs(self):
-        assert self.obs0.write_as_bngl() == r'Molecules Obs0 B()'
+        assert self.obs0.write_as_bngl({})[1] == r'Molecules Obs0 B()'
         assert self.obs0.write_as_kappa([self.md4]) == r"%obs: 'Obs0' |B()|"
-        assert self.obs1.write_as_bngl() == r'Species Obs1 A() B()'
+        assert self.obs1.write_as_bngl({})[1] == r'Species Obs1 A() B()'
         assert self.obs1.write_as_kappa([self.md4, self.md3]) == r"%obs: 'Obs1' |A()|+|B()|"
-        assert self.obs2.write_as_bngl() == r'Molecules Obs2 Test2(a)'
+        assert self.obs2.write_as_bngl({})[1] == r'Molecules Obs2 Test2(a)'
         assert self.obs2.write_as_kappa([self.md2]) == r"%obs: 'Obs2' |Test2(a0)|+|Test2(a1)|+|Test2(a2)|+|Test2(a3)|"
         print self.obs3.write_as_kappa([self.md2])
         ostr = ("%obs: 'Obs3' "
@@ -223,6 +225,10 @@ class TestPrint:
                 )
         print ostr
         assert self.obs3.write_as_kappa([self.md2]) == ostr
+        nn0, bos0 = self.obs4.write_as_bngl({})
+        assert nn0 == "Obs_"
+        nn1, bos1 = self.obs5.write_as_bngl({nn0})
+        assert nn1 == "Obs__"
 
     @raises(Exception)
     def test_invalid_obs(self):

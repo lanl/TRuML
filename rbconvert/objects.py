@@ -854,10 +854,22 @@ class Parameter:
         self.name = n
         self.value = v
 
-    def write_as_bngl(self):
+    def write_as_bngl(self, namespace):
         """Writes Parameter as BNGL string"""
         val = self.value.write_as_bngl() if isinstance(self.value, Expression) else self.value
-        return '%s %s' % (self.name, val)
+        name = self.name
+        if re.search('\W', self.name):
+            name = re.sub('\W', '_', name)
+            logging.warning(
+                "Exact conversion of parameter %s to BNGL is not possible.  Renamed to %s" % (self.name, name))
+
+        if name in namespace:
+            rename = name + '_'
+            logging.warning(
+                "Parameter name %s already exists due to inexact conversion.  Renamed to %s" % (name, rename))
+            name = rename
+
+        return name, '%s %s' % (name, val)
 
     def write_as_kappa(self):
         """Writes Parameter as Kappa string"""
@@ -932,9 +944,22 @@ class Function:
         self.name = name
         self.expr = expr
 
-    def write_as_bngl(self):
+    def write_as_bngl(self, namespace):
         """Writes function as BNGL string"""
-        return '%s()=%s' % (self.name, self.expr.write_as_bngl())
+        name = self.name
+
+        if re.search('\W', self.name):
+            name = re.sub('\W', '_', name)
+            logging.warning(
+                "Exact conversion of function %s to BNGL is not possible.  Renamed to %s" % (self.name, name))
+
+        if name in namespace:
+            rename = name + '_'
+            logging.warning(
+                "Function name %s already exists due to inexact conversion.  Renamed to %s" % (name, rename))
+            name = rename
+
+        return name, '%s()=%s' % (name, self.expr.write_as_bngl())
 
     def write_as_kappa(self, as_obs=True):
         """
@@ -1045,7 +1070,7 @@ class Rule:
         all_lhs = it.product(*k_lhs)
         all_rhs = it.product(*k_rhs)
 
-        z = zip(all_lhs, all_rhs) # order in lhs and rhs conversions are preserved
+        z = zip(all_lhs, all_rhs)  # order in lhs and rhs conversions are preserved
         rs = []
         for l, r in z:
             rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate))
@@ -1139,9 +1164,22 @@ class Observable:
             raise Exception("not a valid observable type: %s" % t)
         self.cpatterns = ps  # a list of CPatterns
 
-    def write_as_bngl(self):
+    def write_as_bngl(self, namespace):
         """Writes Observable as BNGL string"""
-        return "%s %s %s" % (self.type, self.name, ' '.join([p.write_as_bngl() for p in self.cpatterns]))
+        name = self.name
+
+        if re.search('\W', self.name):
+            name = re.sub('\W', '_', name)
+            logging.warning(
+                "Exact conversion of observable %s to BNGL is not possible.  Renamed to %s" % (self.name, name))
+
+        if name in namespace:
+            rename = name + '_'
+            logging.warning(
+                "Observable name %s already exists due to inexact conversion.  Renamed to %s" % (name, rename))
+            name = rename
+
+        return name, "%s %s %s" % (self.type, name, ' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
     def write_as_kappa(self, mdefs):
         """Writes Observable as Kappa string"""
@@ -1173,11 +1211,16 @@ class Model:
         self.rules = []
         self.parameters = []
 
+        # Observable, Function, and Parameter instances may need to be renamed when converting from Kappa to BNGL
+        self._bngl_namespace = {}  # Tracks names
+
     def write_as_bngl(self, file_name, dnp):
         """Writes Model as BNGL file"""
         s = 'begin model\n\nbegin parameters\n\n'
         for p in self.parameters:
-            s += '\t%s\n' % p.write_as_bngl()
+            nn, bps = p.write_as_bngl(self._bngl_namespace)
+            self._bngl_namespace.add(nn)
+            s += '\t%s\n' % bps
         s += '\nend parameters\n\n'
         s += 'begin molecule types\n\n'
         for m in self.molecules:
@@ -1189,11 +1232,15 @@ class Model:
         s += '\nend initial conditions\n\n'
         s += 'begin observables\n\n'
         for o in self.observables:
-            s += '\t%s\n' % o.write_as_bngl()
+            nn, bos = p.write_as_bngl(self._bngl_namespace)
+            self._bngl_namespace.add(nn)
+            s += '\t%s\n' % bos
         s += '\nend observables\n\n'
         s += 'begin functions\n\n'
-        for wf in self.functions:
-            s += '\t%s\n' % wf.write_as_bngl()
+        for f in self.functions:
+            nn, bfs = f.write_as_bngl(self._bngl_namespace)
+            self._bngl_namespace.add(nn)
+            s += '\t%s\n' % bfs
         s += '\nend functions\n\n'
         s += 'begin reaction rules'
         for r in self.rules:
