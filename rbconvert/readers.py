@@ -217,11 +217,11 @@ class KappaReader(Reader):
         Adjacency list
         """
         al = []
-        for m0 in mols:
+        for i, m0 in enumerate(mols):
             bound = []
-            for i, m1 in enumerate(mols):
-                if m0 != m1 and m0.bound_to(m1):
-                    bound.append(i)
+            for j, m1 in enumerate(mols):
+                if i != j and m0.bound_to(m1):
+                    bound.append(j)
             al.append(bound)
         return al
 

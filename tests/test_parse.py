@@ -30,6 +30,8 @@ class TestParseKappa:
         cls.rule5 = " <-> A(x) @ 'rate', 'rate'"
         cls.rule6 = "B(site~state!_) -> @ [log] 3"
 
+        cls.obs0 = "%obs: 'ste5 dimerized' |Ste5(ste5!1),Ste5(ste5!1)|"
+
     def test_rule_parse(self):
         rule0s = readers.KappaReader.parse_rule(self.rule0)
         assert len(rule0s) == 1
@@ -91,7 +93,6 @@ class TestParseKappa:
         kr.lines = ["%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'",
                     "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|", "%var: 'combo' 'membrane Ste5' / 'a'"]
         model = kr.parse()
-        print kr.var_dict
         assert len(model.functions) == 2
         assert model.functions[1].name == 'combo'
         assert model.parameters[0].name == 'a'
@@ -103,6 +104,12 @@ class TestParseKappa:
         assert len(model.observables) == 3
         assert model.observables[1].name == "anon_obs0"
         assert model.observables[-1].name == "membrane Ste5"
+
+        kr1 = readers.KappaReader()
+        kr1.lines = [self.obs0]
+        model = kr1.parse()
+        print model.observables
+        assert len(model.observables[0].cpatterns) == 1
 
 
 class TestParseBNGL:
