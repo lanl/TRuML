@@ -54,6 +54,7 @@ class KappaReader(Reader):
     def parse(self):
         cur_line = ''
         model = Model()
+
         for i, l in enumerate(self.lines):
 
             logging.debug("Line %s: %s" % (i, l.strip()))
@@ -76,6 +77,19 @@ class KappaReader(Reader):
                 elif re.match('%var', cur_line) or re.match('%obs', cur_line):
                     match = re.match("(%[vo][ab][rs]:)\s*('.*?')\s*(.*)$", cur_line)
                     name = match.group(2).strip("'")
+
+                    bname = name
+                    if re.search('\W', name):
+                        bname = re.sub('\W', '_', name)
+                        logging.warning(
+                            "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (name, bname))
+
+                    if bname in model.convert_namespace.values():
+                        rebname = bname + '_'
+                        logging.warning("Name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (bname, rebname))
+                        bname = rebname
+
+                    model.convert_namespace[name] = bname
                     expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
 
                     # TODO figure out why FRET in ensemble model is being converted to parameter
