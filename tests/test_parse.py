@@ -25,10 +25,12 @@ class TestParseKappa:
         cls.rule0 = 'A(x),B(x) -> A(x!1),B(x!1) @ 1'
         cls.rule1 = "'rule' %s" % cls.rule0
         cls.rule2 = "A(a~0),B(y) <-> A(a~1),B(y) @ %s {1}, 0.1 {10}" % cls.expr0
-        cls.rule3 = "A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
+        cls.rule3 = "'label with space' A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
         cls.rule4 = "A(x),B(x) <-> A(x!1),B(x!1) @ 1, 0.1"
         cls.rule5 = " <-> A(x) @ 'rate', 'rate'"
         cls.rule6 = "B(site~state!_) -> @ [log] 3"
+
+        cls.obs0 = "%obs: 'ste5 dimerized' |Ste5(ste5!1),Ste5(ste5!1)|"
 
     def test_rule_parse(self):
         rule0s = readers.KappaReader.parse_rule(self.rule0)
@@ -43,6 +45,7 @@ class TestParseKappa:
             assert not r.rev
         rule3s = readers.KappaReader.parse_rule(self.rule3)
         assert len(rule3s) == 3
+        assert rule3s[0].label == 'label with space'
         rule4s = readers.KappaReader.parse_rule(self.rule4)
         assert len(rule4s) == 1
         assert rule4s[0].rev
@@ -51,6 +54,7 @@ class TestParseKappa:
         assert rule5s[0].rev
         rule6s = readers.KappaReader.parse_rule(self.rule6)
         assert rule6s[0].rhs == []
+        assert rule6s[0].delmol
 
     def test_cpattern_parse(self):
         pcp0 = readers.KappaReader.parse_cpatterns(self.cp0)
@@ -67,7 +71,8 @@ class TestParseKappa:
         assert readers.KappaReader.parse_init(self.init1)[1].write_as_kappa() == "%init: 10+'x' C()"
 
     def test_eq_parse(self):
-        assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', "'x'"]
+        print readers.KappaReader.parse_alg_expr(self.expr0).asList()
+        assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', 'x']
         assert readers.KappaReader.parse_alg_expr(self.expr1).asList() == \
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
 
@@ -86,18 +91,27 @@ class TestParseKappa:
 
     def test_vars_parse(self):
         kr = readers.KappaReader()
-        kr.lines = ["%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'"]
+        kr.lines = ["%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'",
+                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|", "%var: 'combo' 'membrane Ste5' / 'a'"]
         model = kr.parse()
-        assert len(model.functions) == 1
+        assert len(model.functions) == 2
+        assert model.functions[1].name == 'combo'
         assert model.parameters[0].name == 'a'
         assert model.parameters[1].name == 'b'
+        assert set(model.parameters[1].value.atom_list) == {'3', '+', 'a'}
         assert isinstance(model.parameters[1].value, objects.Expression)
-        cmd = objects.MoleculeDef("C", [objects.SiteDef('x'), objects.SiteDef('y', ['state', 'state2'])], {'x': 'x', 'y': 'y'})
+        cmd = objects.MoleculeDef("C", [objects.SiteDef('x'), objects.SiteDef('y', ['state', 'state2'])],
+                                  {'x': 'x', 'y': 'y'})
         assert model.observables[0].write_as_kappa([cmd]) == "%obs: 'c' |C(x!_,y~state?)|"
-        assert len(model.observables) == 2
-        print model.observables[0].name
-        print model.observables[1].name
+        assert len(model.observables) == 3
         assert model.observables[1].name == "anon_obs0"
+        assert model.observables[-1].name == "membrane Ste5"
+
+        kr1 = readers.KappaReader()
+        kr1.lines = [self.obs0]
+        model = kr1.parse()
+        print model.observables
+        assert len(model.observables[0].cpatterns) == 1
 
 
 class TestParseBNGL:
@@ -124,6 +138,7 @@ class TestParseBNGL:
         cls.rule3 = "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
         cls.rule4 = "A() <-> 0 rate, rate"
         cls.rule5 = "0 -> B(x) 4"
+        cls.rule6 = "bdeg: B(x!+) -> 0 kdeg DeleteMolecules"
 
     @classmethod
     def teardown_class(cls):
@@ -134,7 +149,6 @@ class TestParseBNGL:
         md1 = readers.BNGLReader.parse_mtype(self.mdef1)
         md1.site_name_map['b0'] = 'b'
         md1.site_name_map['b1'] = 'b'
-        print md1.write_as_bngl()
         assert md1.write_as_bngl() == "Mol(a,b~0~1,c~a~b,b~0~1,c~a~b)"
 
     def test_mol_parse(self):
@@ -143,35 +157,43 @@ class TestParseBNGL:
         mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
 
     def test_init_parse(self):
-        assert readers.BNGLReader.parse_init(self.init0).write_as_bngl() == self.mol0 + ' 100.0'
-        assert readers.BNGLReader.parse_init(self.init1).write_as_bngl() == self.mol0 + ' (x+3)/k'
+        assert readers.BNGLReader.parse_init(self.init0).write_as_bngl({}) == self.mol0 + ' 100.0'
+        print readers.BNGLReader.parse_init(self.init1).write_as_bngl({'x': 'x', 'k': 'k'})
+        assert readers.BNGLReader.parse_init(self.init1).write_as_bngl({'x': 'x', 'k': 'k'}) == self.mol0 + ' (x+3)/k'
 
     def test_obs_parse(self):
-        assert readers.BNGLReader.parse_obs(self.obs0).write_as_bngl({})[1] == self.obs0
-        assert readers.BNGLReader.parse_obs(self.obs1).write_as_bngl({})[1] == self.obs1
+        print readers.BNGLReader.parse_obs(self.obs0).write_as_bngl({"Mol0": "Mol0"})
+        assert readers.BNGLReader.parse_obs(self.obs0).write_as_bngl({"Mol0": "Mol0"}) == self.obs0
+        assert readers.BNGLReader.parse_obs(self.obs1).write_as_bngl({"Mol1": "Mol1"}) == self.obs1
 
     def test_params_parse(self):
-        assert readers.BNGLReader.parse_param(self.param0).write_as_bngl({})[1] == self.param0
-        assert readers.BNGLReader.parse_param(self.param1).write_as_bngl({})[1] == "kp km/kd/(NA*V)"
+        assert readers.BNGLReader.parse_param(self.param0).write_as_bngl({"kcat": "kcat"}) == self.param0
+        namespace = {"kp": "kp", "km": "km", "kd": "kd", "NA": "NA", "V": "V"}
+        assert readers.BNGLReader.parse_param(self.param1).write_as_bngl(namespace) == "kp km/kd/(NA*V)"
 
     def test_rule_parse(self):
         prule0 = readers.BNGLReader.parse_rule(self.rule0)
         assert prule0.rev is True
-        assert prule0.write_as_bngl() == "A(a)+B(b) <-> A(a!1).B(b!1) kp,km"
+        assert prule0.write_as_bngl({"kp": "kp", "km": "km"}) == "A(a)+B(b) <-> A(a!1).B(b!1) kp,km"
         prule1 = readers.BNGLReader.parse_rule(self.rule1)
-        assert prule1.write_as_bngl() == "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp/log10(10)"
-        # assert prule1.write_as_kappa() == "A(a~r),B(b,c!1),C(c!1) -> A(a~r!2),B(b!2,c!1),C(c!1) @ 'kp'/([log](10)/[log](10))"
+        assert prule1.write_as_bngl({"kp": "kp"}) == "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp/log10(10)"
+        assert prule1.write_as_kappa() == "A(a~r),B(b,c!1),C(c!1) -> A(a~r!2),B(b!2,c!1),C(c!1) @ 'kp'/([log](10)/[log](10))"
         prule2 = readers.BNGLReader.parse_rule(self.rule2)
         assert prule2.rate.intra_binding is True
-        assert prule2.write_as_bngl() == self.rule2
-        # assert prule2.write_as_kappa() == "A(a~s),B(b,c!1),C(c!1) -> A(a~s!2),B(b!2,c!1),C(c!1) @ 0 {'kp'/([log](10)/[log](10))}"
+        assert prule2.write_as_bngl({"kp": "kp"}) == self.rule2
+        assert prule2.write_as_kappa() == "A(a~s),B(b,c!1),C(c!1) -> A(a~s!2),B(b!2,c!1),C(c!1) @ 0 {'kp'/([log](10)/[log](10))}"
         prule3 = readers.BNGLReader.parse_rule(self.rule3)
         assert prule3.rate.intra_binding is False
-        assert prule3.write_as_bngl() == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        # assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
+        assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
+        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4)
         assert prule4.rhs == []
-        assert prule4.rate.write_as_bngl() == 'rate'
+        assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'
+        assert prule4.delmol
         prule5 = readers.BNGLReader.parse_rule(self.rule5)
         assert prule5.lhs == []
         assert len(prule5.rhs) == 1
+        prule6 = readers.BNGLReader.parse_rule(self.rule6)
+        assert prule6.label == 'bdeg'
+        assert prule6.rate.rate == 'kdeg'
+        assert prule6.delmol

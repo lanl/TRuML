@@ -1,8 +1,8 @@
-import rbexceptions
 from deepdiff import DeepDiff
 from objects import *
 import logging
 import pyparsing as pp
+import re
 
 
 class Reader(object):
@@ -23,7 +23,7 @@ class Reader(object):
                 f = open(file_name)
                 d = f.readlines()
                 f.close()
-                self.lines = d
+                self.lines = [re.sub('#.*$', '', l).strip() for l in d]
                 logging.info("Read file %s" % self.file_name)
             except IOError:
                 logging.error("Cannot find model file %s" % file_name)
@@ -45,7 +45,7 @@ class KappaReader(Reader):
         file_name : str
         """
         super(KappaReader, self).__init__(file_name)
-        # var_dict keeps track of read variables and what type they are
+        # var_dict keeps track of read variables and observables and what type they are
         # Variables can be constant values (c), patterns (p), or dynamic expressions (d)
         self.var_dict = {}
         self.num_anon_pats = 0
@@ -54,6 +54,7 @@ class KappaReader(Reader):
     def parse(self):
         cur_line = ''
         model = Model()
+
         for i, l in enumerate(self.lines):
 
             logging.debug("Line %s: %s" % (i, l.strip()))
@@ -68,32 +69,54 @@ class KappaReader(Reader):
                     logging.debug("Full line: %s" % cur_line)
 
                 if re.match('%init', cur_line):
-                    model.add_init(self.parse_init(cur_line))
+                    inits = self.parse_init(cur_line)
+                    for init in inits:
+                        model.add_init(init)
                 elif re.match('%agent', cur_line):
                     model.add_molecule_def(self.parse_mtype(cur_line))
                 elif re.match('%var', cur_line) or re.match('%obs', cur_line):
                     match = re.match("(%[vo][ab][rs]:)\s*('.*?')\s*(.*)$", cur_line)
                     name = match.group(2).strip("'")
+
+                    bname = name
+                    if re.search('\W', name):
+                        bname = re.sub('\W', '_', name)
+                        logging.warning(
+                            "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (
+                                name, bname))
+
+                    if bname in model.convert_namespace.values():
+                        rebname = bname + '_'
+                        logging.warning(
+                            "Name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (bname, rebname))
+                        bname = rebname
+
+                    model.convert_namespace[name] = bname
                     expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
 
                     if self.var_contains_pattern(expr_list):
                         if len(expr_list) == 1:
                             model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
+                            self.var_dict[name] = 'p'
                         else:
                             pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
                             for p in pat_dict.keys():
                                 model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'))))
+                                self.var_dict[p] = 'p'
                             model.add_func(Function(name, Expression(subst_expr_list)))
+                            self.var_dict[name] = 'd'
                     elif self.var_is_dynamic_no_pat(expr_list):
                         model.add_func(Function(name, Expression(expr_list)))
+                        self.var_dict[name] = 'd'
                     else:
                         model.add_parameter(Parameter(name, Expression(expr_list)))
-
-                elif re.match('%obs', cur_line):
-                    model.add_obs(self.parse_obs(cur_line))
+                        self.var_dict[name] = 'c'
                 elif re.search('@', cur_line):
-                    model.add_rule(self.parse_rule(cur_line))
+                    rules = self.parse_rule(cur_line)
+                    for rule in rules:
+                        model.add_rule(rule)
                 else:
+                    cur_line = ''
                     continue
                 cur_line = ''
 
@@ -102,10 +125,10 @@ class KappaReader(Reader):
 
     def var_is_dynamic_no_pat(self, expr_list):
         for atom in expr_list:
-            if re.match('\[T', atom) or self.var_contains_pattern(expr_list):
+            if re.match('\[T', atom):
                 return True
             for k, v in self.var_dict.iteritems():
-                if re.match("'%s'" % k, atom) and (v == 'd' or v == 'p'):
+                if re.match("%s" % k, atom) and (v == 'd' or v == 'p'):
                     return True
         return False
 
@@ -209,11 +232,11 @@ class KappaReader(Reader):
         Adjacency list
         """
         al = []
-        for m0 in mols:
+        for i, m0 in enumerate(mols):
             bound = []
-            for i, m1 in enumerate(mols):
-                if m0 != m1 and m0.bound_to(m1):
-                    bound.append(i)
+            for j, m1 in enumerate(mols):
+                if i != j and m0.bound_to(m1):
+                    bound.append(j)
             al.append(bound)
         return al
 
@@ -288,33 +311,37 @@ class KappaReader(Reader):
     @staticmethod
     def parse_rule(line):
         reversible = False
-        rule_cps = re.split('->', line)
+        rule_str = line
+
+        label = None
+        label_match = re.match("\s*'(.*?)'", line)
+        if label_match:
+            label = label_match.group(1).strip("'")
+            rule_str = line[label_match.end():].strip()
+
+        rule_cps = re.split('->', rule_str)
 
         # Check to see if the rule is reversible
-        if rule_cps[0][-1] == '<':
+        if re.search('<$', rule_cps[0]):
             reversible = True
             rule_cps[0] = rule_cps[0].strip('<')
 
-        # Check to see if there is a rule label
-        label = None
-        if re.match("'.*?'", rule_cps[0]):
-            lhs_cps = re.split('\s+', rule_cps[0])
-            label = lhs_cps[0].strip("'")
-            if lhs_cps[1].strip() == '':
-                lhs_patt = []
-            else:
-                lhs_patt = KappaReader.parse_cpatterns(lhs_cps[1].strip())
+        if rule_cps[0].strip() == '':
+            lhs_patts = []
         else:
-            if rule_cps[0].strip() == '':
-                lhs_patt = []
-            else:
-                lhs_patt = KappaReader.parse_cpatterns(rule_cps[0])
+            lhs_patts = KappaReader.parse_cpatterns(rule_cps[0])
 
         rhs_cps = re.split('@', rule_cps[1])
         if rhs_cps[0].strip() == '':
-            rhs_patt = []
+            rhs_patts = []
         else:
-            rhs_patt = KappaReader.parse_cpatterns(rhs_cps[0].strip())
+            rhs_patts = KappaReader.parse_cpatterns(rhs_cps[0].strip())
+
+        n_lhs_mols = sum([p.num_molecules() for p in lhs_patts])
+        n_rhs_mols = sum([p.num_molecules() for p in rhs_patts])
+        delmol = n_lhs_mols > n_rhs_mols
+        if delmol:
+            logging.debug("Rule '%s' is a degradation rule" % line)
 
         if reversible:
             rate_cps = re.split(',', rhs_cps[1])
@@ -326,19 +353,19 @@ class KappaReader(Reader):
                 inter_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[0].strip()).asList()))
                 intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
                                    True)
-                inter_frule = Rule(lhs_patt, rhs_patt, inter_frate, label=label)
-                intra_frule = Rule(lhs_patt, rhs_patt, intra_frate, label=label)
-                inter_rrule = Rule(rhs_patt, lhs_patt, inter_rrate, label=label)
-                intra_rrule = Rule(rhs_patt, lhs_patt, intra_rrate, label=label)
+                inter_frule = Rule(lhs_patts, rhs_patts, inter_frate, label=label, delmol=delmol)
+                intra_frule = Rule(lhs_patts, rhs_patts, intra_frate, label=label, delmol=delmol)
+                inter_rrule = Rule(rhs_patts, lhs_patts, inter_rrate, label=label, delmol=delmol)
+                intra_rrule = Rule(rhs_patts, lhs_patts, intra_rrate, label=label, delmol=delmol)
                 return [inter_frule, intra_frule, inter_rrule, intra_rrule]
             elif re.search('{', rate_cps[0]):
                 frate_cps = re.split('{', rate_cps[0].strip())
                 inter_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[0].strip()).asList()))
                 intra_frate = Rate(Expression(KappaReader.parse_alg_expr(frate_cps[1].strip()).asList()), True)
                 rrate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[1].strip()).asList()))
-                inter_frule = Rule(lhs_patt, rhs_patt, inter_frate, label=label)
-                intra_frule = Rule(lhs_patt, rhs_patt, intra_frate, label=label)
-                rrule = Rule(rhs_patt, lhs_patt, rrate, label=label)
+                inter_frule = Rule(lhs_patts, rhs_patts, inter_frate, label=label, delmol=delmol)
+                intra_frule = Rule(lhs_patts, rhs_patts, intra_frate, label=label, delmol=delmol)
+                rrule = Rule(rhs_patts, lhs_patts, rrate, label=label, delmol=delmol)
                 return [inter_frule, intra_frule, rrule]
             elif re.search('{', rate_cps[1]):
                 rrate_cps = re.split('{', rate_cps[1].strip())
@@ -346,17 +373,17 @@ class KappaReader(Reader):
                 intra_rrate = Rate(Expression(KappaReader.parse_alg_expr(rrate_cps[1].strip('}').strip()).asList()),
                                    True)
                 frate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[0].strip()).asList()))
-                inter_rrule = Rule(rhs_patt, lhs_patt, inter_rrate, label=label)
-                intra_rrule = Rule(rhs_patt, lhs_patt, intra_rrate, label=label)
-                frule = Rule(lhs_patt, rhs_patt, frate, label=label)
+                inter_rrule = Rule(rhs_patts, lhs_patts, inter_rrate, label=label, delmol=delmol)
+                intra_rrule = Rule(rhs_patts, lhs_patts, intra_rrate, label=label, delmol=delmol)
+                frule = Rule(lhs_patts, rhs_patts, frate, label=label, delmol=delmol)
                 return [inter_rrule, intra_rrule, frule]
             else:
                 frate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[0].strip()).asList()))
                 rrate = Rate(Expression(KappaReader.parse_alg_expr(rate_cps[1].strip()).asList()))
-                return [Rule(lhs_patt, rhs_patt, frate, reversible, rrate, label=label)]
+                return [Rule(lhs_patts, rhs_patts, frate, reversible, rrate, label=label, delmol=delmol)]
         else:
             rate = Rate(Expression(KappaReader.parse_alg_expr(rhs_cps[1].strip())))
-            return [Rule(lhs_patt, rhs_patt, rate, label=label)]
+            return [Rule(lhs_patts, rhs_patts, rate, label=label, delmol=delmol)]
 
     @staticmethod
     def parse_alg_expr(estr):
@@ -393,11 +420,13 @@ class KappaReader(Reader):
         constant = inf | pi | events | null_events | event_limit | time | cpu_time | time_limit | plot_points
 
         # variables
-        variable = pp.Combine(pp.Literal("'") + pp.Word(pp.alphanums + "_") + pp.Literal("'"))
+        variable = pp.QuotedString("'")
+
+        mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar)
 
         # patterns
-        pattern = pp.Combine(pp.Literal("|") + pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (
-        pp.Empty() ^ pp.CharsNotIn(")(")) + rpar + pp.Literal("|"))
+        pattern = pp.Combine(
+            pp.Literal("|") + mol + pp.Optional(pp.Literal(",") + pp.ZeroOrMore(mol)) + pp.Literal("|"))
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")
@@ -837,15 +866,17 @@ class BNGLReader(Reader):
             lhs_cpatterns = [cls.parse_cpattern(x) for x in lhs]
         rem = [x.strip() for x in re.split('(?<!!)\+', parts[1].strip())]
 
-        if re.match('0$', rem[0].strip()):
-            rhs_cpatterns = []
-            rate_string = '+'.join(rem[1:])
-            if is_reversible:
-                rate0, rate1 = re.split(',', rate_string)
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
+        def del_mol_warning(s):
+            if not re.search('DeleteMolecules', s):
+                logging.warning(
+                    "Degradation rule '%s' will remove full complexes.  This cannot be exactly translated into Kappa" % sline)
+                logging.warning(
+                    "Writing this rule in Kappa will only remove the matched pattern and could result in side effects")
+                return s
             else:
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
-        elif len(rem) > 1:
+                return re.sub('\s*DeleteMolecules', '', s)
+
+        if len(rem) > 1:
             one_past_final_mol_index = 0
             for i, t in enumerate(rem):
                 try:
@@ -855,19 +886,45 @@ class BNGLReader(Reader):
                     break
             last_split = re.split('\s+', rem[one_past_final_mol_index])
             mol, first_rate_part = last_split[0], ' '.join(last_split[1:])
-            rhs_cpatterns = [cls.parse_cpattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
+
+            if re.match('0', rem[0]):
+                rhs_cpatterns = []
+                rem[-1] = del_mol_warning(rem[-1])
+                delmol = True
+            else:
+                rhs_cpatterns = [cls.parse_cpattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
+                n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
+                n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
+                delmol = n_lhs_mols > n_rhs_mols
+                if delmol:
+                    rem[-1] = del_mol_warning(rem[-1])
+
             rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
+
             if is_reversible:
                 rate0, rate1 = re.split(',', rate_string)
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1), label=label)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1),
+                            label=label, delmol=delmol)
             else:
-                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label)
+                return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate_string), is_reversible, label=label,
+                            delmol=delmol)
         else:
             rem_parts = re.split('(?<!!)\s+', parts[1].strip())
-            if re.match('0$', rem_parts[0].strip()):
+
+            if re.match('0', rem_parts[0]):
                 rhs_cpatterns = []
+                rem_parts[-1] = del_mol_warning(rem_parts[-1])
+                delmol = True
             else:
                 rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
+                n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
+                n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
+                delmol = n_lhs_mols > n_rhs_mols
+                if delmol:
+                    rem_parts[-1] = del_mol_warning(rem_parts[-1])
+
+            rem_parts = [x for x in rem_parts if x != '']
+
             is_intra_l_to_r = False
             if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
                 is_intra_l_to_r = cls._has_intramolecular_binding(lhs_cpatterns[0], rhs_cpatterns[0])
@@ -879,10 +936,10 @@ class BNGLReader(Reader):
                 rate_split = re.split(',', rate_string)
                 rate0 = cls.parse_rate(rate_split[0], is_intra_l_to_r)
                 rate1 = cls.parse_rate(rate_split[1], is_intra_r_to_l)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1, label=label)
+                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1, label=label, delmol=delmol)
             else:
                 rate0 = cls.parse_rate(rate_string, is_intra_l_to_r)
-                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, label=label)
+                return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, label=label, delmol=delmol)
 
     @classmethod
     def parse_rate(cls, rs, is_intra=False):
