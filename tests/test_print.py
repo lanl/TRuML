@@ -176,6 +176,7 @@ class TestPrint:
         assert self.rate3.write_as_kappa() == r'0 {5}'
 
     def test_rule(self):
+        print self.rule0.write_as_bngl({})
         assert self.rule0.write_as_bngl({}) == r'A() -> B() 3'
         assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
         assert self.rule1.write_as_bngl({"x": "x"}) == r'A() -> B() ln(10)+x-356'

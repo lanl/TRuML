@@ -572,6 +572,10 @@ class CPattern:
         """
         self.molecule_list = ml
 
+    def num_molecules(self):
+        """Determines the number of molecules in the pattern"""
+        return len(self.molecule_list)
+
     def _build_graph(self):
         """
         Builds a graph representation of the CPattern
@@ -998,13 +1002,12 @@ class Rate:
         return "Rate: %s" % self.rate
 
 
-# TODO ALLOW INTER/INTRA NOTATION FOR RULES WRITTEN AS KAPPA
 class Rule:
     """Defines a rule"""
 
     # lhs, rhs are lists of CPatterns, rate/rev_rate are Rates, rev is bool (true for reversible rules),
     # amb_mol is boolean denoting a rule that (in Kappa) has ambiguous molecularity
-    def __init__(self, lhs, rhs, rate, rev=False, rev_rate=None, label=None):
+    def __init__(self, lhs, rhs, rate, rev=False, rev_rate=None, label=None, delmol=False):
         """
         Rule initialization function
 
@@ -1021,6 +1024,10 @@ class Rule:
         rev_rate : Rate
             Rate for the reverse rhs -> lhs reaction if present
         label : str
+            Label identifying the rule
+        delmol : bool
+            If the rule governs degradation, this allows fragments to persist if unseen
+            bonds can be broken by the rule's application
         """
         self.lhs = lhs
         self.rhs = rhs
@@ -1029,6 +1036,7 @@ class Rule:
         self.arrow = '->' if not rev else '<->'
         self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
         self.label = label
+        self.delmol = delmol
 
     def convert(self, lhs_mdefs, rhs_mdefs):
         """
@@ -1063,7 +1071,6 @@ class Rule:
 
     def write_as_bngl(self, namespace, dot=False):
         """Writes the rule as a BNGL string"""
-
         if not self.lhs:
             lhs_string = '0'
         elif dot:
@@ -1080,7 +1087,8 @@ class Rule:
             rate_string = self.rate.write_as_bngl(namespace) + ',' + self.rev_rate.write_as_bngl(namespace)
         else:
             rate_string = self.rate.write_as_bngl(namespace)
-        return '%s %s %s %s' % (lhs_string, self.arrow, rhs_string, rate_string)
+        delmol_string = '' if not self.delmol else " DeleteMolecules"
+        return '%s %s %s %s%s' % (lhs_string, self.arrow, rhs_string, rate_string, delmol_string)
 
     def write_as_kappa(self):
         """Writes the rule as a Kappa string"""

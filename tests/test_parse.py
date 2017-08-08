@@ -54,6 +54,7 @@ class TestParseKappa:
         assert rule5s[0].rev
         rule6s = readers.KappaReader.parse_rule(self.rule6)
         assert rule6s[0].rhs == []
+        assert rule6s[0].delmol
 
     def test_cpattern_parse(self):
         pcp0 = readers.KappaReader.parse_cpatterns(self.cp0)
@@ -137,6 +138,7 @@ class TestParseBNGL:
         cls.rule3 = "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
         cls.rule4 = "A() <-> 0 rate, rate"
         cls.rule5 = "0 -> B(x) 4"
+        cls.rule6 = "bdeg: B(x!+) -> 0 kdeg DeleteMolecules"
 
     @classmethod
     def teardown_class(cls):
@@ -186,8 +188,12 @@ class TestParseBNGL:
         assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4)
         assert prule4.rhs == []
-        print prule4.rate.write_as_bngl({"rate": "rate2"})
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'
+        assert prule4.delmol
         prule5 = readers.BNGLReader.parse_rule(self.rule5)
         assert prule5.lhs == []
         assert len(prule5.rhs) == 1
+        prule6 = readers.BNGLReader.parse_rule(self.rule6)
+        assert prule6.label == 'bdeg'
+        assert prule6.rate.rate == 'kdeg'
+        assert prule6.delmol
