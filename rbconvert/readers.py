@@ -91,8 +91,7 @@ class KappaReader(Reader):
 
                     model.convert_namespace[name] = bname
                     expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
-
-                    # TODO figure out why FRET in ensemble model is being converted to parameter
+                    
                     if self.var_contains_pattern(expr_list):
                         if len(expr_list) == 1:
                             model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
@@ -127,7 +126,7 @@ class KappaReader(Reader):
             if re.match('\[T', atom):
                 return True
             for k, v in self.var_dict.iteritems():
-                if re.match("'%s'" % k, atom) and (v == 'd' or v == 'p'):
+                if re.match("%s" % k, atom) and (v == 'd' or v == 'p'):
                     return True
         return False
 
@@ -413,7 +412,7 @@ class KappaReader(Reader):
         constant = inf | pi | events | null_events | event_limit | time | cpu_time | time_limit | plot_points
 
         # variables
-        variable = pp.QuotedString("'", unquoteResults=False)
+        variable = pp.QuotedString("'")
 
         mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar)
 

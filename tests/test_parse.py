@@ -71,7 +71,7 @@ class TestParseKappa:
 
     def test_eq_parse(self):
         print readers.KappaReader.parse_alg_expr(self.expr0).asList()
-        assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', "'x'"]
+        assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', 'x']
         assert readers.KappaReader.parse_alg_expr(self.expr1).asList() == \
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
 
@@ -97,6 +97,7 @@ class TestParseKappa:
         assert model.functions[1].name == 'combo'
         assert model.parameters[0].name == 'a'
         assert model.parameters[1].name == 'b'
+        assert set(model.parameters[1].value.atom_list) == {'3', '+', 'a'}
         assert isinstance(model.parameters[1].value, objects.Expression)
         cmd = objects.MoleculeDef("C", [objects.SiteDef('x'), objects.SiteDef('y', ['state', 'state2'])],
                                   {'x': 'x', 'y': 'y'})

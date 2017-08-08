@@ -881,10 +881,9 @@ class Expression:
         Parameters
         ----------
         atom_list : list
-            List of tokens from parse_math_expr function.  Ordered as operators,
-            values, variables
+            List of tokens from parse_alg_expr functions.
         """
-        self.atom_list = atom_list  # list from parse_math_expr listing (in order) operators, values, variables
+        self.atom_list = atom_list
 
     def write_as_bngl(self, namespace):
         """Writes Expression as BNGL string"""
@@ -1200,7 +1199,7 @@ class Model:
         s += '\nend molecule types\n\n'
         s += 'begin seed species\n\n'
         for i in self.initial_cond:
-            s += '\t%s\n' % i.write_as_bngl()
+            s += '\t%s\n' % i.write_as_bngl(self.convert_namespace)
         s += '\nend seed species\n\n'
         s += 'begin observables\n\n'
         for o in self.observables:
@@ -1212,7 +1211,7 @@ class Model:
         s += '\nend functions\n\n'
         s += 'begin reaction rules\n\n'
         for r in self.rules:
-            s += '\t%s\n' % r.write_as_bngl()
+            s += '\t%s\n' % r.write_as_bngl(self.convert_namespace)
             if dnp:
                 s += '\t%s\n' % r.write_as_bngl(dnp)
         s += '\nend reaction rules\n\n'
