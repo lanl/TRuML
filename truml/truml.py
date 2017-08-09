@@ -1,7 +1,7 @@
 """truml.truml: defines the entry point for the TRuML translator"""
 
 
-__version__ = '0.1.0'
+__version__ = "0.1.0"
 
 
 import argparse as ap

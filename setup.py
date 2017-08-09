@@ -15,7 +15,7 @@ with open('README', 'rb') as f:
 
 setup(name='TRuML',
       packages=['truml'],
-      entry_points={'truml': 'truml.truml:main'},
+      entry_points={'console_scripts': ['truml = truml.truml:main']},
       version=version,
       description='Interconversion between BNGL models and Kappa models',
       long_description=long_desc,
