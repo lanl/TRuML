@@ -908,10 +908,13 @@ class BNGLReader(Reader):
                 if delmol:
                     rem[-1] = del_mol_warning(rem[-1])
 
-            rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
+            if len(rem[one_past_final_mol_index + 1:]) == 0:
+                rate_string = first_rate_part
+            else:
+                rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
 
             if is_reversible:
-                rate0, rate1 = re.split(',', rate_string)
+                rate0, rate1 = re.split(',\s*', rate_string)
                 return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1),
                             label=label, delmol=delmol)
             else:
@@ -942,7 +945,7 @@ class BNGLReader(Reader):
                 is_intra_r_to_l = False
                 if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
                     is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0], lhs_cpatterns[0])
-                rate_split = re.split(',', rate_string)
+                rate_split = re.split(',\s*', rate_string)
                 rate0 = cls.parse_rate(rate_split[0], is_intra_l_to_r)
                 rate1 = cls.parse_rate(rate_split[1], is_intra_r_to_l)
                 return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1, label=label, delmol=delmol)
