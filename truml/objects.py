@@ -355,7 +355,7 @@ class Molecule:
     def write_as_kappa(self):
         """Writes Molecule as Kappa string and checks for conversion if necessary"""
         if len(set([s.name for s in self.sites])) < len(self.sites):
-            raise rbexceptions.NotConvertedException
+            raise rbexceptions.NotConvertedException(self.write_as_bngl())
         return self._write(False)
 
     def __eq__(self, other):
