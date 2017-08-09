@@ -1,3 +1,6 @@
+"""truml.rbexceptions: module containing custom exceptions for TRuML"""
+
+
 class NotAMoleculeException(Exception):
     """Raised when a string is expected to, but does not, conform to molecule syntax"""
 

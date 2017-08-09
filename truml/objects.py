@@ -1,3 +1,6 @@
+"""truml.objects: module containing classes representing the semantics of rule-based modeling languages"""
+
+
 import re
 import itertools as it
 import logging

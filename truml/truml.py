@@ -1,3 +1,9 @@
+"""truml.truml: defines the entry point for the TRuML translator"""
+
+
+__version__ = '0.1.0'
+
+
 import argparse as ap
 import logging
 import rbexceptions
@@ -5,8 +11,6 @@ import readers
 import re
 
 
-# List of arguments to be implemented:
-# add flag for outputting Kappa file with/without x{y} rate notation
 def main():
     parser = ap.ArgumentParser()
     parser.add_argument('-b', '--bngl_files', nargs='+', metavar='model.bngl', help='BNGL files to convert to Kappa')
@@ -21,6 +25,8 @@ def main():
     args = parser.parse_args()
 
     log_format = "%(name)s\t%(levelname)s\t%(message)s"
+
+    logging.info("Running the TRuML translator version %s" % __version__)
 
     # Assign logging level
     ll = logging.WARNING
@@ -46,7 +52,3 @@ def main():
             br = readers.BNGLReader(bf)
             model = br.parse()
             model.write_as_kappa(re.sub('bngl', 'ka', bf), args.no_print_funcs)
-
-
-if __name__ == "__main__":
-    main()

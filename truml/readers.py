@@ -1,3 +1,6 @@
+"""truml.readers: module containing classes for reading BNGL and Kappa model files"""
+
+
 from deepdiff import DeepDiff
 from objects import *
 import logging
