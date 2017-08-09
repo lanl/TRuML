@@ -1200,28 +1200,36 @@ class Model:
 
     def write_as_bngl(self, file_name, dnp):
         """Writes Model as BNGL file"""
+        logging.debug("Writing model to BNGL file: '%s'" % file_name)
+
         s = 'begin model\n\nbegin parameters\n\n'
         for p in self.parameters:
+            logging.debug("Writing parameter %s to file" % p)
             s += '\t%s\n' % p.write_as_bngl(self.convert_namespace)
         s += '\nend parameters\n\n'
         s += 'begin molecule types\n\n'
         for m in self.molecules:
+            logging.debug("Writing molecule type %s to file" % m)
             s += '\t%s\n' % m.write_as_bngl()
         s += '\nend molecule types\n\n'
         s += 'begin seed species\n\n'
         for i in self.initial_cond:
+            logging.debug("Writing initial condition %s to file" % i)
             s += '\t%s\n' % i.write_as_bngl(self.convert_namespace)
         s += '\nend seed species\n\n'
         s += 'begin observables\n\n'
         for o in self.observables:
+            logging.debug("Writing observable %s to file" % o)
             s += '\t%s\n' % o.write_as_bngl(self.convert_namespace)
         s += '\nend observables\n\n'
         s += 'begin functions\n\n'
         for f in self.functions:
+            logging.debug("Writing function %s to file" % f)
             s += '\t%s\n' % f.write_as_bngl(self.convert_namespace)
         s += '\nend functions\n\n'
         s += 'begin reaction rules\n\n'
         for r in self.rules:
+            logging.debug("Writing rule %s to file" % r)
             s += '\t%s\n' % r.write_as_bngl(self.convert_namespace)
             if dnp:
                 s += '\t%s\n' % r.write_as_bngl(dnp)
@@ -1246,28 +1254,36 @@ class Model:
         func_as_obs : bool
             If True, writes functions as observables, otherwise as variables
         """
+        logging.debug("Writing model to BNGL file: '%s'" % file_name)
+
         s = ''
         for m in self.molecules:
+            logging.debug("Writing molecule type %s to file" % m)
             s += '%s\n' % m.write_as_kappa()
         if len(self.molecules) > 0:
             s += '\n'
         for p in self.parameters:
+            logging.debug("Writing parameter %s to file" % p)
             s += '%s\n' % p.write_as_kappa()
         if len(self.parameters) > 0:
             s += '\n'
         for o in self.observables:
+            logging.debug("Writing observable %s to file" % o)
             s += '%s\n' % o.write_as_kappa(self.molecules)
         if len(self.observables) > 0:
             s += '\n'
         for f in self.functions:
+            logging.debug("Writing function %s to file" % f)
             s += '%s\n' % f.write_as_kappa(func_as_obs)  # defaults to printing all "functions" as observables
         if len(self.functions) > 0:
             s += '\n'
         for i in self.initial_cond:
+            logging.debug("Writing initial condition %s to file" % i)
             s += '%s\n' % i.write_as_kappa()
         if len(self.initial_cond) > 0:
             s += '\n'
         for r in self.rules:
+            logging.debug("Writing rule %s to file" % r)
             s += '%s\n' % r.write_as_kappa()
         if len(self.rules) > 0:
             s += '\n'
