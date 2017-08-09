@@ -133,7 +133,7 @@ class TestPrint:
         km4 = self.m4.convert(self.md2)
         km5 = self.m5.convert(self.md2)
         km6 = self.m6.convert(self.md2)
-        assert len(km2) == 4  # 4 choose 1
+        assert len(km2) == 192  # (4 choose 1) * (3 choose 1) * 2 * (2 choose 1) * 2 (1 choose 1) * 2
         assert len(km3) == 48  # (4 choose 2) * 2^2 * 2^1
         assert len(km4) == 192  # km3 * 2 * 2^1
         assert len(km5) == 24  # (4 choose 2) * (2 choose 1) * 2
@@ -144,11 +144,23 @@ class TestPrint:
         assert self.p0.write_as_kappa() == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
         assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
         kp4 = self.p4.convert([self.md0, self.md2])
-        assert len(kp4) == 4
-        assert sorted([k.write_as_kappa() for k in kp4]) == [r'Test2(a0),Test0(site0~state!3,site2!_)',
-                                                             r'Test2(a1),Test0(site0~state!3,site2!_)',
-                                                             r'Test2(a2),Test0(site0~state!3,site2!_)',
-                                                             r'Test2(a3),Test0(site0~state!3,site2!_)']
+        assert len(set(kp4)) == 15
+        assert sorted([k.write_as_kappa() for k in set(kp4)]) == [
+            "Test2(a0,a1!_,a2!_,a3!_),Test0(site0~state!3,site2!_)",
+            "Test2(a0,a1!_,a2!_,a3),Test0(site0~state!3,site2!_)",
+            "Test2(a0,a1!_,a2,a3!_),Test0(site0~state!3,site2!_)",
+            "Test2(a0,a1!_,a2,a3),Test0(site0~state!3,site2!_)",
+            "Test2(a0,a1,a2!_,a3!_),Test0(site0~state!3,site2!_)",
+            "Test2(a0,a1,a2!_,a3),Test0(site0~state!3,site2!_)",
+            "Test2(a0,a1,a2,a3!_),Test0(site0~state!3,site2!_)",
+            "Test2(a0,a1,a2,a3),Test0(site0~state!3,site2!_)",
+            "Test2(a1,a0!_,a2!_,a3!_),Test0(site0~state!3,site2!_)",
+            "Test2(a1,a0!_,a2!_,a3),Test0(site0~state!3,site2!_)",
+            "Test2(a1,a0!_,a2,a3!_),Test0(site0~state!3,site2!_)",
+            "Test2(a1,a0!_,a2,a3),Test0(site0~state!3,site2!_)",
+            "Test2(a2,a0!_,a1!_,a3!_),Test0(site0~state!3,site2!_)",
+            "Test2(a2,a0!_,a1!_,a3),Test0(site0~state!3,site2!_)",
+            "Test2(a3,a0!_,a1!_,a2!_),Test0(site0~state!3,site2!_)"]
 
     def test_init_conditions(self):
         assert self.i0.write_as_bngl({}) == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
@@ -196,8 +208,9 @@ class TestPrint:
             assert x[i - 1] < x[i]
 
     def test_rule_expansion(self):
+        print self.rule3.write_as_bngl({})
         x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
-        assert len(x) == 18
+        assert len(x) == 36
 
     def test_obs(self):
         assert self.obs0.write_as_bngl({"Obs0": "Obs0"}) == r'Molecules Obs0 B()'
@@ -205,21 +218,39 @@ class TestPrint:
         assert self.obs1.write_as_bngl({"Obs1": "Obs1"}) == r'Species Obs1 A() B()'
         assert self.obs1.write_as_kappa([self.md4, self.md3]) == r"%obs: 'Obs1' |A()|+|B()|"
         assert self.obs2.write_as_bngl({"Obs2": "Obs2"}) == r'Molecules Obs2 Test2(a)'
-        assert self.obs2.write_as_kappa([self.md2]) == r"%obs: 'Obs2' |Test2(a0)|+|Test2(a1)|+|Test2(a2)|+|Test2(a3)|"
-        ostr = ("%obs: 'Obs3' "
-                "|Test2(a0,a1,a2!_,a3!_)|+"
-                "|Test2(a0,a1,a2!_,a3)|+"
-                "|Test2(a0,a1,a2,a3!_)|+"
-                "|Test2(a0,a1,a2,a3)|+"
-                "|Test2(a0,a2,a1!_,a3!_)|+"
-                "|Test2(a0,a2,a1!_,a3)|+"
-                "|Test2(a0,a3,a1!_,a2!_)|+"
-                "|Test2(a1,a2,a0!_,a3!_)|+"
-                "|Test2(a1,a2,a0!_,a3)|+"
-                "|Test2(a1,a3,a0!_,a2!_)|+"
-                "|Test2(a2,a3,a0!_,a1!_)|"
-                )
-        assert self.obs3.write_as_kappa([self.md2]) == ostr
+        ostr0 = ("%obs: 'Obs2' "
+                 "|Test2(a0,a1!_,a2!_,a3!_)|+"
+                 "|Test2(a0,a1!_,a2!_,a3)|+"
+                 "|Test2(a0,a1!_,a2,a3!_)|+"
+                 "|Test2(a0,a1!_,a2,a3)|+"
+                 "|Test2(a0,a1,a2!_,a3!_)|+"
+                 "|Test2(a0,a1,a2!_,a3)|+"
+                 "|Test2(a0,a1,a2,a3!_)|+"
+                 "|Test2(a0,a1,a2,a3)|+"
+                 "|Test2(a1,a0!_,a2!_,a3!_)|+"
+                 "|Test2(a1,a0!_,a2!_,a3)|+"
+                 "|Test2(a1,a0!_,a2,a3!_)|+"
+                 "|Test2(a1,a0!_,a2,a3)|+"
+                 "|Test2(a2,a0!_,a1!_,a3!_)|+"
+                 "|Test2(a2,a0!_,a1!_,a3)|+"
+                 "|Test2(a3,a0!_,a1!_,a2!_)|"
+                 )
+        print self.obs2.write_as_kappa([self.md2])
+        assert self.obs2.write_as_kappa([self.md2]) == ostr0
+        ostr1 = ("%obs: 'Obs3' "
+                 "|Test2(a0,a1,a2!_,a3!_)|+"
+                 "|Test2(a0,a1,a2!_,a3)|+"
+                 "|Test2(a0,a1,a2,a3!_)|+"
+                 "|Test2(a0,a1,a2,a3)|+"
+                 "|Test2(a0,a2,a1!_,a3!_)|+"
+                 "|Test2(a0,a2,a1!_,a3)|+"
+                 "|Test2(a0,a3,a1!_,a2!_)|+"
+                 "|Test2(a1,a2,a0!_,a3!_)|+"
+                 "|Test2(a1,a2,a0!_,a3)|+"
+                 "|Test2(a1,a3,a0!_,a2!_)|+"
+                 "|Test2(a2,a3,a0!_,a1!_)|"
+                 )
+        assert self.obs3.write_as_kappa([self.md2]) == ostr1
         assert self.obs4.write_as_bngl({"Obs+": "Obs_"}) == "Molecules Obs_ Test2(a,a)"
         assert self.obs5.write_as_bngl({"Obs-": "Obs__"}) == r'Molecules Obs__ B()'
 

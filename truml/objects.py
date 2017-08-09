@@ -46,7 +46,7 @@ class MoleculeDef:
         ----------
         n : str
             Alphanumeric string that identifies the molecule type
-        st : list
+        sds : list
             List of SiteDef instances
         snm : dict
             Dictionary that maps Kappa site names to BNGL site names
@@ -270,7 +270,7 @@ class Molecule:
             num_identical_sites = len(mdef.inv_site_name_map[k])
             if num_identical_sites > 1 and k in un_configs_per_site.keys():
                 num_present_sites = sum(un_configs_per_site[k].values())
-                if num_identical_sites > num_present_sites > 1:
+                if num_identical_sites > num_present_sites >= 1:
                     possible_overlap[k] = True
                     break
 
