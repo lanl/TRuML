@@ -145,7 +145,6 @@ class TestPrint:
         assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
         kp4 = self.p4.convert([self.md0, self.md2])
         assert len(kp4) == 4
-        print sorted([k.write_as_kappa() for k in kp4])
         assert sorted([k.write_as_kappa() for k in kp4]) == [r'Test2(a0),Test0(site0~state!3,site2!_)',
                                                              r'Test2(a1),Test0(site0~state!3,site2!_)',
                                                              r'Test2(a2),Test0(site0~state!3,site2!_)',
@@ -176,7 +175,6 @@ class TestPrint:
         assert self.rate3.write_as_kappa() == r'0 {5}'
 
     def test_rule(self):
-        print self.rule0.write_as_bngl({})
         assert self.rule0.write_as_bngl({}) == r'A() -> B() 3'
         assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
         assert self.rule1.write_as_bngl({"x": "x"}) == r'A() -> B() ln(10)+x-356'
@@ -199,8 +197,6 @@ class TestPrint:
 
     def test_rule_expansion(self):
         x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
-        # print '\n'.join([i.write_as_bngl() for i in x])
-        # print len(x)
         assert len(x) == 18
 
     def test_obs(self):

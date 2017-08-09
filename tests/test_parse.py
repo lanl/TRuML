@@ -71,7 +71,6 @@ class TestParseKappa:
         assert readers.KappaReader.parse_init(self.init1)[1].write_as_kappa() == "%init: 10+'x' C()"
 
     def test_eq_parse(self):
-        print readers.KappaReader.parse_alg_expr(self.expr0).asList()
         assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', 'x']
         assert readers.KappaReader.parse_alg_expr(self.expr1).asList() == \
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
@@ -110,7 +109,6 @@ class TestParseKappa:
         kr1 = readers.KappaReader()
         kr1.lines = [self.obs0]
         model = kr1.parse()
-        print model.observables
         assert len(model.observables[0].cpatterns) == 1
 
 
@@ -158,11 +156,9 @@ class TestParseBNGL:
 
     def test_init_parse(self):
         assert readers.BNGLReader.parse_init(self.init0).write_as_bngl({}) == self.mol0 + ' 100.0'
-        print readers.BNGLReader.parse_init(self.init1).write_as_bngl({'x': 'x', 'k': 'k'})
         assert readers.BNGLReader.parse_init(self.init1).write_as_bngl({'x': 'x', 'k': 'k'}) == self.mol0 + ' (x+3)/k'
 
     def test_obs_parse(self):
-        print readers.BNGLReader.parse_obs(self.obs0).write_as_bngl({"Mol0": "Mol0"})
         assert readers.BNGLReader.parse_obs(self.obs0).write_as_bngl({"Mol0": "Mol0"}) == self.obs0
         assert readers.BNGLReader.parse_obs(self.obs1).write_as_bngl({"Mol1": "Mol1"}) == self.obs1
 
