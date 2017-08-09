@@ -3,6 +3,6 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-import rbconvert.objects as objects
-import rbconvert.rbexceptions as rbexceptions
-import rbconvert.readers as readers
+import truml.objects as objects
+import truml.rbexceptions as rbexceptions
+import truml.readers as readers

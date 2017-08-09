@@ -35,7 +35,7 @@ def main():
         logging.basicConfig(format=log_format, level=ll)
 
     if args.bngl_files is None and args.kappa_files is None:
-        raise rbexceptions.NoModelsException("\nNo models specified.  See `convert.py -h` for information\n")
+        raise rbexceptions.NoModelsException("\nNo models specified.  See `truml.py -h` for information\n")
     elif args.bngl_files is None:
         for kf in args.kappa_files:
             kr = readers.KappaReader(kf)
