@@ -3,6 +3,7 @@
 
 from deepdiff import DeepDiff
 from objects import *
+import itertools as it
 import logging
 import pyparsing as pp
 import re
@@ -26,13 +27,17 @@ class Reader(object):
                 f = open(file_name)
                 d = f.readlines()
                 f.close()
-                self.lines = [re.sub('#.*$', '', l).strip() for l in d]
+                self.lines = it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in d])
                 logging.info("Read file %s" % self.file_name)
             except IOError:
                 logging.error("Cannot find model file %s" % file_name)
                 raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
+
+    @staticmethod
+    def ignore_line(l):
+        return l == '' or re.match('\s*\n', l)
 
 
 # ignores perturbation and action commands
@@ -492,7 +497,8 @@ class BNGLReader(Reader):
         cur_line = ''  # used for line continuation
         model = Model()
         for i, l in enumerate(self.lines):
-            if re.match('\s*\n', l) or re.match('\s*#', l):
+
+            if re.match('\s*\n', l):
                 continue
 
             logging.debug("Line %s: %s" % (i, l.strip()))
@@ -983,18 +989,18 @@ class BNGLReader(Reader):
         Expression
         """
         sline = line.strip()
-        s_char = ''
-        for x in sline:
-            if re.match('\s', x) or re.match('=', x):
-                s_char = x
-                break
-        name, func = re.split(s_char, sline)
-        if re.search('\(.\)',
-                     name):  # a variable in between the parentheses means the function is local (not Kappa compatible)
+        if re.search('=', sline):
+            s_char = '='
+        else:
+            s_char = ' '
+        ssplit = re.split(s_char, sline)
+        name = ssplit[0]
+        func = s_char.join(ssplit[1:])
+        if re.search('\(.+\)', name):  # a variable in between the parentheses means the function is local
             raise rbexceptions.NotCompatibleException(
-                "Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
+                "Kappa functions cannot accommodate BNGL local functions:\n\t%s\n" % sline)
         p_func = cls.parse_math_expr(func)
-        return Expression(name, p_func.asList())
+        return Function(name, Expression(p_func.asList()))
 
     # needs to be able to identify built in functions, numbers, variables, (previously defined functions?)
     # functions are an alphanumeric string starting with a letter; they are preceded by an operator or parenthesis and encompass something in parentheses
@@ -1034,7 +1040,7 @@ class BNGLReader(Reader):
         pi = pp.CaselessLiteral("PI")
 
         expr = pp.Forward()
-        atom = (pp.Optional("-") + (pi | e | fnumber | ident + lpar + expr + rpar | ident) | (lpar + expr + rpar))
+        atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ ident) ^ (lpar + expr + rpar))
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.

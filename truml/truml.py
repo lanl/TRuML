@@ -24,9 +24,7 @@ def main():
     parser.add_argument('-l', '--log_file', metavar='convert.log', help='Specify log file')
     args = parser.parse_args()
 
-    log_format = "%(name)s\t%(levelname)s\t%(message)s"
-
-    logging.info("Running the TRuML translator version %s" % __version__)
+    log_format = "%(levelname)s\t%(message)s"
 
     # Assign logging level
     ll = logging.WARNING
@@ -39,6 +37,8 @@ def main():
         logging.basicConfig(format=log_format, filename=args.log_file, level=ll)
     else:
         logging.basicConfig(format=log_format, level=ll)
+
+    logging.info("Running the TRuML translator version %s" % __version__)
 
     if args.bngl_files is None and args.kappa_files is None:
         raise rbexceptions.NoModelsException("\nNo models specified.  See `truml.py -h` for information\n")

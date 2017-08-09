@@ -1168,7 +1168,7 @@ class Observable:
     def write_as_kappa(self, mdefs):
         """Writes Observable as Kappa string"""
         if self.type == 'Species':
-            print "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable" % self.name
+            logging.warning("Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable" % self.name)
 
         obs_strs = []
         for p in self.cpatterns:
@@ -1256,7 +1256,7 @@ class Model:
         if len(self.parameters) > 0:
             s += '\n'
         for o in self.observables:
-            s += '%s\n' % o.write_as_kappa()
+            s += '%s\n' % o.write_as_kappa(self.molecules)
         if len(self.observables) > 0:
             s += '\n'
         for f in self.functions:
