@@ -1,64 +1,42 @@
-begin model
+# A simple model of Michaelis-Menten kinetics using rate approximation
 
 begin parameters
+  # Cell volume
+  V 1 # um^3 = fL
+  # Avogadro's number- scaled for uM concentration and volume units of um^3
+  NaV 602*V
+  # Rate constants
+  kf   1.0/(NaV) # 1/uM 1/s-> 1/molec 1/s
+  kr   1.0e-1 # 1/s
+  kcat 1.0e-2 # 1/s
+  Km   (kcat + kr)/kf
 
-NA 6.022e23 # scientific notation
-V 1e-12
-ka  1e9 # two spaces between name and value
-kpd	1e6 # tab between name and value
-kps = kpd/(NA*V) # assignment using equality and value contains expression
-km = kpd/ka
-
-kcat 1
-k_michaelis=(km+kcat)/kps
-
-Sconc_nM 10
-Scopies=Sconc_nM*1e-9*(NA*V)
-
+  # Initial concentrations
+  E0 0.01*NaV # uM -> molec / cell
+  S0 1.0*NaV # uM -> molec / cell
 end parameters
 
 begin molecule types
-
-K(b)
-S(b,active~0~P)
-P(b)
-
+  E(s)
+  S(Y~0~P)
 end molecule types
 
 begin seed species
-
-K(b)	60220
-S(b,active~0) Scopies
-P(b)  100*1e-9*(NA*V)
-
+  E(s) E0
+  S(Y~0) S0
 end seed species
 
 begin observables
-
-Molecules active_S S(active~P)
-Molecules boundK K(b!+)
-
+  Molecules Su S(Y~0)
+  Molecules Sp S(Y~P)
+  Molecules ES E(s!1).S(Y!1)
 end observables
 
 begin functions
-
-log10BoundK()=log10(boundK)
-mmValue()=kcat*60220*Scopies/(k_michaelis + Scopies)
-
+  MMrate() kcat*E0*Su/(Km + Su)
 end functions
 
 begin reaction rules
-
-P(b)+S(b,active~P) <-> P(b!1).S(b!1,active~P) kps,km
-P(b!1).S(b!1,active~P) -> P(b) + S(b,active~0) kcat
-S(b,active~0) -> S(b,active~P) mmValue()
-
+ES_MM:\
+  E(s) + S(Y~0) -> E(s) + S(Y~P) kcat/(Km + Su) #MMrate()
 end reaction rules
-
-end model
-
-begin actions
-
-generate_network({overwrite=>1})
-
-end actions
