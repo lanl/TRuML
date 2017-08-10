@@ -1,6 +1,5 @@
 from .context import objects
 from nose.tools import raises
-import re
 
 
 class TestPrint:
