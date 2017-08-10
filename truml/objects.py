@@ -683,7 +683,7 @@ class CPattern:
         # Check to make sure conversion to Kappa compatible site names has occurred
         for m in self.molecule_list:
             if m.has_identical_sites():
-                raise rbexceptions.NotConvertedException
+                raise rbexceptions.NotConvertedException(m.write_as_bngl())
         # If all molecules are unique, exit with count 1.  Otherwise calculate the
         # number of automorphisms
         if len([m._node_name() for m in self.molecule_list]) == len(set([m.name for m in self.molecule_list])):
@@ -988,7 +988,7 @@ class Rate:
         try:
             return self.rate.write_as_bngl(namespace)
         except AttributeError:
-            if isinstance(self.rate, str):
+            if isinstance(self.rate, str) and self.rate in namespace.keys():
                 return namespace[self.rate]
             else:
                 return str(self.rate)
@@ -1060,16 +1060,26 @@ class Rule:
         """
         k_lhs, k_rhs = [], []
         for cp in self.lhs:
-            k_lhs.append(cp.convert(lhs_mdefs))
+            k_lhs.append(cp.convert(lhs_mdefs)) # list of lists of CPatterns
         for cp in self.rhs:
             k_rhs.append(cp.convert(rhs_mdefs))
-        all_lhs = it.product(*k_lhs)
-        all_rhs = it.product(*k_rhs)
+        all_lhs = list(it.product(*k_lhs)) # list of tuples of CPatterns
+        all_rhs = list(it.product(*k_rhs))
 
-        z = zip(all_lhs, all_rhs)  # order in lhs and rhs conversions are preserved
         rs = []
-        for l, r in z:
-            rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate))
+        if len(all_lhs) == len(all_rhs):
+            z = zip(all_lhs, all_rhs)  # order in lhs and rhs conversions are preserved
+            for l, r in z:
+                rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
+        elif len(all_rhs) % len(all_lhs) == 0:
+            rs_per_l = len(all_rhs) / len(all_lhs)
+            for i, l in enumerate(all_lhs):
+                for j in range(rs_per_l*i, rs_per_l*i + rs_per_l):
+                    rs.append(Rule(l, all_rhs[j], self.rate, self.rev, self.rev_rate, self.label, self.delmol))
+
+            assert len(rs) == len(all_rhs)
+        else:
+            logging.critical("Rule conversion error.  Please review rule '%s'" % self)
         return list(set(rs))
 
     def write_as_bngl(self, namespace, dot=False):
@@ -1259,7 +1269,8 @@ class Model:
         s = ''
         for m in self.molecules:
             logging.debug("Writing molecule type %s to file" % m)
-            s += '%s\n' % m.write_as_kappa()
+            km = m.convert()
+            s += '%s\n' % km.write_as_kappa()
         if len(self.molecules) > 0:
             s += '\n'
         for p in self.parameters:
@@ -1278,13 +1289,15 @@ class Model:
         if len(self.functions) > 0:
             s += '\n'
         for i in self.initial_cond:
+            kis = i.convert(self.molecules)
             logging.debug("Writing initial condition %s to file" % i)
-            s += '%s\n' % i.write_as_kappa()
+            s += '%s\n' % '\n'.join([ki.write_as_kappa() for ki in kis])
         if len(self.initial_cond) > 0:
             s += '\n'
         for r in self.rules:
+            krs = r.convert(self.molecules, self.molecules)
             logging.debug("Writing rule %s to file" % r)
-            s += '%s\n' % r.write_as_kappa()
+            s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])
         if len(self.rules) > 0:
             s += '\n'
 

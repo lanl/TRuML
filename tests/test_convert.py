@@ -7,8 +7,8 @@ class TestConvert:
 
     @classmethod
     def setup_class(cls):
-        cls.bm0 = readers.BNGLReader("resources/test0.bngl").parse()
-        cls.bm1 = readers.BNGLReader("resources/test1.bngl").parse()
+        cls.bm0 = readers.BNGLReader("tests/resources/test0.bngl").parse()
+        cls.bm1 = readers.BNGLReader("tests/resources/test1.bngl").parse()
 
     @classmethod
     def teardown_class(cls):
@@ -35,4 +35,7 @@ class TestConvert:
         assert len(krules) == 1
 
     def test_bmodel1_convert(self):
-        pass
+        mdefs = self.bm1.molecules
+        krules = [r for rule in self.bm1.rules for r in rule.convert(mdefs, mdefs)]
+        print '\n'.join([x.write_as_kappa() for x in krules])
+        assert len(krules) == 29
