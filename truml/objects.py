@@ -1,12 +1,12 @@
 """truml.objects: module containing classes representing the semantics of rule-based modeling languages"""
 
-
 import re
 import itertools as it
 import logging
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 import rbexceptions
+import utils
 
 
 class SiteDef:
@@ -725,16 +725,13 @@ class CPattern:
             for md in mdefs:
                 if m.name == md.name:
                     k_str_mol_list.append(m.convert(md))
-        k_patterns = it.product(*k_str_mol_list)
+        k_patterns = list(it.product(*k_str_mol_list))
+        for pat in k_patterns:
+            if len(utils.get_connected_components(list(pat))) > 1 and self.num_molecules() > 1:
+                logging.warning(
+                    "CPattern components are not explicitly connected in %s\n"
+                    "This pattern may be attempting to detect polymers which is not possible in Kappa" % self)
         return [CPattern(pat) for pat in k_patterns]
-        # # Remove doubles and preserve molecule order
-        # seen = set()
-        # un_k_patterns = []
-        # for pat in k_patterns:
-        #     if pat not in seen:
-        #         seen.add(pat)
-        #         un_k_patterns.append(CPattern(pat))
-        # return un_k_patterns
 
     def _write(self, bngl=True):
         """
@@ -1060,10 +1057,10 @@ class Rule:
         """
         k_lhs, k_rhs = [], []
         for cp in self.lhs:
-            k_lhs.append(cp.convert(lhs_mdefs)) # list of lists of CPatterns
+            k_lhs.append(cp.convert(lhs_mdefs))  # list of lists of CPatterns
         for cp in self.rhs:
             k_rhs.append(cp.convert(rhs_mdefs))
-        all_lhs = list(it.product(*k_lhs)) # list of tuples of CPatterns
+        all_lhs = list(it.product(*k_lhs))  # list of tuples of CPatterns
         all_rhs = list(it.product(*k_rhs))
 
         rs = []
@@ -1074,7 +1071,7 @@ class Rule:
         elif len(all_rhs) % len(all_lhs) == 0:
             rs_per_l = len(all_rhs) / len(all_lhs)
             for i, l in enumerate(all_lhs):
-                for j in range(rs_per_l*i, rs_per_l*i + rs_per_l):
+                for j in range(rs_per_l * i, rs_per_l * i + rs_per_l):
                     rs.append(Rule(l, all_rhs[j], self.rate, self.rev, self.rev_rate, self.label, self.delmol))
 
             assert len(rs) == len(all_rhs)
@@ -1178,7 +1175,8 @@ class Observable:
     def write_as_kappa(self, mdefs):
         """Writes Observable as Kappa string"""
         if self.type == 'Species':
-            logging.warning("Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable" % self.name)
+            logging.warning(
+                "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable" % self.name)
 
         obs_strs = []
         for p in self.cpatterns:
