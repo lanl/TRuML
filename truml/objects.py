@@ -728,9 +728,11 @@ class CPattern:
         k_patterns = list(it.product(*k_str_mol_list))
         for pat in k_patterns:
             if len(utils.get_connected_components(list(pat))) > 1 and self.num_molecules() > 1:
+                logging.warning("CPattern components are not explicitly connected in '%s'" % self.write_as_bngl())
                 logging.warning(
-                    "CPattern components are not explicitly connected in %s\n"
-                    "This pattern may be attempting to detect polymers which is not possible in Kappa" % self)
+                    "The above pattern may be attempting to detect polymers which is not possible in Kappa")
+                raise rbexceptions.NotCompatibleException(
+                    "Pattern '%s' cannot be converted to Kappa-compatible syntax" % self.write_as_bngl())
         return [CPattern(pat) for pat in k_patterns]
 
     def _write(self, bngl=True):
@@ -820,7 +822,7 @@ class InitialCondition:
                 ['('] + self.amount.expr + [')', '/', lss])
         return [InitialCondition(s, amount, self.amount_is_number) for s in ss]
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Write as BNGL string"""
         amount = self.amount if self.amount_is_number else self.amount.write_as_bngl(namespace)
         return '%s %s' % (self.species.write_as_bngl(), amount)
@@ -858,9 +860,9 @@ class Parameter:
         self.name = n
         self.value = v
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes Parameter as BNGL string"""
-        bname = namespace[self.name]
+        bname = namespace[self.name] if self.name in namespace.keys() else self.name
         val = self.value.write_as_bngl(namespace) if isinstance(self.value, Expression) else self.value
         return '%s %s' % (bname, val)
 
@@ -889,7 +891,7 @@ class Expression:
         """
         self.atom_list = atom_list
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes Expression as BNGL string"""
         conv_atom_list = []
         for atom in self.atom_list:
@@ -942,9 +944,9 @@ class Function:
         self.name = name
         self.expr = expr
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes function as BNGL string"""
-        bname = namespace[self.name]
+        bname = namespace[self.name] if self.name in namespace.keys() else self.name
         return '%s()=%s' % (bname, self.expr.write_as_bngl(namespace))
 
     def write_as_kappa(self, as_obs=True):
@@ -980,7 +982,7 @@ class Rate:
         self.rate = r
         self.intra_binding = intra
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Write Rate as BNGL string"""
         try:
             return self.rate.write_as_bngl(namespace)
@@ -1079,7 +1081,7 @@ class Rule:
             logging.critical("Rule conversion error.  Please review rule '%s'" % self)
         return list(set(rs))
 
-    def write_as_bngl(self, namespace, dot=False):
+    def write_as_bngl(self, namespace=dict(), dot=False):
         """Writes the rule as a BNGL string"""
         if not self.lhs:
             lhs_string = '0'
@@ -1167,9 +1169,9 @@ class Observable:
             raise Exception("not a valid observable type: %s" % t)
         self.cpatterns = ps  # a list of CPatterns
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes Observable as BNGL string"""
-        bname = namespace[self.name]
+        bname = namespace[self.name] if self.name in namespace.keys() else self.name
         return "%s %s %s" % (self.type, bname, ' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
     def write_as_kappa(self, mdefs):
@@ -1277,8 +1279,11 @@ class Model:
         if len(self.parameters) > 0:
             s += '\n'
         for o in self.observables:
-            logging.debug("Writing observable %s to file" % o)
-            s += '%s\n' % o.write_as_kappa(self.molecules)
+            try:
+                logging.debug("Writing observable %s to file" % o)
+                s += '%s\n' % o.write_as_kappa(self.molecules)
+            except rbexceptions.NotCompatibleException:
+                logging.warning("Incompatible observable '%s' not converted to Kappa" % o.write_as_bngl({}))
         if len(self.observables) > 0:
             s += '\n'
         for f in self.functions:
@@ -1293,9 +1298,13 @@ class Model:
         if len(self.initial_cond) > 0:
             s += '\n'
         for r in self.rules:
-            krs = r.convert(self.molecules, self.molecules)
-            logging.debug("Writing rule %s to file" % r)
-            s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])
+            try:
+                krs = r.convert(self.molecules, self.molecules)
+                logging.debug("Writing rule %s to file" % r)
+                s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])
+            except rbexceptions.NotCompatibleException as nce:
+                logging.critical("Cannot convert rule '%s' to Kappa" % r.write_as_bngl())
+                raise nce
         if len(self.rules) > 0:
             s += '\n'
 

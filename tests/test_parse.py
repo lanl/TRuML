@@ -155,7 +155,7 @@ class TestParseBNGL:
         mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
 
     def test_init_parse(self):
-        assert readers.BNGLReader.parse_init(self.init0).write_as_bngl({}) == self.mol0 + ' 100.0'
+        assert readers.BNGLReader.parse_init(self.init0).write_as_bngl() == self.mol0 + ' 100.0'
         assert readers.BNGLReader.parse_init(self.init1).write_as_bngl({'x': 'x', 'k': 'k'}) == self.mol0 + ' (x+3)/k'
 
     def test_obs_parse(self):

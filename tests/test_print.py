@@ -1,4 +1,5 @@
 from .context import objects
+from .context import rbexceptions
 from nose.tools import raises
 
 
@@ -142,27 +143,13 @@ class TestPrint:
         assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
         assert self.p0.write_as_kappa() == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
         assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
-        kp4 = self.p4.convert([self.md0, self.md2])
-        assert len(set(kp4)) == 15
-        assert sorted([k.write_as_kappa() for k in set(kp4)]) == [
-            "Test2(a0,a1!_,a2!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1!_,a2!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1!_,a2,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1!_,a2,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a2,a0!_,a1!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a2,a0!_,a1!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a3,a0!_,a1!_,a2!_),Test0(site0~state!3,site2!_)"]
+
+    @raises(rbexceptions.NotCompatibleException)
+    def test_patterns(self):
+        self.p4.convert([self.md0, self.md2])
 
     def test_init_conditions(self):
-        assert self.i0.write_as_bngl({}) == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
+        assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
         assert self.i0.write_as_kappa() == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
         assert self.i1.write_as_bngl({"x": "x"}) == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) x+10'
         assert self.i1.write_as_kappa() == r"%init: 'x'+10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
@@ -176,29 +163,29 @@ class TestPrint:
         assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr' [log](10)+'x'-356"
 
     def test_rate(self):
-        assert self.rate0.write_as_bngl({}) == r'3'
+        assert self.rate0.write_as_bngl() == r'3'
         assert self.rate0.write_as_kappa() == r'3'
         assert self.rate1.write_as_bngl({"x": "x"}) == r'ln(10)+x-356'
         assert self.rate1.write_as_kappa() == r"[log](10)+'x'-356"
         assert self.rate2.write_as_bngl({"rate": "rate"}) == r'rate'
         assert self.rate2.write_as_kappa() == r"'rate'"
-        assert self.rate3.write_as_bngl({}) == r'5'
+        assert self.rate3.write_as_bngl() == r'5'
         assert self.rate3.write_as_kappa() == r'0 {5}'
 
     def test_rule(self):
-        assert self.rule0.write_as_bngl({}) == r'A() -> B() 3'
+        assert self.rule0.write_as_bngl() == r'A() -> B() 3'
         assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
         assert self.rule1.write_as_bngl({"x": "x"}) == r'A() -> B() ln(10)+x-356'
         assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10)+'x'-356"
         assert self.rule2.write_as_bngl({"rate": "rate"}) == r'A() <-> B() 3,rate'
         assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
         assert self.rule4.write_as_kappa() == r" -> A() @ 3"
-        assert self.rule4.write_as_bngl({}) == r"0 -> A() 3"
+        assert self.rule4.write_as_bngl() == r"0 -> A() 3"
         assert self.rule5.write_as_kappa() == r"A() ->  @ 3"
-        assert self.rule5.write_as_bngl({}) == r"A() -> 0 3"
+        assert self.rule5.write_as_bngl() == r"A() -> 0 3"
         assert self.rule6.write_as_kappa() == r"B(b),B(b) -> B(b!1),B(b!1) @ 3"
-        assert self.rule6.write_as_bngl({}) == r"B(b)+B(b) -> B(b!1).B(b!1) 3"
-        assert self.rule6.write_as_bngl({}, True) == r"B(b).B(b) -> B(b!1).B(b!1) 3"
+        assert self.rule6.write_as_bngl() == r"B(b)+B(b) -> B(b!1).B(b!1) 3"
+        assert self.rule6.write_as_bngl(dot=True) == r"B(b).B(b) -> B(b!1).B(b!1) 3"
 
     def test_molecule_conversion_determinism(self):
         x = self.m7.convert(self.md3)
@@ -207,7 +194,7 @@ class TestPrint:
             assert x[i - 1] < x[i]
 
     def test_rule_expansion(self):
-        print self.rule3.write_as_bngl({})
+        print self.rule3.write_as_bngl()
         x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
         assert len(x) == 36
 
