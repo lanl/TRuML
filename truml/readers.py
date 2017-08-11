@@ -426,6 +426,21 @@ class BNGLReader(Reader):
         self.is_obs_block = False
         self.is_func_block = False
 
+    def get_molecule_types(self):
+        m = Model()
+        for l in self.lines:
+            if re.match('begin molecule types', l):
+                logging.debug("Entering molecule types block")
+                self.is_def_block = True
+                continue
+            elif re.match('end molecule types', l):
+                logging.debug("Leaving molecule types block")
+                self.is_def_block = False
+                break
+            if self.is_def_block:
+                m.add_molecule_def(self.parse_mtype(l))
+        return m
+
     # TODO implement as simple grammar
     def parse(self):
         """
@@ -433,103 +448,68 @@ class BNGLReader(Reader):
 
         This function assumes that the file has the molecule types block before the rules block
         """
-        cur_line = ''  # used for line continuation
-        model = Model()
+        model = self.get_molecule_types()
+
         for i, l in enumerate(self.lines):
 
             if re.match('\s*\n', l):
                 continue
 
-            logging.debug("Line %s: %s" % (i, l.strip()))
+            logging.debug("Parsing %s" % l.strip())
 
             if re.match('begin parameters', l):
                 logging.debug("Entering parameter block")
                 self.is_param_block = True
-                cur_line = ''
                 continue
             elif re.match('end parameters', l):
                 logging.debug("Leaving parameter block")
                 self.is_param_block = False
-                cur_line = ''
-                continue
-            elif re.match('begin molecule types', l):
-                logging.debug("Entering molecule types block")
-                self.is_def_block = True
-                cur_line = ''
-                continue
-            elif re.match('end molecule types', l):
-                logging.debug("Leaving molecule types block")
-                self.is_def_block = False
-                cur_line = ''
                 continue
             elif re.match('begin seed species', l):
                 logging.debug("Entering initial conditions block")
                 self.is_init_block = True
-                cur_line = ''
                 continue
             elif re.match('end seed species', l):
                 logging.debug("Leaving initial conditions block")
                 self.is_init_block = False
-                cur_line = ''
                 continue
             elif re.match('begin observables', l):
                 logging.debug("Entering observables block")
                 self.is_obs_block = True
-                cur_line = ''
                 continue
             elif re.match('end observables', l):
                 logging.debug("Leaving observables block")
                 self.is_obs_block = False
-                cur_line = ''
                 continue
             elif re.match('begin functions', l):
                 logging.debug("Entering functions block")
                 self.is_func_block = True
-                cur_line = ''
                 continue
             elif re.match('end functions', l):
                 logging.debug("Leaving functions block")
                 self.is_func_block = False
-                cur_line = ''
                 continue
             elif re.match('begin reaction rules', l):
                 logging.debug("Entering rules block")
                 self.is_rule_block = True
-                cur_line = ''
                 continue
             elif re.match('end reaction rules', l):
                 logging.debug("Leaving rules block")
                 self.is_rule_block = False
-                cur_line = ''
                 continue
 
-            # determines presence of line continuation, file cannot have backslashes in other contexts
-            if re.search("\\\\\s*$", l):
-                # saves current line, stripping trailing and leading whitespace, continues to subsequent line
-                cur_line += re.sub('\\\\', '', l.strip())
-                continue
+            if self.is_param_block:
+                model.add_parameter(self.parse_param(l))
+            elif self.is_init_block:
+                model.add_init(self.parse_init(l))
+            elif self.is_obs_block:
+                model.add_obs(self.parse_obs(l))
+            elif self.is_func_block:
+                model.add_func(self.parse_func(l))
+            elif self.is_rule_block:
+                model.add_rule(self.parse_rule(l))
             else:
-                sl = l.strip()
-                cur_line += sl
-                if sl != cur_line:
-                    logging.debug("Full line: %s" % cur_line)
-
-                if self.is_param_block:
-                    model.add_parameter(self.parse_param(cur_line))
-                elif self.is_def_block:
-                    model.add_molecule_def(self.parse_mtype(cur_line))
-                elif self.is_init_block:
-                    model.add_init(self.parse_init(cur_line))
-                elif self.is_obs_block:
-                    model.add_obs(self.parse_obs(cur_line))
-                elif self.is_func_block:
-                    model.add_func(self.parse_func(cur_line))
-                elif self.is_rule_block:
-                    model.add_rule(self.parse_rule(cur_line))
-                else:
-                    cur_line = ''
-                    continue
-                cur_line = ''
+                continue
 
         logging.info("Parsed BNGL model file: %s" % self.file_name)
         return model
