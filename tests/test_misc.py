@@ -28,6 +28,10 @@ class TestMisc:
         cls.pattern4 = 'A(x!1),A(x!1,y!2),B(x!2),C(y)'
         cls.pattern4 = 'A(x!1),A(x!1,y!2),C(y!2)'
 
+        cls.rate0 = objects.Rate(3)
+        cls.rate1 = objects.Rate('rate')
+        cls.rate2 = objects.Rate(objects.Expression(['rate', '/', '2']))
+
     @classmethod
     def teardown_class(cls):
         pass
@@ -76,3 +80,8 @@ class TestMisc:
         assert cmps0 == [[self.m2, self.m3, self.m4]]
         cmps1 = utils.get_connected_components([self.m2, self.m3, self.m0, self.m4])
         assert cmps1 == [[self.m2, self.m3, self.m4], [self.m0]]
+
+    def test_contains_variable(self):
+        assert not self.rate0.contains_variable('rate')
+        assert self.rate1.contains_variable('rate')
+        assert self.rate2.contains_variable('rate')

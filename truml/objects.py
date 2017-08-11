@@ -947,7 +947,7 @@ class Function:
     def write_as_bngl(self, namespace=dict()):
         """Writes function as BNGL string"""
         bname = namespace[self.name] if self.name in namespace.keys() else self.name
-        return '%s()=%s' % (bname, self.expr.write_as_bngl(namespace))
+        return '%s=%s' % (bname, self.expr.write_as_bngl(namespace))
 
     def write_as_kappa(self, as_obs=True):
         """
@@ -981,6 +981,26 @@ class Rate:
         """
         self.rate = r
         self.intra_binding = intra
+
+    def contains_variable(self, var):
+        """
+        Checks to see if the Rate contains a particular named variable.
+
+        Parameters
+        ----------
+        var : str
+            String corresponding to the name of an Observable, Function, or Parameter instance
+        Returns
+        -------
+        bool
+            True if Rate involves the named variable, False otherwise
+        """
+        if isinstance(self.rate, float):
+            return False
+        elif isinstance(self.rate, str):
+            return self.rate == var
+        elif isinstance(self.rate, Expression):
+            return var in self.rate.atom_list
 
     def write_as_bngl(self, namespace=dict()):
         """Write Rate as BNGL string"""
@@ -1208,6 +1228,9 @@ class Model:
         # Observable, Function, and Parameter instances may need to be renamed when converting from Kappa to BNGL
         self.convert_namespace = dict()  # Tracks names
 
+        # Observable or Function names that cannot be translated to Kappa.
+        self.invalid_names = set()
+
     def write_as_bngl(self, file_name, dnp):
         """Writes Model as BNGL file"""
         logging.debug("Writing model to BNGL file: '%s'" % file_name)
@@ -1273,32 +1296,55 @@ class Model:
             s += '%s\n' % km.write_as_kappa()
         if len(self.molecules) > 0:
             s += '\n'
+
         for p in self.parameters:
             logging.debug("Writing parameter %s to file" % p)
             s += '%s\n' % p.write_as_kappa()
         if len(self.parameters) > 0:
             s += '\n'
+
         for o in self.observables:
             try:
                 logging.debug("Writing observable %s to file" % o)
                 s += '%s\n' % o.write_as_kappa(self.molecules)
             except rbexceptions.NotCompatibleException:
-                logging.warning("Incompatible observable '%s' not converted to Kappa" % o.write_as_bngl({}))
+                self.invalid_names.add(o.name)
+                logging.warning("Incompatible observable '%s' not converted to Kappa" % o.write_as_bngl())
         if len(self.observables) > 0:
             s += '\n'
+
         for f in self.functions:
-            logging.debug("Writing function %s to file" % f)
-            s += '%s\n' % f.write_as_kappa(func_as_obs)  # defaults to printing all "functions" as observables
+            valid_func = True
+            for atom in f.expr.atom_list:
+                if atom in self.invalid_names:
+                    self.invalid_names.add(f.name)
+                    valid_func = False
+                    logging.warning("Incompatible function '%s' not converted to Kappa" % f.write_as_bngl())
+            if valid_func:
+                logging.debug("Writing function %s to file" % f)
+                s += '%s\n' % f.write_as_kappa(func_as_obs)  # defaults to printing all "functions" as observables
         if len(self.functions) > 0:
             s += '\n'
+
         for i in self.initial_cond:
             kis = i.convert(self.molecules)
             logging.debug("Writing initial condition %s to file" % i)
             s += '%s\n' % '\n'.join([ki.write_as_kappa() for ki in kis])
         if len(self.initial_cond) > 0:
             s += '\n'
+
         for r in self.rules:
             try:
+                for inv in self.invalid_names:
+                    if r.rate.contains_variable(inv):
+                        logging.critical("Rule's rate contains an incompatible variable")
+                        raise rbexceptions.NotCompatibleException(
+                            "Rate '%s' contains an incompatible variable" % r.rate.write_as_bngl())
+                    elif r.rev_rate:
+                        if r.rev_rate.contains_variable(inv):
+                            logging.critical("Rule's reverse rate contains an incompatible variable")
+                            raise rbexceptions.NotCompatibleException(
+                                "Reverse rate '%s' contains an  inccompatible variable" % r.rev_rate.write_a_bngl())
                 krs = r.convert(self.molecules, self.molecules)
                 logging.debug("Writing rule %s to file" % r)
                 s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])

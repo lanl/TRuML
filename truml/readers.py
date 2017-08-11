@@ -726,8 +726,8 @@ class BNGLReader(Reader):
             s_char = ' '
         psplit = re.split(s_char, sline)
         pname = psplit[0].strip()
-        pexpr = s_char.join(psplit[1:])
-        if re.search('[*/+-]', pexpr):
+        pexpr = s_char.join(psplit[1:]).strip()
+        if re.search('[*/+-]', pexpr) or re.match('[A-Za-z]', pexpr):
             pval = Expression(BNGLReader.parse_math_expr(pexpr))
         else:
             pval = pexpr
@@ -928,8 +928,8 @@ class BNGLReader(Reader):
         else:
             s_char = ' '
         ssplit = re.split(s_char, sline)
-        name = ssplit[0]
-        func = s_char.join(ssplit[1:])
+        name = ssplit[0].strip()
+        func = s_char.join(ssplit[1:]).strip()
         if re.search('\(.+\)', name):  # a variable in between the parentheses means the function is local
             raise rbexceptions.NotCompatibleException(
                 "Kappa functions cannot accommodate BNGL local functions:\n\t%s\n" % sline)

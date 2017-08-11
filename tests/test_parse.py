@@ -1,5 +1,7 @@
+from nose.tools import raises
 from .context import readers
 from .context import objects
+from .context import rbexceptions
 
 
 class TestParseKappa:
@@ -112,6 +114,7 @@ class TestParseKappa:
         assert len(model.observables[0].cpatterns) == 1
 
 
+
 class TestParseBNGL:
     def __init__(self):
         pass
@@ -193,3 +196,15 @@ class TestParseBNGL:
         assert prule6.label == 'bdeg'
         assert prule6.rate.rate == 'kdeg'
         assert prule6.delmol
+
+    @raises(rbexceptions.NotCompatibleException)
+    def test_invalid_rule_rate(self):
+        lines = ['begin molecule types', 'A(x)', 'end molecule types',
+                 'begin observables', 'Molecules A A().A()', 'end observables',
+                 'begin functions', 'f() A / 2', 'end functions',
+                 'begin reaction rules', 'A(x)+A(x) -> A(x!1).A(x!1) f()', 'end reaction rules']
+
+        br = readers.BNGLReader()
+        br.lines = lines
+        m = br.parse()
+        m.write_as_kappa('test.ka', True)

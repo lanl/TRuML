@@ -67,7 +67,7 @@ class TestPrint:
         cls.par0 = objects.Parameter('rate', 1e6)
 
         expr0 = objects.Expression(['ln', '(', '10', ')', '+', 'x', '-', '356'])
-        cls.func0 = objects.Function('rate_expr', expr0)
+        cls.func0 = objects.Function('rate_expr()', expr0)
 
         cls.rate0 = objects.Rate(3)
         cls.rate1 = objects.Rate(expr0)
@@ -158,9 +158,9 @@ class TestPrint:
     def test_pars_and_funcs(self):
         assert self.par0.write_as_bngl({"rate": "rate"}) == r'rate 1000000.0'
         assert self.par0.write_as_kappa() == r"%var: 'rate' 1000000.0"
-        assert self.func0.write_as_bngl({"rate_expr": "rate_expr", "x": "x"}) == r'rate_expr()=ln(10)+x-356'
-        assert self.func0.write_as_kappa() == r"%obs: 'rate_expr' [log](10)+'x'-356"
-        assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr' [log](10)+'x'-356"
+        assert self.func0.write_as_bngl({"rate_expr()": "rate_expr()", "x": "x"}) == r'rate_expr()=ln(10)+x-356'
+        assert self.func0.write_as_kappa() == r"%obs: 'rate_expr()' [log](10)+'x'-356"
+        assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr()' [log](10)+'x'-356"
 
     def test_rate(self):
         assert self.rate0.write_as_bngl() == r'3'
