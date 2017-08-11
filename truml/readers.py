@@ -1,6 +1,5 @@
 """truml.readers: module containing classes for reading BNGL and Kappa model files"""
 
-
 from deepdiff import DeepDiff
 from objects import *
 
@@ -29,13 +28,29 @@ class Reader(object):
                 f = open(file_name)
                 d = f.readlines()
                 f.close()
-                self.lines = it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in d])
+                self.lines = self.condense_line_continuation(
+                    it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in d]))
                 logging.info("Read file %s" % self.file_name)
             except IOError:
                 logging.error("Cannot find model file %s" % file_name)
                 raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
+
+    @staticmethod
+    def condense_line_continuation(lines):
+        condensed_lines = []
+        cur_line = ''
+        for l in lines:
+            if re.search("\\\\\s*$", l):
+                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
+                cur_line += re.sub('\\\\', '', l.strip())
+                continue
+            else:
+                cur_line += l.strip()
+                condensed_lines.append(cur_line)
+                cur_line = ''
+        return condensed_lines
 
     @staticmethod
     def ignore_line(l):
@@ -60,75 +75,68 @@ class KappaReader(Reader):
         self.var_dict = {}
         self.num_anon_pats = 0
 
-    # TODO FIGURE OUT HOW TO CONVERT VARIABLE NAMES FROM KAPPA TO BNGL THAT HAVE INCOMPATIBLE CHARACTERS
+    def get_agents(self):
+        """Get molecule/agent definitions"""
+        m = Model()
+        for l in self.lines:
+            logging.debug("Parsing: %s" % l.strip())
+            if re.match('%agent', l):
+                m.add_molecule_def(self.parse_mtype(l))
+        return m
+
+    # TODO REWRITE PARSE SO THAT MOLECULES CONTAIN MOLECULEDEFS
     def parse(self):
-        cur_line = ''
-        model = Model()
+        # First get agent definitions
+        model = self.get_agents()
 
         for i, l in enumerate(self.lines):
+            logging.debug("Parsing: %s" % l.strip())
 
-            logging.debug("Line %s: %s" % (i, l.strip()))
+            if re.match('%init', l):
+                inits = self.parse_init(l)
+                for init in inits:
+                    model.add_init(init)
+            elif re.match('%var', l) or re.match('%obs', l):
+                match = re.match("%(obs|var):\s*('.*?')\s*(.*)$", l)
+                name = match.group(2).strip("'")
 
-            if re.search("\\\\\s*$", l):
-                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
-                cur_line += re.sub('\\\\', '', l.strip())
-                continue
-            else:
-                cur_line += l.strip()
-                if l != cur_line:
-                    logging.debug("Full line: %s" % cur_line)
+                bname = name
+                if re.search('\W', name):
+                    bname = re.sub('\W', '_', name)
+                    logging.warning(
+                        "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (
+                            name, bname))
 
-                if re.match('%init', cur_line):
-                    inits = self.parse_init(cur_line)
-                    for init in inits:
-                        model.add_init(init)
-                elif re.match('%agent', cur_line):
-                    model.add_molecule_def(self.parse_mtype(cur_line))
-                elif re.match('%var', cur_line) or re.match('%obs', cur_line):
-                    match = re.match("%(obs|var):\s*('.*?')\s*(.*)$", cur_line)
-                    name = match.group(2).strip("'")
+                if bname in model.convert_namespace.values():
+                    rebname = bname + '_'
+                    logging.warning(
+                        "Name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (bname, rebname))
+                    bname = rebname
 
-                    bname = name
-                    if re.search('\W', name):
-                        bname = re.sub('\W', '_', name)
-                        logging.warning(
-                            "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (
-                                name, bname))
+                model.convert_namespace[name] = bname
+                expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
 
-                    if bname in model.convert_namespace.values():
-                        rebname = bname + '_'
-                        logging.warning(
-                            "Name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (bname, rebname))
-                        bname = rebname
-
-                    model.convert_namespace[name] = bname
-                    expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
-
-                    if self.var_contains_pattern(expr_list):
-                        if len(expr_list) == 1:
-                            model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
-                            self.var_dict[name] = 'p'
-                        else:
-                            pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
-                            for p in pat_dict.keys():
-                                model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'))))
-                                self.var_dict[p] = 'p'
-                            model.add_func(Function(name, Expression(subst_expr_list)))
-                            self.var_dict[name] = 'd'
-                    elif self.var_is_dynamic_no_pat(expr_list):
-                        model.add_func(Function(name, Expression(expr_list)))
-                        self.var_dict[name] = 'd'
+                if self.var_contains_pattern(expr_list):
+                    if len(expr_list) == 1:
+                        model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
+                        self.var_dict[name] = 'p'
                     else:
-                        model.add_parameter(Parameter(name, Expression(expr_list)))
-                        self.var_dict[name] = 'c'
-                elif re.search('@', cur_line):
-                    rules = self.parse_rule(cur_line)
-                    for rule in rules:
-                        model.add_rule(rule)
+                        pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
+                        for p in pat_dict.keys():
+                            model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'))))
+                            self.var_dict[p] = 'p'
+                        model.add_func(Function(name, Expression(subst_expr_list)))
+                        self.var_dict[name] = 'd'
+                elif self.var_is_dynamic_no_pat(expr_list):
+                    model.add_func(Function(name, Expression(expr_list)))
+                    self.var_dict[name] = 'd'
                 else:
-                    cur_line = ''
-                    continue
-                cur_line = ''
+                    model.add_parameter(Parameter(name, Expression(expr_list)))
+                    self.var_dict[name] = 'c'
+            elif re.search('@', l):
+                rules = self.parse_rule(l)
+                for rule in rules:
+                    model.add_rule(rule)
 
         logging.info("Parsed Kappa model file %s" % self.file_name)
         return model
