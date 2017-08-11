@@ -3,10 +3,12 @@
 
 from deepdiff import DeepDiff
 from objects import *
+
 import itertools as it
 import logging
 import pyparsing as pp
 import re
+import utils
 
 
 class Reader(object):
@@ -83,7 +85,7 @@ class KappaReader(Reader):
                 elif re.match('%agent', cur_line):
                     model.add_molecule_def(self.parse_mtype(cur_line))
                 elif re.match('%var', cur_line) or re.match('%obs', cur_line):
-                    match = re.match("(%[vo][ab][rs]:)\s*('.*?')\s*(.*)$", cur_line)
+                    match = re.match("%(obs|var):\s*('.*?')\s*(.*)$", cur_line)
                     name = match.group(2).strip("'")
 
                     bname = name
@@ -227,77 +229,6 @@ class KappaReader(Reader):
         return Molecule(mname, site_list)
 
     @staticmethod
-    def _build_adj_list(mols):
-        """
-        Builds an adjacency list from a list of molecules
-
-        Parameters
-        ----------
-        mols : list of Molecule instances
-
-        Returns
-        -------
-        Adjacency list
-        """
-        al = []
-        for i, m0 in enumerate(mols):
-            bound = []
-            for j, m1 in enumerate(mols):
-                if i != j and m0.bound_to(m1):
-                    bound.append(j)
-            al.append(bound)
-        return al
-
-    @staticmethod
-    def _dfs(al, m, v):
-        """
-        Depth first search
-
-        Parameters
-        ----------
-        al : Adjacency list
-        m : Node list
-        v : Current node index
-
-        Returns
-        -------
-
-        """
-        m[v] = 1
-        for x in al[v]:
-            if m[x] == 0:
-                KappaReader._dfs(al, m, x)
-        return None
-
-    @staticmethod
-    def _get_components(mols):
-        """
-        Determines connected components in a list of molecules
-
-        Parameters
-        ----------
-        mols : list of Molecule instances
-
-        Returns
-        -------
-        list of list of Molecule instances
-        """
-        al = KappaReader._build_adj_list(mols)
-        visited = [0] * len(al)
-        cmps = []
-        for x in range(len(al)):
-            if visited[x] == 1:
-                continue
-            prev_visited = list(visited)
-            KappaReader._dfs(al, visited, x)
-            cur_comp = []
-            for i in range(len(visited)):
-                if visited[i] == 1 and prev_visited[i] == 0:
-                    cur_comp.append(mols[i])
-            cmps.append(cur_comp)
-        return cmps
-
-    @staticmethod
     def parse_cpatterns(s):
         mol_list = []
         in_par = 0
@@ -313,7 +244,7 @@ class KappaReader(Reader):
                 continue
             cur_mol += c
         mol_list.append(KappaReader.parse_molecule(cur_mol))
-        conn_cmps = KappaReader._get_components(mol_list)
+        conn_cmps = utils.get_connected_components(mol_list)
         return [CPattern(c) for c in conn_cmps]
 
     @staticmethod

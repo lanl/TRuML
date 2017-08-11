@@ -2,6 +2,7 @@ from nose.tools import raises
 from .context import objects
 from .context import readers
 from .context import rbexceptions
+from .context import utils
 
 
 class TestMisc:
@@ -65,13 +66,13 @@ class TestMisc:
         assert not self.m3.bound_to(self.m0)
 
     def test_adj_list(self):
-        al0 = readers.KappaReader._build_adj_list([self.m2, self.m3, self.m4])
+        al0 = utils.build_adj_list([self.m2, self.m3, self.m4])
         assert al0 == [[1], [0, 2], [1]]
-        al1 = readers.KappaReader._build_adj_list([self.m2, self.m3, self.m0, self.m4])
+        al1 = utils.build_adj_list([self.m2, self.m3, self.m0, self.m4])
         assert al1 == [[1], [0, 3], [], [1]]
 
     def test_get_comps(self):
-        cmps0 = readers.KappaReader._get_components([self.m2, self.m3, self.m4])
+        cmps0 = utils.get_connected_components([self.m2, self.m3, self.m4])
         assert cmps0 == [[self.m2, self.m3, self.m4]]
-        cmps1 = readers.KappaReader._get_components([self.m2, self.m3, self.m0, self.m4])
+        cmps1 = utils.get_connected_components([self.m2, self.m3, self.m0, self.m4])
         assert cmps1 == [[self.m2, self.m3, self.m4], [self.m0]]
