@@ -39,3 +39,12 @@ class NoModelsException(Exception):
 
     def __str__(self):
         return self.msg
+
+class UnknownMoleculeTypeException(Exception):
+    """Raised when a Molecule instance has no known corresponding MoleculeDef"""
+
+    def __init__(self, s):
+        self.msg = "Cannot find MoleculeDef corresponding to '%s'" % s
+
+    def __str__(self):
+        return self.msg

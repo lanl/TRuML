@@ -34,27 +34,27 @@ class TestPrint:
         cls.md3 = objects.MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
         cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
 
-        cls.m0 = objects.Molecule('Test0', [cls.s0, cls.s2])
-        cls.m1 = objects.Molecule('Test1', [cls.s1])
-        cls.m2 = objects.Molecule('Test2', [objects.Site('a', 0)])
-        cls.m3 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1)])
+        cls.m0 = objects.Molecule('Test0', [cls.s0, cls.s2], cls.md0)
+        cls.m1 = objects.Molecule('Test1', [cls.s1], cls.md1)
+        cls.m2 = objects.Molecule('Test2', [objects.Site('a', 0)], cls.md2)
+        cls.m3 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1)], cls.md2)
         cls.m4 = objects.Molecule('Test2',
-                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)])
+                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)], cls.md2)
         cls.m5 = objects.Molecule('Test2',
                                   [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2),
-                                   objects.Site('b', 3)])
+                                   objects.Site('b', 3)], cls.md2)
         cls.m6 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)),
-                                            objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)])
-        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)])
-        cls.m8 = objects.Molecule('B', [objects.Site('b', 0)])
+                                            objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)], cls.md2)
+        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)], cls.md3)
+        cls.m8 = objects.Molecule('B', [objects.Site('b', 0)], cls.md4)
         cls.m9 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
-                                        objects.Site('a', 1, b=objects.Bond(1))])
-        cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))])
+                                        objects.Site('a', 1, b=objects.Bond(1))], cls.md3)
+        cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))], cls.md4)
 
-        cls.p0 = objects.CPattern([cls.m0, objects.Molecule('Test0', [cls.s0])])
-        cls.p1 = objects.CPattern([objects.Molecule('Test0', [cls.s3, cls.s2]), objects.Molecule('Test0', [cls.s3])])
-        cls.p2 = objects.CPattern([objects.Molecule('A', [])])
-        cls.p3 = objects.CPattern([objects.Molecule('B', [])])
+        cls.p0 = objects.CPattern([cls.m0, objects.Molecule('Test0', [cls.s0], cls.md0)])
+        cls.p1 = objects.CPattern([objects.Molecule('Test0', [cls.s3, cls.s2], cls.md0), objects.Molecule('Test0', [cls.s3], cls.md0)])
+        cls.p2 = objects.CPattern([objects.Molecule('A', [], cls.md3)])
+        cls.p3 = objects.CPattern([objects.Molecule('B', [], cls.md4)])
         cls.p4 = objects.CPattern([cls.m2, cls.m0])
         cls.p5 = objects.CPattern([cls.m7])
         cls.p6 = objects.CPattern([cls.m8])

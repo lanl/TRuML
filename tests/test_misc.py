@@ -15,11 +15,18 @@ class TestMisc:
         cls.bond1 = objects.Bond(-1, w=True)
         cls.bond2 = objects.Bond(-2, w=True)
 
-        cls.m0 = objects.Molecule('A', [])
-        cls.m1 = objects.Molecule('B', [])
-        cls.m2 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1))])
-        cls.m3 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1)), objects.Site("t", 1, b=objects.Bond(2))])
-        cls.m4 = objects.Molecule('B', [objects.Site("s", 0, b=objects.Bond(2))])
+        cls.sd0 = objects.SiteDef('DNP')
+        cls.sd1 = objects.SiteDef('Fab')
+        cls.md0 = objects.MoleculeDef('A', [objects.SiteDef('x'), objects.SiteDef('y'), objects.SiteDef('s'), objects.SiteDef('t')], {'x': 'x', 'y': 'y', 's': 's', 't': 't'})
+        cls.md1 = objects.MoleculeDef('B', [objects.SiteDef('y'), objects.SiteDef('s')], {'y': 'y', 's': 's'})
+        cls.md2 = objects.MoleculeDef('BSA', [cls.sd0, cls.sd0, cls.sd0, cls.sd0], {'DNP0': 'DNP', 'DNP1': 'DNP', 'DNP2': 'DNP', 'DNP3': 'DNP'})
+        cls.md3 = objects.MoleculeDef('IgE', [cls.sd1, cls.sd1], {'Fab0': 'Fab', 'Fab2': 'Fab'})
+
+        cls.m0 = objects.Molecule('A', [], cls.md0)
+        cls.m1 = objects.Molecule('B', [], cls.md1)
+        cls.m2 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1))], cls.md0)
+        cls.m3 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1)), objects.Site("t", 1, b=objects.Bond(2))], cls.md0)
+        cls.m4 = objects.Molecule('B', [objects.Site("s", 0, b=objects.Bond(2))], cls.md1)
 
         cls.pattern = 'A(x!1).A(x!1,y!2).B(y!2)'
         cls.pattern2 = 'BSA(DNP!+,DNP!+,DNP!1,DNP).IgE(Fab!1,Fab!2).BSA(DNP!2,DNP!3).IgE(Fab!3,Fab)'
@@ -46,23 +53,23 @@ class TestMisc:
         assert sorted([self.m1, self.m0]) == [self.m0, self.m1]
 
     def test_graph_builder(self):
-        graph = readers.BNGLReader.parse_cpattern(self.pattern)._build_graph()
+        graph = readers.BNGLReader.parse_cpattern(self.pattern, [self.md0, self.md1])._build_graph()
         assert len(graph.nodes()) == 3
         assert len(graph.edges()) == 2
         assert graph.node[1]['name'] == 'A:xb_yb'
         assert graph[0][1]['name'] == 'x-x'
 
-        graph2 = readers.BNGLReader.parse_cpattern(self.pattern2)._build_graph()
+        graph2 = readers.BNGLReader.parse_cpattern(self.pattern2, [self.md2, self.md3])._build_graph()
         assert len(graph2.nodes()) == 4
         assert len(graph2.edges()) == 3
 
     def test_automorphism_counter(self):
-        assert readers.BNGLReader.parse_cpattern(self.pattern).automorphisms() == 1
-        assert readers.BNGLReader.parse_cpattern(self.pattern3).automorphisms() == 8
+        assert readers.BNGLReader.parse_cpattern(self.pattern, [self.md0, self.md1]).automorphisms() == 1
+        assert readers.BNGLReader.parse_cpattern(self.pattern3, [self.md0, self.md1]).automorphisms() == 8
 
     @raises(rbexceptions.NotConvertedException)
     def test_not_converted(self):
-        readers.BNGLReader.parse_cpattern(self.pattern2).automorphisms()
+        readers.BNGLReader.parse_cpattern(self.pattern2, [self.md2, self.md3, self.md0]).automorphisms()
 
     def test_bound_to(self):
         assert not self.m3.bound_to(self.bond0)
