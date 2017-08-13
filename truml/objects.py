@@ -121,7 +121,7 @@ class Molecule:
         MoleculeDef class
     """
 
-    def __init__(self, name, sites):
+    def __init__(self, name, sites, md):
         """
         Molecule initialization function. Sites are sorted by a predefined index
 
@@ -131,14 +131,17 @@ class Molecule:
             The name of the molecule type
         sites : list
             A list of Sites that appear in the pattern
+        md : MoleculeDef
+            The corresponding MoleculeDef for this Molecule
 
         """
         self.name = name
         self.sites = sorted(sites, key=lambda s: s.index)  # list of Sites
+        self.mdef = md
 
     def _node_name(self):
         """
-        Provides a unique label for the Molecule based on its sites' states and bonds
+        Provides a unique label for the Molecule based on its sites' states and bonds.
 
         Returns
         -------
@@ -174,10 +177,7 @@ class Molecule:
         sn_set = set([s.name for s in self.sites])
         return len(sn_set) != len(self.sites)
 
-    def _check_overlap(self, ms):
-        pass
-
-    def _enumerate_site(self, site_name, index, mdef, need_state=False):
+    def _enumerate_site(self, site_name, index, need_state=False):
         """
         Provides a list of sites in bound and unbound bond states, optionally
         enumerating all potential states as well
@@ -200,7 +200,7 @@ class Molecule:
         """
         ss = []
         if need_state:
-            for s in mdef.sites:
+            for s in self.mdef.sites:
                 if site_name == s.name:
                     for state in s.state_list:
                         ss.append(Site(site_name, index, state, b=Bond(-1, w=True)))
@@ -232,16 +232,12 @@ class Molecule:
                 return True
         return False
 
-    def convert(self, mdef):
+    def convert(self):
         """
         Converts a molecule that may have multiple identically named sites
         into a list of molecules compatible with Kappa semantics that
         enumerate all molecule configurations compatible with the original
         BNGL molecule configuration
-
-        Parameters
-        ----------
-        mdef : MoleculeDef
 
         Returns
         -------
@@ -267,7 +263,7 @@ class Molecule:
         # Check for the possibility of overlapping patterns
         possible_overlap = {k: False for k in un_configs_per_site.keys()}
         for k in un_configs_per_site.keys():
-            num_identical_sites = len(mdef.inv_site_name_map[k])
+            num_identical_sites = len(self.mdef.inv_site_name_map[k])
             if num_identical_sites > 1 and k in un_configs_per_site.keys():
                 num_present_sites = sum(un_configs_per_site[k].values())
                 if num_identical_sites > num_present_sites >= 1:
@@ -277,7 +273,7 @@ class Molecule:
         k_configs = {}
         for sn in un_configs_per_site.keys():
             k_configs[sn] = []
-            k_sn_names = set(mdef.inv_site_name_map[sn])
+            k_sn_names = set(self.mdef.inv_site_name_map[sn])
             cur_combs = []
 
             for s, n in un_configs_per_site[sn].iteritems():
@@ -294,10 +290,10 @@ class Molecule:
 
             if possible_overlap[sn]:
                 need_state = self._site_state_present(un_configs_per_site[sn])
-                indices = range(sum(un_configs_per_site[sn].values()), len(mdef.inv_site_name_map[k]))
+                indices = range(sum(un_configs_per_site[sn].values()), len(self.mdef.inv_site_name_map[k]))
 
                 for idx in indices:
-                    possible_sites = self._enumerate_site(sn, idx, mdef, need_state)
+                    possible_sites = self._enumerate_site(sn, idx, need_state)
                     tmp_combs = []
                     for cc in cur_combs:
                         rem_names = k_sn_names - set(map(lambda l: l.name, cc))
@@ -310,7 +306,7 @@ class Molecule:
 
         k_prod = it.product(*k_configs.values())
 
-        return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)]) for tt in k_prod])
+        return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)], self.mdef) for tt in k_prod])
 
     def bound_to(self, other):
         if not isinstance(other, self.__class__):
@@ -516,6 +512,7 @@ class Bond:
             s = '!%s' % self.num
         return s
 
+    # TODO rework so that CPattern instances with different but equivalent bond configurations appear as equal
     def __eq__(self, other):
         """
         Check for equality with another Bond
@@ -579,6 +576,7 @@ class CPattern:
         """Determines the number of molecules in the pattern"""
         return len(self.molecule_list)
 
+    # TODO FOR MOLECULES CONTAINING IDENTICAL SITES, WRITE THE _NODE_NAME ACCORDING TO THE IDENTICAL NAME, NOT THE CONVERTED NAME
     def _build_graph(self):
         """
         Builds a graph representation of the CPattern
@@ -705,7 +703,7 @@ class CPattern:
             return am
 
     # returns a list of objects with renamed sites
-    def convert(self, mdefs):
+    def convert(self):
         """
         Converts a CPattern to a list of Kappa compatible CPatterns
 
@@ -722,9 +720,7 @@ class CPattern:
         """
         k_str_mol_list = []
         for m in self.molecule_list:
-            for md in mdefs:
-                if m.name == md.name:
-                    k_str_mol_list.append(m.convert(md))
+            k_str_mol_list.append(m.convert())
         k_patterns = list(it.product(*k_str_mol_list))
         for pat in k_patterns:
             if len(utils.get_connected_components(list(pat))) > 1 and self.num_molecules() > 1:
@@ -800,7 +796,7 @@ class InitialCondition:
         self.amount = a
         self.amount_is_number = ain
 
-    def convert(self, mdefs):
+    def convert(self):
         """
         Converts species to Kappa compatible species
 
@@ -813,7 +809,7 @@ class InitialCondition:
         list
             List of InitialCondition instances
         """
-        ss = self.species.convert(mdefs)
+        ss = self.species.convert()
         lss = len(ss)
         if lss == 1:
             amount = self.amount
@@ -1060,7 +1056,7 @@ class Rule:
         self.label = label
         self.delmol = delmol
 
-    def convert(self, lhs_mdefs, rhs_mdefs):
+    def convert(self):
         """
         Converts a Rule to a Kappa-compatible naming scheme
 
@@ -1079,9 +1075,9 @@ class Rule:
         """
         k_lhs, k_rhs = [], []
         for cp in self.lhs:
-            k_lhs.append(cp.convert(lhs_mdefs))  # list of lists of CPatterns
+            k_lhs.append(cp.convert())  # list of lists of CPatterns
         for cp in self.rhs:
-            k_rhs.append(cp.convert(rhs_mdefs))
+            k_rhs.append(cp.convert())
         all_lhs = list(it.product(*k_lhs))  # list of tuples of CPatterns
         all_rhs = list(it.product(*k_rhs))
 
@@ -1099,6 +1095,7 @@ class Rule:
             assert len(rs) == len(all_rhs)
         else:
             logging.critical("Rule conversion error.  Please review rule '%s'" % self)
+
         return list(set(rs))
 
     def write_as_bngl(self, namespace=dict(), dot=False):
@@ -1194,7 +1191,7 @@ class Observable:
         bname = namespace[self.name] if self.name in namespace.keys() else self.name
         return "%s %s %s" % (self.type, bname, ' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
-    def write_as_kappa(self, mdefs):
+    def write_as_kappa(self):
         """Writes Observable as Kappa string"""
         if self.type == 'Species':
             logging.warning(
@@ -1203,7 +1200,7 @@ class Observable:
         obs_strs = []
         for p in self.cpatterns:
             # sorted for determinism (testing)
-            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in set(p.convert(mdefs))]))
+            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in set(p.convert())]))
             obs_strs.append(kos)
 
         obs = '+'.join(obs_strs)
@@ -1306,7 +1303,7 @@ class Model:
         for o in self.observables:
             try:
                 logging.debug("Writing observable %s to file" % o)
-                s += '%s\n' % o.write_as_kappa(self.molecules)
+                s += '%s\n' % o.write_as_kappa()
             except rbexceptions.NotCompatibleException:
                 self.invalid_names.add(o.name)
                 logging.warning("Incompatible observable '%s' not converted to Kappa" % o.write_as_bngl())
@@ -1327,7 +1324,7 @@ class Model:
             s += '\n'
 
         for i in self.initial_cond:
-            kis = i.convert(self.molecules)
+            kis = i.convert()
             logging.debug("Writing initial condition %s to file" % i)
             s += '%s\n' % '\n'.join([ki.write_as_kappa() for ki in kis])
         if len(self.initial_cond) > 0:
@@ -1345,7 +1342,7 @@ class Model:
                             logging.critical("Rule's reverse rate contains an incompatible variable")
                             raise rbexceptions.NotCompatibleException(
                                 "Reverse rate '%s' contains an  inccompatible variable" % r.rev_rate.write_a_bngl())
-                krs = r.convert(self.molecules, self.molecules)
+                krs = r.convert()
                 logging.debug("Writing rule %s to file" % r)
                 s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])
             except rbexceptions.NotCompatibleException as nce:

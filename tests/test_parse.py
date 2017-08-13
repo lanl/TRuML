@@ -108,27 +108,24 @@ class TestParseKappa:
 
     def test_vars_parse(self):
         kr = readers.KappaReader()
-        kr.lines = ["%agent: C(x,y~state~state2)", "%agent: A()", "%agent: Ste5(ste4)", "%agent: Ste4(ste5)",
+        kr.lines = ["%agent: C(x, y~state~state2)", "%agent: A()", "%agent: Ste5(ste5, ste4)", "%agent: Ste4(ste5)",
                     "%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'",
-                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|", "%var: 'combo' 'membrane Ste5' / 'a'"]
+                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|", "%var: 'combo' 'membrane Ste5' / 'a'", self.obs0]
         model = kr.parse()
+        assert model.molecules[0].name == 'C'
+        print model.molecules[0].site_name_map
+        assert model.molecules[0].site_name_map == {'x': 'x', 'y': 'y'}
         assert len(model.functions) == 2
         assert model.functions[1].name == 'combo'
         assert model.parameters[0].name == 'a'
         assert model.parameters[1].name == 'b'
         assert set(model.parameters[1].value.atom_list) == {'3', '+', 'a'}
         assert isinstance(model.parameters[1].value, objects.Expression)
-        cmd = objects.MoleculeDef("C", [objects.SiteDef('x'), objects.SiteDef('y', ['state', 'state2'])],
-                                  {'x': 'x', 'y': 'y'})
-        assert model.observables[0].write_as_kappa([cmd]) == "%obs: 'c' |C(x!_,y~state?)|"
-        assert len(model.observables) == 3
+        assert model.observables[0].write_as_kappa() == "%obs: 'c' |C(x!_,y~state?)|"
+        assert len(model.observables) == 4
         assert model.observables[1].name == "anon_obs0"
-        assert model.observables[-1].name == "membrane Ste5"
-
-        kr1 = readers.KappaReader()
-        kr1.lines = ["%agent: Ste5(ste5)", self.obs0]
-        model = kr1.parse()
-        assert len(model.observables[0].cpatterns) == 1
+        assert model.observables[-2].name == "membrane Ste5"
+        assert len(model.observables[-1].cpatterns) == 1
 
 
 class TestParseBNGL:

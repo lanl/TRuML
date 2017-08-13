@@ -90,6 +90,9 @@ class KappaReader(Reader):
         model = self.get_agents()
 
         for i, l in enumerate(self.lines):
+            if re.match('%agent', l):
+                continue
+
             logging.debug("Parsing: %s" % l.strip())
 
             if re.match('%init', l):
@@ -182,19 +185,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_mtype(line):
-        sline = re.split('\s+', line.strip())
+        mol_string = re.sub('\s*%agent:\s*', '', line)
 
-        psplit = re.split('\(', sline[1])
+        psplit = re.split('\(', mol_string)
         name = psplit[0]
 
         site_name_map = {}  # tracks conversion to kappa by mapping BNGL site names to Kappa site namess
 
-        sites = re.split(',', psplit[1].strip(')'))
+        sites = re.split('\s*,\s*', psplit[1].strip(')'))
         site_defs = []
+
         for s in sites:
             site_split = re.split('~', s)
             site_name = site_split[0]
             site_defs.append(SiteDef(site_name, [] if len(site_split) == 1 else site_split[1:]))
+            site_name_map[site_name] = site_name
 
         return MoleculeDef(name, site_defs, site_name_map, False)
 

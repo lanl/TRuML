@@ -128,11 +128,11 @@ class TestPrint:
         assert self.m1.write_as_kappa() == r'Test1(site1?)'
 
     def test_site_renaming(self):
-        km2 = self.m2.convert(self.md2)
-        km3 = self.m3.convert(self.md2)
-        km4 = self.m4.convert(self.md2)
-        km5 = self.m5.convert(self.md2)
-        km6 = self.m6.convert(self.md2)
+        km2 = self.m2.convert()
+        km3 = self.m3.convert()
+        km4 = self.m4.convert()
+        km5 = self.m5.convert()
+        km6 = self.m6.convert()
         assert len(km2) == 192  # (4 choose 1) * (3 choose 1) * 2 * (2 choose 1) * 2 (1 choose 1) * 2
         assert len(km3) == 48  # (4 choose 2) * 2^2 * 2^1
         assert len(km4) == 192  # km3 * 2 * 2^1
@@ -146,7 +146,7 @@ class TestPrint:
 
     @raises(rbexceptions.NotCompatibleException)
     def test_patterns(self):
-        self.p4.convert([self.md0, self.md2])
+        self.p4.convert()
 
     def test_init_conditions(self):
         assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
@@ -188,21 +188,22 @@ class TestPrint:
         assert self.rule6.write_as_bngl(dot=True) == r"B(b).B(b) -> B(b!1).B(b!1) 3"
 
     def test_molecule_conversion_determinism(self):
-        x = self.m7.convert(self.md3)
+        x = self.m7.convert()
         assert x[0].write_as_bngl() == "A(a0!+,a1,a2!+)"
         for i in range(1, len(x)):
             assert x[i - 1] < x[i]
 
     def test_rule_expansion(self):
         print self.rule3.write_as_bngl()
-        x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
+        x = self.rule3.convert()
+        print '\n'.join(sorted([y.write_as_kappa() for y in set(x)]))
         assert len(x) == 36
 
     def test_obs(self):
         assert self.obs0.write_as_bngl({"Obs0": "Obs0"}) == r'Molecules Obs0 B()'
-        assert self.obs0.write_as_kappa([self.md4]) == r"%obs: 'Obs0' |B()|"
+        assert self.obs0.write_as_kappa() == r"%obs: 'Obs0' |B()|"
         assert self.obs1.write_as_bngl({"Obs1": "Obs1"}) == r'Species Obs1 A() B()'
-        assert self.obs1.write_as_kappa([self.md4, self.md3]) == r"%obs: 'Obs1' |A()|+|B()|"
+        assert self.obs1.write_as_kappa() == r"%obs: 'Obs1' |A()|+|B()|"
         assert self.obs2.write_as_bngl({"Obs2": "Obs2"}) == r'Molecules Obs2 Test2(a)'
         ostr0 = ("%obs: 'Obs2' "
                  "|Test2(a0,a1!_,a2!_,a3!_)|+"
@@ -221,8 +222,8 @@ class TestPrint:
                  "|Test2(a2,a0!_,a1!_,a3)|+"
                  "|Test2(a3,a0!_,a1!_,a2!_)|"
                  )
-        print self.obs2.write_as_kappa([self.md2])
-        assert self.obs2.write_as_kappa([self.md2]) == ostr0
+        print self.obs2.write_as_kappa()
+        assert self.obs2.write_as_kappa() == ostr0
         ostr1 = ("%obs: 'Obs3' "
                  "|Test2(a0,a1,a2!_,a3!_)|+"
                  "|Test2(a0,a1,a2!_,a3)|+"
@@ -236,7 +237,7 @@ class TestPrint:
                  "|Test2(a1,a3,a0!_,a2!_)|+"
                  "|Test2(a2,a3,a0!_,a1!_)|"
                  )
-        assert self.obs3.write_as_kappa([self.md2]) == ostr1
+        assert self.obs3.write_as_kappa() == ostr1
         assert self.obs4.write_as_bngl({"Obs+": "Obs_"}) == "Molecules Obs_ Test2(a,a)"
         assert self.obs5.write_as_bngl({"Obs-": "Obs__"}) == r'Molecules Obs__ B()'
 
