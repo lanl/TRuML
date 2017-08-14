@@ -197,6 +197,7 @@ class TestPrint:
         print self.rule3.write_as_bngl()
         x = self.rule3.convert()
         print '\n'.join(sorted([y.write_as_kappa() for y in set(x)]))
+        print len(x)
         assert len(x) == 36
 
     def test_obs(self):
