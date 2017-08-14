@@ -512,7 +512,6 @@ class Bond:
             s = '!%s' % self.num
         return s
 
-    # TODO rework so that CPattern instances with different but equivalent bond configurations appear as equal
     def __eq__(self, other):
         """
         Check for equality with another Bond
@@ -579,7 +578,6 @@ class CPattern:
         """Determines the number of molecules in the pattern"""
         return len(self.molecule_list)
 
-    # TODO FOR MOLECULES CONTAINING IDENTICAL SITES, WRITE THE _NODE_NAME ACCORDING TO THE IDENTICAL NAME, NOT THE CONVERTED NAME
     def _build_graph(self):
         """
         Builds a graph representation of the CPattern
@@ -730,6 +728,9 @@ class CPattern:
                 logging.warning("CPattern components are not explicitly connected in '%s'" % self.write_as_bngl())
                 logging.warning(
                     "The above pattern may be attempting to detect polymers which is not possible in Kappa")
+                logging.warning(
+                    "Please specify explicit binding if possible"
+                )
                 raise rbexceptions.NotCompatibleException(
                     "Pattern '%s' cannot be converted to Kappa-compatible syntax" % self.write_as_bngl())
 
@@ -781,7 +782,6 @@ class CPattern:
         return "CPattern(" + '--'.join([str(x) for x in self.molecule_list]) + ")"
 
 
-# TODO prevent dynamic quantities from being used as the initial amount
 class InitialCondition:
     """Initial conditions for seeding simulation"""
 
