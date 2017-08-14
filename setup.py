@@ -10,14 +10,14 @@ version = re.search(
     re.M
     ).group(1)
 
-with open('README', 'rb') as f:
+with open('README.rst', 'rb') as f:
     long_desc = f.read().decode('utf-8')
 
 setup(name='TRuML',
       packages=['truml'],
       entry_points={'console_scripts': ['truml = truml.truml:main']},
       version=version,
-      description='Interconversion between BNGL models and Kappa models',
+      description='Translation between BNGL models and Kappa models',
       long_description=long_desc,
       author='Ryan Suderman',
       author_email='ryants@lanl.gov',

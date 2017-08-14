@@ -1,7 +1,0 @@
-A tool to convert between models written in the Kappa and BioNetGen rule-based modeling languages
-
-Caveats:
- - The sets of valid models for each language are not equivalent (there are models in both languages with features that cannot be translated into the other language)
- - This tool considers BNGL models to be written with NFsim-compatible syntax
-   (e.g. product molecularity is ignored)
- - Kappa perturbation language and BNGL action commands are ignored
