@@ -47,7 +47,9 @@ class TestParseKappa:
         assert len(rule0s) == 1
         assert not rule0s[0].rev
         rule1s = readers.KappaReader.parse_rule(self.rule1, mds)
-        assert rule1s[0].lhs == rule0s[0].lhs
+        assert len(rule1s[0].lhs) == len(rule0s[0].lhs)
+        for i in range(len(rule1s[0].lhs)):
+            assert rule1s[0].lhs[i].is_isomorphic(rule0s[0].lhs[i])
         assert rule1s[0].label == 'rule'
         rule2s = readers.KappaReader.parse_rule(self.rule2, mds)
         assert len(rule2s) == 4

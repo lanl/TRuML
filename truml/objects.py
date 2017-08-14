@@ -512,7 +512,6 @@ class Bond:
             s = '!%s' % self.num
         return s
 
-    # TODO rework so that CPattern instances with different but equivalent bond configurations appear as equal
     def __eq__(self, other):
         """
         Check for equality with another Bond
@@ -572,11 +571,13 @@ class CPattern:
         """
         self.molecule_list = ml
 
+    def __getitem__(self, item):
+        return self.molecule_list[item]
+
     def num_molecules(self):
         """Determines the number of molecules in the pattern"""
         return len(self.molecule_list)
 
-    # TODO FOR MOLECULES CONTAINING IDENTICAL SITES, WRITE THE _NODE_NAME ACCORDING TO THE IDENTICAL NAME, NOT THE CONVERTED NAME
     def _build_graph(self):
         """
         Builds a graph representation of the CPattern
@@ -597,13 +598,13 @@ class CPattern:
         # enter bonds into graph
         for i in range(len(self.molecule_list) - 1):
             for j in range(i + 1, len(self.molecule_list)):
-                for s in self.molecule_list[i].sites:
+                for s in self[i].sites:
                     if s.bond is None:
-                        break
-                    for s2 in self.molecule_list[j].sites:
+                        continue
+                    for s2 in self[j].sites:
                         if s2.bond is None:
-                            break
-                        if s.bond == s2.bond and s.bond.num >= 0:
+                            continue
+                        if s.bond.num == s2.bond.num and s.bond.num >= 0:
                             bond_name = '-'.join(sorted([s.name, s2.name]))
                             g.add_edge(i, j, name=bond_name)
 
@@ -727,9 +728,25 @@ class CPattern:
                 logging.warning("CPattern components are not explicitly connected in '%s'" % self.write_as_bngl())
                 logging.warning(
                     "The above pattern may be attempting to detect polymers which is not possible in Kappa")
+                logging.warning(
+                    "Please specify explicit binding if possible"
+                )
                 raise rbexceptions.NotCompatibleException(
                     "Pattern '%s' cannot be converted to Kappa-compatible syntax" % self.write_as_bngl())
+
         return [CPattern(pat) for pat in k_patterns]
+
+    def is_isomorphic(self, other):
+        if isinstance(other, self.__class__):
+            if self.num_molecules() != other.num_molecules():
+                return False
+            else:
+                sg = self._build_graph()
+                og = other._build_graph()
+                nm = iso.categorical_node_match('name', '')
+                em = iso.categorical_edge_match('name', '')
+                return iso.is_isomorphic(sg, og, node_match=nm, edge_match=em)
+        return False
 
     def _write(self, bngl=True):
         """
@@ -761,23 +778,10 @@ class CPattern:
         """Write the CPattern as a Kappa string"""
         return self._write(False)
 
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return frozenset(self.molecule_list) == frozenset(other.molecule_list)
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash(frozenset(self.molecule_list))
-
     def __repr__(self):
         return "CPattern(" + '--'.join([str(x) for x in self.molecule_list]) + ")"
 
 
-# TODO prevent dynamic quantities from being used as the initial amount
 class InitialCondition:
     """Initial conditions for seeding simulation"""
 
@@ -1096,7 +1100,34 @@ class Rule:
         else:
             logging.critical("Rule conversion error.  Please review rule '%s'" % self)
 
-        return list(set(rs))
+        un_rules = [rs[0]]
+        for rule in rs[1:]:
+            is_isomorphic = False
+            for un_rule in un_rules:
+                if rule.is_isomorphic(un_rule):
+                    is_isomorphic = True
+                    break
+            if not is_isomorphic:
+                un_rules.append(rule)
+
+        return un_rules
+
+    def is_isomorphic(self, other):
+        if isinstance(other, self.__class__):
+            if not (len(self.lhs) == len(other.lhs) and len(self.rhs) == len(other.rhs)):
+                return False
+
+            for i in range(len(self.lhs)):
+                if not self.lhs[i].is_isomorphic(other.lhs[i]):
+                    return False
+
+            for i in range(len(self.rhs)):
+                if not self.rhs[i].is_isomorphic(other.rhs[i]):
+                    return False
+
+            return True
+        else:
+            return False
 
     def write_as_bngl(self, namespace=dict(), dot=False):
         """Writes the rule as a BNGL string"""
@@ -1136,23 +1167,6 @@ class Rule:
         else:
             rate_string = self.rate.write_as_kappa()
         return '%s %s %s @ %s' % (lhs_string, self.arrow, rhs_string, rate_string)
-
-    def __eq__(self, other):
-        """Tests for Rule equality with another Rule.  Only considers LHS and RHS patterns
-        and reversibility."""
-        if isinstance(other, self.__class__):
-            lhs_check = frozenset(self.lhs) == frozenset(other.lhs)
-            rhs_check = frozenset(self.rhs) == frozenset(other.rhs)
-            rev_check = self.rev == other.rev
-            return lhs_check and rhs_check and rev_check
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash((self.lhs, self.rhs, self.rev, self.label))
 
     def __repr__(self):
         if not self.rev:
@@ -1199,8 +1213,19 @@ class Observable:
 
         obs_strs = []
         for p in self.cpatterns:
+            kps = p.convert()
+            un_kps = [kps[0]]
+            for kp in kps[1:]:
+                is_isomorphic = False
+                for un_kp in un_kps:
+                    if un_kp.is_isomorphic(kp):
+                        is_isomorphic = True
+                        break
+                if not is_isomorphic:
+                    un_kps.append(kp)
+
             # sorted for determinism (testing)
-            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in set(p.convert())]))
+            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in un_kps]))
             obs_strs.append(kos)
 
         obs = '+'.join(obs_strs)

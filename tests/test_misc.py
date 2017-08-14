@@ -22,18 +22,22 @@ class TestMisc:
         cls.md2 = objects.MoleculeDef('BSA', [cls.sd0, cls.sd0, cls.sd0, cls.sd0], {'DNP0': 'DNP', 'DNP1': 'DNP', 'DNP2': 'DNP', 'DNP3': 'DNP'})
         cls.md3 = objects.MoleculeDef('IgE', [cls.sd1, cls.sd1], {'Fab0': 'Fab', 'Fab2': 'Fab'})
 
+        cls.s0 = objects.Site("s", 0, b=objects.Bond(1))
+        cls.s1 = objects.Site("t", 1, b=objects.Bond(2))
+        cls.s2 = objects.Site("s", 0, b=objects.Bond(2))
+        cls.s3 = objects.Site("t", 0, b=objects.Bond(2))
+
         cls.m0 = objects.Molecule('A', [], cls.md0)
         cls.m1 = objects.Molecule('B', [], cls.md1)
-        cls.m2 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1))], cls.md0)
-        cls.m3 = objects.Molecule('A', [objects.Site("s", 0, b=objects.Bond(1)), objects.Site("t", 1, b=objects.Bond(2))], cls.md0)
-        cls.m4 = objects.Molecule('B', [objects.Site("s", 0, b=objects.Bond(2))], cls.md1)
+        cls.m2 = objects.Molecule('A', [cls.s0], cls.md0)
+        cls.m3 = objects.Molecule('A', [cls.s0, cls.s1], cls.md0)
+        cls.m4 = objects.Molecule('B', [cls.s2], cls.md1)
 
         cls.pattern = 'A(x!1).A(x!1,y!2).B(y!2)'
         cls.pattern2 = 'BSA(DNP!+,DNP!+,DNP!1,DNP).IgE(Fab!1,Fab!2).BSA(DNP!2,DNP!3).IgE(Fab!3,Fab)'
         cls.pattern3 = 'A(x!1,y!2).A(x!2,y!3).A(x!3,y!4).A(x!4,y!1)'
-
-        cls.pattern4 = 'A(x!1),A(x!1,y!2),B(x!2),C(y)'
-        cls.pattern4 = 'A(x!1),A(x!1,y!2),C(y!2)'
+        cls.pattern4 = 'A(x!4).A(x!4,y!1).B(y!1)'
+        cls.pattern5 = 'IgE(Fab!4,Fab!3).BSA(DNP!4,DNP!+,DNP,DNP!+).BSA(DNP!3,DNP!2).IgE(Fab,Fab!2)'
 
         cls.rate0 = objects.Rate(3)
         cls.rate1 = objects.Rate('rate')
@@ -48,6 +52,18 @@ class TestMisc:
         assert self.bond0 != objects.Bond(2)
         assert self.bond0 != self.bond1
         assert self.bond1 == self.bond2
+
+    def test_site_equality(self):
+        assert self.s0 != self.s2
+        assert self.s1 == self.s3
+
+    def test_pattern_equality(self):
+        pp = readers.BNGLReader.parse_cpattern(self.pattern, [self.md0, self.md1])
+        pp4 = readers.BNGLReader.parse_cpattern(self.pattern4, [self.md0, self.md1])
+        assert pp.is_isomorphic(pp4)
+        pp2 = readers.BNGLReader.parse_cpattern(self.pattern2, [self.md2, self.md3])
+        pp5 = readers.BNGLReader.parse_cpattern(self.pattern5, [self.md2, self.md3])
+        assert pp2.is_isomorphic(pp5)
 
     def test_molecule_ordering(self):
         assert sorted([self.m1, self.m0]) == [self.m0, self.m1]

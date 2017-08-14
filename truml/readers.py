@@ -84,7 +84,6 @@ class KappaReader(Reader):
                 m.add_molecule_def(self.parse_mtype(l))
         return m
 
-    # TODO provide moleculedef for each instantiated molecule
     def parse(self):
         # First get agent definitions
         model = self.get_agents()
@@ -453,7 +452,6 @@ class BNGLReader(Reader):
                 m.add_molecule_def(self.parse_mtype(l))
         return m
 
-    # TODO provide moleculedef for each instantiated molecule
     def parse(self):
         """
         Function to parse BNGL model files
@@ -650,7 +648,6 @@ class BNGLReader(Reader):
                     site_list.append(Site(s, i))
         return Molecule(mname, site_list, mtype)
 
-    # TODO implement parsing for expression (need to identify variables for conversion to kappa syntax)
     @classmethod
     def parse_init(cls, line, mdefs):
         """
@@ -781,7 +778,6 @@ class BNGLReader(Reader):
                 num_changed_bonds += 1
         return num_changed_bonds == 2
 
-    # TODO parse rule label, change so that lhs and rule 'action' is returned
     @classmethod
     def parse_rule(cls, line, mdefs):
         """
