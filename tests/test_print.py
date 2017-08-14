@@ -1,6 +1,6 @@
 from .context import objects
+from .context import rbexceptions
 from nose.tools import raises
-import re
 
 
 class TestPrint:
@@ -34,27 +34,27 @@ class TestPrint:
         cls.md3 = objects.MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
         cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
 
-        cls.m0 = objects.Molecule('Test0', [cls.s0, cls.s2])
-        cls.m1 = objects.Molecule('Test1', [cls.s1])
-        cls.m2 = objects.Molecule('Test2', [objects.Site('a', 0)])
-        cls.m3 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1)])
+        cls.m0 = objects.Molecule('Test0', [cls.s0, cls.s2], cls.md0)
+        cls.m1 = objects.Molecule('Test1', [cls.s1], cls.md1)
+        cls.m2 = objects.Molecule('Test2', [objects.Site('a', 0)], cls.md2)
+        cls.m3 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1)], cls.md2)
         cls.m4 = objects.Molecule('Test2',
-                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)])
+                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)], cls.md2)
         cls.m5 = objects.Molecule('Test2',
                                   [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2),
-                                   objects.Site('b', 3)])
+                                   objects.Site('b', 3)], cls.md2)
         cls.m6 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)),
-                                            objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)])
-        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)])
-        cls.m8 = objects.Molecule('B', [objects.Site('b', 0)])
+                                            objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)], cls.md2)
+        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)], cls.md3)
+        cls.m8 = objects.Molecule('B', [objects.Site('b', 0)], cls.md4)
         cls.m9 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
-                                        objects.Site('a', 1, b=objects.Bond(1))])
-        cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))])
+                                        objects.Site('a', 1, b=objects.Bond(1))], cls.md3)
+        cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))], cls.md4)
 
-        cls.p0 = objects.CPattern([cls.m0, objects.Molecule('Test0', [cls.s0])])
-        cls.p1 = objects.CPattern([objects.Molecule('Test0', [cls.s3, cls.s2]), objects.Molecule('Test0', [cls.s3])])
-        cls.p2 = objects.CPattern([objects.Molecule('A', [])])
-        cls.p3 = objects.CPattern([objects.Molecule('B', [])])
+        cls.p0 = objects.CPattern([cls.m0, objects.Molecule('Test0', [cls.s0], cls.md0)])
+        cls.p1 = objects.CPattern([objects.Molecule('Test0', [cls.s3, cls.s2], cls.md0), objects.Molecule('Test0', [cls.s3], cls.md0)])
+        cls.p2 = objects.CPattern([objects.Molecule('A', [], cls.md3)])
+        cls.p3 = objects.CPattern([objects.Molecule('B', [], cls.md4)])
         cls.p4 = objects.CPattern([cls.m2, cls.m0])
         cls.p5 = objects.CPattern([cls.m7])
         cls.p6 = objects.CPattern([cls.m8])
@@ -67,7 +67,7 @@ class TestPrint:
         cls.par0 = objects.Parameter('rate', 1e6)
 
         expr0 = objects.Expression(['ln', '(', '10', ')', '+', 'x', '-', '356'])
-        cls.func0 = objects.Function('rate_expr', expr0)
+        cls.func0 = objects.Function('rate_expr()', expr0)
 
         cls.rate0 = objects.Rate(3)
         cls.rate1 = objects.Rate(expr0)
@@ -128,11 +128,11 @@ class TestPrint:
         assert self.m1.write_as_kappa() == r'Test1(site1?)'
 
     def test_site_renaming(self):
-        km2 = self.m2.convert(self.md2)
-        km3 = self.m3.convert(self.md2)
-        km4 = self.m4.convert(self.md2)
-        km5 = self.m5.convert(self.md2)
-        km6 = self.m6.convert(self.md2)
+        km2 = self.m2.convert()
+        km3 = self.m3.convert()
+        km4 = self.m4.convert()
+        km5 = self.m5.convert()
+        km6 = self.m6.convert()
         assert len(km2) == 192  # (4 choose 1) * (3 choose 1) * 2 * (2 choose 1) * 2 (1 choose 1) * 2
         assert len(km3) == 48  # (4 choose 2) * 2^2 * 2^1
         assert len(km4) == 192  # km3 * 2 * 2^1
@@ -143,27 +143,13 @@ class TestPrint:
         assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
         assert self.p0.write_as_kappa() == r'Test0(site0~state!3,site2!_),Test0(site0~state!3)'
         assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
-        kp4 = self.p4.convert([self.md0, self.md2])
-        assert len(set(kp4)) == 15
-        assert sorted([k.write_as_kappa() for k in set(kp4)]) == [
-            "Test2(a0,a1!_,a2!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1!_,a2!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1!_,a2,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1!_,a2,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a0,a1,a2,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a1,a0!_,a2,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a2,a0!_,a1!_,a3!_),Test0(site0~state!3,site2!_)",
-            "Test2(a2,a0!_,a1!_,a3),Test0(site0~state!3,site2!_)",
-            "Test2(a3,a0!_,a1!_,a2!_),Test0(site0~state!3,site2!_)"]
+
+    @raises(rbexceptions.NotCompatibleException)
+    def test_patterns(self):
+        self.p4.convert()
 
     def test_init_conditions(self):
-        assert self.i0.write_as_bngl({}) == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
+        assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
         assert self.i0.write_as_kappa() == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
         assert self.i1.write_as_bngl({"x": "x"}) == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) x+10'
         assert self.i1.write_as_kappa() == r"%init: 'x'+10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
@@ -172,51 +158,53 @@ class TestPrint:
     def test_pars_and_funcs(self):
         assert self.par0.write_as_bngl({"rate": "rate"}) == r'rate 1000000.0'
         assert self.par0.write_as_kappa() == r"%var: 'rate' 1000000.0"
-        assert self.func0.write_as_bngl({"rate_expr": "rate_expr", "x": "x"}) == r'rate_expr()=ln(10)+x-356'
-        assert self.func0.write_as_kappa() == r"%obs: 'rate_expr' [log](10)+'x'-356"
-        assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr' [log](10)+'x'-356"
+        assert self.func0.write_as_bngl({"rate_expr()": "rate_expr()", "x": "x"}) == r'rate_expr()=ln(10)+x-356'
+        assert self.func0.write_as_kappa() == r"%obs: 'rate_expr()' [log](10)+'x'-356"
+        assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr()' [log](10)+'x'-356"
 
     def test_rate(self):
-        assert self.rate0.write_as_bngl({}) == r'3'
+        assert self.rate0.write_as_bngl() == r'3'
         assert self.rate0.write_as_kappa() == r'3'
         assert self.rate1.write_as_bngl({"x": "x"}) == r'ln(10)+x-356'
         assert self.rate1.write_as_kappa() == r"[log](10)+'x'-356"
         assert self.rate2.write_as_bngl({"rate": "rate"}) == r'rate'
         assert self.rate2.write_as_kappa() == r"'rate'"
-        assert self.rate3.write_as_bngl({}) == r'5'
+        assert self.rate3.write_as_bngl() == r'5'
         assert self.rate3.write_as_kappa() == r'0 {5}'
 
     def test_rule(self):
-        assert self.rule0.write_as_bngl({}) == r'A() -> B() 3'
+        assert self.rule0.write_as_bngl() == r'A() -> B() 3'
         assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
         assert self.rule1.write_as_bngl({"x": "x"}) == r'A() -> B() ln(10)+x-356'
         assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10)+'x'-356"
         assert self.rule2.write_as_bngl({"rate": "rate"}) == r'A() <-> B() 3,rate'
         assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
         assert self.rule4.write_as_kappa() == r" -> A() @ 3"
-        assert self.rule4.write_as_bngl({}) == r"0 -> A() 3"
+        assert self.rule4.write_as_bngl() == r"0 -> A() 3"
         assert self.rule5.write_as_kappa() == r"A() ->  @ 3"
-        assert self.rule5.write_as_bngl({}) == r"A() -> 0 3"
+        assert self.rule5.write_as_bngl() == r"A() -> 0 3"
         assert self.rule6.write_as_kappa() == r"B(b),B(b) -> B(b!1),B(b!1) @ 3"
-        assert self.rule6.write_as_bngl({}) == r"B(b)+B(b) -> B(b!1).B(b!1) 3"
-        assert self.rule6.write_as_bngl({}, True) == r"B(b).B(b) -> B(b!1).B(b!1) 3"
+        assert self.rule6.write_as_bngl() == r"B(b)+B(b) -> B(b!1).B(b!1) 3"
+        assert self.rule6.write_as_bngl(dot=True) == r"B(b).B(b) -> B(b!1).B(b!1) 3"
 
     def test_molecule_conversion_determinism(self):
-        x = self.m7.convert(self.md3)
+        x = self.m7.convert()
         assert x[0].write_as_bngl() == "A(a0!+,a1,a2!+)"
         for i in range(1, len(x)):
             assert x[i - 1] < x[i]
 
     def test_rule_expansion(self):
-        print self.rule3.write_as_bngl({})
-        x = self.rule3.convert([self.md3, self.md4], [self.md3, self.md4])
+        print self.rule3.write_as_bngl()
+        x = self.rule3.convert()
+        print '\n'.join(sorted([y.write_as_kappa() for y in set(x)]))
+        print len(x)
         assert len(x) == 36
 
     def test_obs(self):
         assert self.obs0.write_as_bngl({"Obs0": "Obs0"}) == r'Molecules Obs0 B()'
-        assert self.obs0.write_as_kappa([self.md4]) == r"%obs: 'Obs0' |B()|"
+        assert self.obs0.write_as_kappa() == r"%obs: 'Obs0' |B()|"
         assert self.obs1.write_as_bngl({"Obs1": "Obs1"}) == r'Species Obs1 A() B()'
-        assert self.obs1.write_as_kappa([self.md4, self.md3]) == r"%obs: 'Obs1' |A()|+|B()|"
+        assert self.obs1.write_as_kappa() == r"%obs: 'Obs1' |A()|+|B()|"
         assert self.obs2.write_as_bngl({"Obs2": "Obs2"}) == r'Molecules Obs2 Test2(a)'
         ostr0 = ("%obs: 'Obs2' "
                  "|Test2(a0,a1!_,a2!_,a3!_)|+"
@@ -235,8 +223,8 @@ class TestPrint:
                  "|Test2(a2,a0!_,a1!_,a3)|+"
                  "|Test2(a3,a0!_,a1!_,a2!_)|"
                  )
-        print self.obs2.write_as_kappa([self.md2])
-        assert self.obs2.write_as_kappa([self.md2]) == ostr0
+        print self.obs2.write_as_kappa()
+        assert self.obs2.write_as_kappa() == ostr0
         ostr1 = ("%obs: 'Obs3' "
                  "|Test2(a0,a1,a2!_,a3!_)|+"
                  "|Test2(a0,a1,a2!_,a3)|+"
@@ -250,7 +238,7 @@ class TestPrint:
                  "|Test2(a1,a3,a0!_,a2!_)|+"
                  "|Test2(a2,a3,a0!_,a1!_)|"
                  )
-        assert self.obs3.write_as_kappa([self.md2]) == ostr1
+        assert self.obs3.write_as_kappa() == ostr1
         assert self.obs4.write_as_bngl({"Obs+": "Obs_"}) == "Molecules Obs_ Test2(a,a)"
         assert self.obs5.write_as_bngl({"Obs-": "Obs__"}) == r'Molecules Obs__ B()'
 

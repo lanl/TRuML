@@ -1,12 +1,12 @@
 """truml.objects: module containing classes representing the semantics of rule-based modeling languages"""
 
-
 import re
 import itertools as it
 import logging
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 import rbexceptions
+import utils
 
 
 class SiteDef:
@@ -121,7 +121,7 @@ class Molecule:
         MoleculeDef class
     """
 
-    def __init__(self, name, sites):
+    def __init__(self, name, sites, md):
         """
         Molecule initialization function. Sites are sorted by a predefined index
 
@@ -131,14 +131,17 @@ class Molecule:
             The name of the molecule type
         sites : list
             A list of Sites that appear in the pattern
+        md : MoleculeDef
+            The corresponding MoleculeDef for this Molecule
 
         """
         self.name = name
         self.sites = sorted(sites, key=lambda s: s.index)  # list of Sites
+        self.mdef = md
 
     def _node_name(self):
         """
-        Provides a unique label for the Molecule based on its sites' states and bonds
+        Provides a unique label for the Molecule based on its sites' states and bonds.
 
         Returns
         -------
@@ -174,10 +177,7 @@ class Molecule:
         sn_set = set([s.name for s in self.sites])
         return len(sn_set) != len(self.sites)
 
-    def _check_overlap(self, ms):
-        pass
-
-    def _enumerate_site(self, site_name, index, mdef, need_state=False):
+    def _enumerate_site(self, site_name, index, need_state=False):
         """
         Provides a list of sites in bound and unbound bond states, optionally
         enumerating all potential states as well
@@ -200,7 +200,7 @@ class Molecule:
         """
         ss = []
         if need_state:
-            for s in mdef.sites:
+            for s in self.mdef.sites:
                 if site_name == s.name:
                     for state in s.state_list:
                         ss.append(Site(site_name, index, state, b=Bond(-1, w=True)))
@@ -232,16 +232,12 @@ class Molecule:
                 return True
         return False
 
-    def convert(self, mdef):
+    def convert(self):
         """
         Converts a molecule that may have multiple identically named sites
         into a list of molecules compatible with Kappa semantics that
         enumerate all molecule configurations compatible with the original
         BNGL molecule configuration
-
-        Parameters
-        ----------
-        mdef : MoleculeDef
 
         Returns
         -------
@@ -267,7 +263,7 @@ class Molecule:
         # Check for the possibility of overlapping patterns
         possible_overlap = {k: False for k in un_configs_per_site.keys()}
         for k in un_configs_per_site.keys():
-            num_identical_sites = len(mdef.inv_site_name_map[k])
+            num_identical_sites = len(self.mdef.inv_site_name_map[k])
             if num_identical_sites > 1 and k in un_configs_per_site.keys():
                 num_present_sites = sum(un_configs_per_site[k].values())
                 if num_identical_sites > num_present_sites >= 1:
@@ -277,7 +273,7 @@ class Molecule:
         k_configs = {}
         for sn in un_configs_per_site.keys():
             k_configs[sn] = []
-            k_sn_names = set(mdef.inv_site_name_map[sn])
+            k_sn_names = set(self.mdef.inv_site_name_map[sn])
             cur_combs = []
 
             for s, n in un_configs_per_site[sn].iteritems():
@@ -294,10 +290,10 @@ class Molecule:
 
             if possible_overlap[sn]:
                 need_state = self._site_state_present(un_configs_per_site[sn])
-                indices = range(sum(un_configs_per_site[sn].values()), len(mdef.inv_site_name_map[k]))
+                indices = range(sum(un_configs_per_site[sn].values()), len(self.mdef.inv_site_name_map[k]))
 
                 for idx in indices:
-                    possible_sites = self._enumerate_site(sn, idx, mdef, need_state)
+                    possible_sites = self._enumerate_site(sn, idx, need_state)
                     tmp_combs = []
                     for cc in cur_combs:
                         rem_names = k_sn_names - set(map(lambda l: l.name, cc))
@@ -310,7 +306,7 @@ class Molecule:
 
         k_prod = it.product(*k_configs.values())
 
-        return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)]) for tt in k_prod])
+        return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)], self.mdef) for tt in k_prod])
 
     def bound_to(self, other):
         if not isinstance(other, self.__class__):
@@ -355,7 +351,7 @@ class Molecule:
     def write_as_kappa(self):
         """Writes Molecule as Kappa string and checks for conversion if necessary"""
         if len(set([s.name for s in self.sites])) < len(self.sites):
-            raise rbexceptions.NotConvertedException
+            raise rbexceptions.NotConvertedException(self.write_as_bngl())
         return self._write(False)
 
     def __eq__(self, other):
@@ -575,6 +571,9 @@ class CPattern:
         """
         self.molecule_list = ml
 
+    def __getitem__(self, item):
+        return self.molecule_list[item]
+
     def num_molecules(self):
         """Determines the number of molecules in the pattern"""
         return len(self.molecule_list)
@@ -599,13 +598,13 @@ class CPattern:
         # enter bonds into graph
         for i in range(len(self.molecule_list) - 1):
             for j in range(i + 1, len(self.molecule_list)):
-                for s in self.molecule_list[i].sites:
+                for s in self[i].sites:
                     if s.bond is None:
-                        break
-                    for s2 in self.molecule_list[j].sites:
+                        continue
+                    for s2 in self[j].sites:
                         if s2.bond is None:
-                            break
-                        if s.bond == s2.bond and s.bond.num >= 0:
+                            continue
+                        if s.bond.num == s2.bond.num and s.bond.num >= 0:
                             bond_name = '-'.join(sorted([s.name, s2.name]))
                             g.add_edge(i, j, name=bond_name)
 
@@ -683,7 +682,7 @@ class CPattern:
         # Check to make sure conversion to Kappa compatible site names has occurred
         for m in self.molecule_list:
             if m.has_identical_sites():
-                raise rbexceptions.NotConvertedException
+                raise rbexceptions.NotConvertedException(m.write_as_bngl())
         # If all molecules are unique, exit with count 1.  Otherwise calculate the
         # number of automorphisms
         if len([m._node_name() for m in self.molecule_list]) == len(set([m.name for m in self.molecule_list])):
@@ -705,7 +704,7 @@ class CPattern:
             return am
 
     # returns a list of objects with renamed sites
-    def convert(self, mdefs):
+    def convert(self):
         """
         Converts a CPattern to a list of Kappa compatible CPatterns
 
@@ -722,19 +721,32 @@ class CPattern:
         """
         k_str_mol_list = []
         for m in self.molecule_list:
-            for md in mdefs:
-                if m.name == md.name:
-                    k_str_mol_list.append(m.convert(md))
-        k_patterns = it.product(*k_str_mol_list)
+            k_str_mol_list.append(m.convert())
+        k_patterns = list(it.product(*k_str_mol_list))
+        for pat in k_patterns:
+            if len(utils.get_connected_components(list(pat))) > 1 and self.num_molecules() > 1:
+                logging.warning("CPattern components are not explicitly connected in '%s'" % self.write_as_bngl())
+                logging.warning(
+                    "The above pattern may be attempting to detect polymers which is not possible in Kappa")
+                logging.warning(
+                    "Please specify explicit binding if possible"
+                )
+                raise rbexceptions.NotCompatibleException(
+                    "Pattern '%s' cannot be converted to Kappa-compatible syntax" % self.write_as_bngl())
+
         return [CPattern(pat) for pat in k_patterns]
-        # # Remove doubles and preserve molecule order
-        # seen = set()
-        # un_k_patterns = []
-        # for pat in k_patterns:
-        #     if pat not in seen:
-        #         seen.add(pat)
-        #         un_k_patterns.append(CPattern(pat))
-        # return un_k_patterns
+
+    def is_isomorphic(self, other):
+        if isinstance(other, self.__class__):
+            if self.num_molecules() != other.num_molecules():
+                return False
+            else:
+                sg = self._build_graph()
+                og = other._build_graph()
+                nm = iso.categorical_node_match('name', '')
+                em = iso.categorical_edge_match('name', '')
+                return iso.is_isomorphic(sg, og, node_match=nm, edge_match=em)
+        return False
 
     def _write(self, bngl=True):
         """
@@ -766,23 +778,10 @@ class CPattern:
         """Write the CPattern as a Kappa string"""
         return self._write(False)
 
-    def __eq__(self, other):
-        if isinstance(other, self.__class__):
-            return frozenset(self.molecule_list) == frozenset(other.molecule_list)
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash(frozenset(self.molecule_list))
-
     def __repr__(self):
         return "CPattern(" + '--'.join([str(x) for x in self.molecule_list]) + ")"
 
 
-# TODO prevent dynamic quantities from being used as the initial amount
 class InitialCondition:
     """Initial conditions for seeding simulation"""
 
@@ -801,7 +800,7 @@ class InitialCondition:
         self.amount = a
         self.amount_is_number = ain
 
-    def convert(self, mdefs):
+    def convert(self):
         """
         Converts species to Kappa compatible species
 
@@ -814,7 +813,7 @@ class InitialCondition:
         list
             List of InitialCondition instances
         """
-        ss = self.species.convert(mdefs)
+        ss = self.species.convert()
         lss = len(ss)
         if lss == 1:
             amount = self.amount
@@ -823,7 +822,7 @@ class InitialCondition:
                 ['('] + self.amount.expr + [')', '/', lss])
         return [InitialCondition(s, amount, self.amount_is_number) for s in ss]
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Write as BNGL string"""
         amount = self.amount if self.amount_is_number else self.amount.write_as_bngl(namespace)
         return '%s %s' % (self.species.write_as_bngl(), amount)
@@ -861,9 +860,9 @@ class Parameter:
         self.name = n
         self.value = v
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes Parameter as BNGL string"""
-        bname = namespace[self.name]
+        bname = namespace[self.name] if self.name in namespace.keys() else self.name
         val = self.value.write_as_bngl(namespace) if isinstance(self.value, Expression) else self.value
         return '%s %s' % (bname, val)
 
@@ -892,7 +891,7 @@ class Expression:
         """
         self.atom_list = atom_list
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes Expression as BNGL string"""
         conv_atom_list = []
         for atom in self.atom_list:
@@ -945,10 +944,10 @@ class Function:
         self.name = name
         self.expr = expr
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes function as BNGL string"""
-        bname = namespace[self.name]
-        return '%s()=%s' % (bname, self.expr.write_as_bngl(namespace))
+        bname = namespace[self.name] if self.name in namespace.keys() else self.name
+        return '%s=%s' % (bname, self.expr.write_as_bngl(namespace))
 
     def write_as_kappa(self, as_obs=True):
         """
@@ -983,12 +982,32 @@ class Rate:
         self.rate = r
         self.intra_binding = intra
 
-    def write_as_bngl(self, namespace):
+    def contains_variable(self, var):
+        """
+        Checks to see if the Rate contains a particular named variable.
+
+        Parameters
+        ----------
+        var : str
+            String corresponding to the name of an Observable, Function, or Parameter instance
+        Returns
+        -------
+        bool
+            True if Rate involves the named variable, False otherwise
+        """
+        if isinstance(self.rate, float):
+            return False
+        elif isinstance(self.rate, str):
+            return self.rate == var
+        elif isinstance(self.rate, Expression):
+            return var in self.rate.atom_list
+
+    def write_as_bngl(self, namespace=dict()):
         """Write Rate as BNGL string"""
         try:
             return self.rate.write_as_bngl(namespace)
         except AttributeError:
-            if isinstance(self.rate, str):
+            if isinstance(self.rate, str) and self.rate in namespace.keys():
                 return namespace[self.rate]
             else:
                 return str(self.rate)
@@ -1041,7 +1060,7 @@ class Rule:
         self.label = label
         self.delmol = delmol
 
-    def convert(self, lhs_mdefs, rhs_mdefs):
+    def convert(self):
         """
         Converts a Rule to a Kappa-compatible naming scheme
 
@@ -1060,19 +1079,62 @@ class Rule:
         """
         k_lhs, k_rhs = [], []
         for cp in self.lhs:
-            k_lhs.append(cp.convert(lhs_mdefs))
+            k_lhs.append(cp.convert())  # list of lists of CPatterns
         for cp in self.rhs:
-            k_rhs.append(cp.convert(rhs_mdefs))
-        all_lhs = it.product(*k_lhs)
-        all_rhs = it.product(*k_rhs)
+            k_rhs.append(cp.convert())
+        all_lhs = list(it.product(*k_lhs))  # list of tuples of CPatterns
+        all_rhs = list(it.product(*k_rhs))
 
-        z = zip(all_lhs, all_rhs)  # order in lhs and rhs conversions are preserved
         rs = []
-        for l, r in z:
-            rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate))
-        return list(set(rs))
+        if len(all_lhs) == len(all_rhs):
+            z = zip(all_lhs, all_rhs)  # order in lhs and rhs conversions are preserved
+            for l, r in z:
+                rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
+        elif len(all_rhs) % len(all_lhs) == 0:
+            rs_per_l = len(all_rhs) / len(all_lhs)
+            for i, l in enumerate(all_lhs):
+                for j in range(rs_per_l * i, rs_per_l * i + rs_per_l):
+                    rs.append(Rule(l, all_rhs[j], self.rate, self.rev, self.rev_rate, self.label, self.delmol))
 
-    def write_as_bngl(self, namespace, dot=False):
+            assert len(rs) == len(all_rhs)
+        elif len(all_lhs) % len(all_rhs) == 0:
+            ls_per_r = len(all_lhs) / len(all_rhs)
+            for i, r in enumerate(all_rhs):
+                for j in range(ls_per_r * i, ls_per_r * i + ls_per_r):
+                    rs.append(Rule(all_lhs[i], r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
+        else:
+            logging.critical("Rule conversion error.  Please review rule '%s'" % self.write_as_bngl())
+
+        un_rules = [rs[0]]
+        for rule in rs[1:]:
+            is_isomorphic = False
+            for un_rule in un_rules:
+                if rule.is_isomorphic(un_rule):
+                    is_isomorphic = True
+                    break
+            if not is_isomorphic:
+                un_rules.append(rule)
+
+        return un_rules
+
+    def is_isomorphic(self, other):
+        if isinstance(other, self.__class__):
+            if not (len(self.lhs) == len(other.lhs) and len(self.rhs) == len(other.rhs)):
+                return False
+
+            for i in range(len(self.lhs)):
+                if not self.lhs[i].is_isomorphic(other.lhs[i]):
+                    return False
+
+            for i in range(len(self.rhs)):
+                if not self.rhs[i].is_isomorphic(other.rhs[i]):
+                    return False
+
+            return True
+        else:
+            return False
+
+    def write_as_bngl(self, namespace=dict(), dot=False):
         """Writes the rule as a BNGL string"""
         if not self.lhs:
             lhs_string = '0'
@@ -1111,23 +1173,6 @@ class Rule:
             rate_string = self.rate.write_as_kappa()
         return '%s %s %s @ %s' % (lhs_string, self.arrow, rhs_string, rate_string)
 
-    def __eq__(self, other):
-        """Tests for Rule equality with another Rule.  Only considers LHS and RHS patterns
-        and reversibility."""
-        if isinstance(other, self.__class__):
-            lhs_check = frozenset(self.lhs) == frozenset(other.lhs)
-            rhs_check = frozenset(self.rhs) == frozenset(other.rhs)
-            rev_check = self.rev == other.rev
-            return lhs_check and rhs_check and rev_check
-        else:
-            return False
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash((self.lhs, self.rhs, self.rev, self.label))
-
     def __repr__(self):
         if not self.rev:
             return "Rule(lhs: %s, rhs: %s, rate: %s)" % (self.lhs, self.rhs, self.rate)
@@ -1160,20 +1205,32 @@ class Observable:
             raise Exception("not a valid observable type: %s" % t)
         self.cpatterns = ps  # a list of CPatterns
 
-    def write_as_bngl(self, namespace):
+    def write_as_bngl(self, namespace=dict()):
         """Writes Observable as BNGL string"""
-        bname = namespace[self.name]
+        bname = namespace[self.name] if self.name in namespace.keys() else self.name
         return "%s %s %s" % (self.type, bname, ' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
-    def write_as_kappa(self, mdefs):
+    def write_as_kappa(self):
         """Writes Observable as Kappa string"""
         if self.type == 'Species':
-            print "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable" % self.name
+            logging.warning(
+                "Kappa does not have a Species-like observable; printing '%s' as Molecules-like observable" % self.name)
 
         obs_strs = []
         for p in self.cpatterns:
+            kps = p.convert()
+            un_kps = [kps[0]]
+            for kp in kps[1:]:
+                is_isomorphic = False
+                for un_kp in un_kps:
+                    if un_kp.is_isomorphic(kp):
+                        is_isomorphic = True
+                        break
+                if not is_isomorphic:
+                    un_kps.append(kp)
+
             # sorted for determinism (testing)
-            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in set(p.convert(mdefs))]))
+            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in un_kps]))
             obs_strs.append(kos)
 
         obs = '+'.join(obs_strs)
@@ -1198,30 +1255,41 @@ class Model:
         # Observable, Function, and Parameter instances may need to be renamed when converting from Kappa to BNGL
         self.convert_namespace = dict()  # Tracks names
 
+        # Observable or Function names that cannot be translated to Kappa.
+        self.invalid_names = set()
+
     def write_as_bngl(self, file_name, dnp):
         """Writes Model as BNGL file"""
+        logging.debug("Writing model to BNGL file: '%s'" % file_name)
+
         s = 'begin model\n\nbegin parameters\n\n'
         for p in self.parameters:
+            logging.debug("Writing parameter %s to file" % p)
             s += '\t%s\n' % p.write_as_bngl(self.convert_namespace)
         s += '\nend parameters\n\n'
         s += 'begin molecule types\n\n'
         for m in self.molecules:
+            logging.debug("Writing molecule type %s to file" % m)
             s += '\t%s\n' % m.write_as_bngl()
         s += '\nend molecule types\n\n'
         s += 'begin seed species\n\n'
         for i in self.initial_cond:
+            logging.debug("Writing initial condition %s to file" % i)
             s += '\t%s\n' % i.write_as_bngl(self.convert_namespace)
         s += '\nend seed species\n\n'
         s += 'begin observables\n\n'
         for o in self.observables:
+            logging.debug("Writing observable %s to file" % o)
             s += '\t%s\n' % o.write_as_bngl(self.convert_namespace)
         s += '\nend observables\n\n'
         s += 'begin functions\n\n'
         for f in self.functions:
+            logging.debug("Writing function %s to file" % f)
             s += '\t%s\n' % f.write_as_bngl(self.convert_namespace)
         s += '\nend functions\n\n'
         s += 'begin reaction rules\n\n'
         for r in self.rules:
+            logging.debug("Writing rule %s to file" % r)
             s += '\t%s\n' % r.write_as_bngl(self.convert_namespace)
             if dnp:
                 s += '\t%s\n' % r.write_as_bngl(dnp)
@@ -1246,29 +1314,70 @@ class Model:
         func_as_obs : bool
             If True, writes functions as observables, otherwise as variables
         """
+        logging.debug("Writing model to BNGL file: '%s'" % file_name)
+
         s = ''
         for m in self.molecules:
-            s += '%s\n' % m.write_as_kappa()
+            logging.debug("Writing molecule type %s to file" % m)
+            km = m.convert()
+            s += '%s\n' % km.write_as_kappa()
         if len(self.molecules) > 0:
             s += '\n'
+
         for p in self.parameters:
+            logging.debug("Writing parameter %s to file" % p)
             s += '%s\n' % p.write_as_kappa()
         if len(self.parameters) > 0:
             s += '\n'
+
         for o in self.observables:
-            s += '%s\n' % o.write_as_kappa()
+            try:
+                logging.debug("Writing observable %s to file" % o)
+                s += '%s\n' % o.write_as_kappa()
+            except rbexceptions.NotCompatibleException:
+                self.invalid_names.add(o.name)
+                logging.warning("Incompatible observable '%s' not converted to Kappa" % o.write_as_bngl())
         if len(self.observables) > 0:
             s += '\n'
+
         for f in self.functions:
-            s += '%s\n' % f.write_as_kappa(func_as_obs)  # defaults to printing all "functions" as observables
+            valid_func = True
+            for atom in f.expr.atom_list:
+                if atom in self.invalid_names:
+                    self.invalid_names.add(f.name)
+                    valid_func = False
+                    logging.warning("Incompatible function '%s' not converted to Kappa" % f.write_as_bngl())
+            if valid_func:
+                logging.debug("Writing function %s to file" % f)
+                s += '%s\n' % f.write_as_kappa(func_as_obs)  # defaults to printing all "functions" as observables
         if len(self.functions) > 0:
             s += '\n'
+
         for i in self.initial_cond:
-            s += '%s\n' % i.write_as_kappa()
+            kis = i.convert()
+            logging.debug("Writing initial condition %s to file" % i)
+            s += '%s\n' % '\n'.join([ki.write_as_kappa() for ki in kis])
         if len(self.initial_cond) > 0:
             s += '\n'
+
         for r in self.rules:
-            s += '%s\n' % r.write_as_kappa()
+            try:
+                for inv in self.invalid_names:
+                    if r.rate.contains_variable(inv):
+                        logging.critical("Rule's rate contains an incompatible variable")
+                        raise rbexceptions.NotCompatibleException(
+                            "Rate '%s' contains an incompatible variable" % r.rate.write_as_bngl())
+                    elif r.rev_rate:
+                        if r.rev_rate.contains_variable(inv):
+                            logging.critical("Rule's reverse rate contains an incompatible variable")
+                            raise rbexceptions.NotCompatibleException(
+                                "Reverse rate '%s' contains an  inccompatible variable" % r.rev_rate.write_a_bngl())
+                krs = r.convert()
+                logging.debug("Writing rule %s to file" % r)
+                s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])
+            except rbexceptions.NotCompatibleException as nce:
+                logging.critical("Cannot convert rule '%s' to Kappa" % r.write_as_bngl())
+                raise nce
         if len(self.rules) > 0:
             s += '\n'
 
