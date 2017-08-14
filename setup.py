@@ -1,8 +1,24 @@
+"""setup.py: setuptools control"""
+
+
+import re
 from setuptools import setup
 
-setup(name='rbconvert',
-      version='0.1',
+version = re.search(
+    '^__version__\s*=\s*"(.*)"',
+    open('truml/truml.py').read(),
+    re.M
+    ).group(1)
+
+with open('README', 'rb') as f:
+    long_desc = f.read().decode('utf-8')
+
+setup(name='TRuML',
+      packages=['truml'],
+      entry_points={'console_scripts': ['truml = truml.truml:main']},
+      version=version,
       description='Interconversion between BNGL models and Kappa models',
+      long_description=long_desc,
       author='Ryan Suderman',
-      package=['rbconvert'],
+      author_email='ryants@lanl.gov',
       install_requires=['pyparsing', 'deepdiff', 'networkx', 'nose'])

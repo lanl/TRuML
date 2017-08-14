@@ -1,3 +1,9 @@
+"""truml.truml: defines the entry point for the TRuML translator"""
+
+
+__version__ = "0.1.0"
+
+
 import argparse as ap
 import logging
 import rbexceptions
@@ -5,8 +11,6 @@ import readers
 import re
 
 
-# List of arguments to be implemented:
-# add flag for outputting Kappa file with/without x{y} rate notation
 def main():
     parser = ap.ArgumentParser()
     parser.add_argument('-b', '--bngl_files', nargs='+', metavar='model.bngl', help='BNGL files to convert to Kappa')
@@ -20,7 +24,7 @@ def main():
     parser.add_argument('-l', '--log_file', metavar='convert.log', help='Specify log file')
     args = parser.parse_args()
 
-    log_format = "%(name)s\t%(levelname)s\t%(message)s"
+    log_format = "%(levelname)s\t%(message)s"
 
     # Assign logging level
     ll = logging.WARNING
@@ -34,8 +38,10 @@ def main():
     else:
         logging.basicConfig(format=log_format, level=ll)
 
+    logging.info("Running the TRuML translator version %s" % __version__)
+
     if args.bngl_files is None and args.kappa_files is None:
-        raise rbexceptions.NoModelsException("\nNo models specified.  See `convert.py -h` for information\n")
+        raise rbexceptions.NoModelsException("\nNo models specified.  See `truml.py -h` for information\n")
     elif args.bngl_files is None:
         for kf in args.kappa_files:
             kr = readers.KappaReader(kf)
@@ -46,7 +52,3 @@ def main():
             br = readers.BNGLReader(bf)
             model = br.parse()
             model.write_as_kappa(re.sub('bngl', 'ka', bf), args.no_print_funcs)
-
-
-if __name__ == "__main__":
-    main()

@@ -1,8 +1,13 @@
+"""truml.readers: module containing classes for reading BNGL and Kappa model files"""
+
 from deepdiff import DeepDiff
 from objects import *
+
+import itertools as it
 import logging
 import pyparsing as pp
 import re
+import utils
 
 
 class Reader(object):
@@ -23,13 +28,33 @@ class Reader(object):
                 f = open(file_name)
                 d = f.readlines()
                 f.close()
-                self.lines = [re.sub('#.*$', '', l).strip() for l in d]
+                self.lines = self.condense_line_continuation(
+                    it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in d]))
                 logging.info("Read file %s" % self.file_name)
             except IOError:
                 logging.error("Cannot find model file %s" % file_name)
                 raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
+
+    @staticmethod
+    def condense_line_continuation(lines):
+        condensed_lines = []
+        cur_line = ''
+        for l in lines:
+            if re.search("\\\\\s*$", l):
+                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
+                cur_line += re.sub('\\\\', '', l.strip())
+                continue
+            else:
+                cur_line += l.strip()
+                condensed_lines.append(cur_line)
+                cur_line = ''
+        return condensed_lines
+
+    @staticmethod
+    def ignore_line(l):
+        return l == '' or re.match('\s*\n', l)
 
 
 # ignores perturbation and action commands
@@ -50,75 +75,70 @@ class KappaReader(Reader):
         self.var_dict = {}
         self.num_anon_pats = 0
 
-    # TODO FIGURE OUT HOW TO CONVERT VARIABLE NAMES FROM KAPPA TO BNGL THAT HAVE INCOMPATIBLE CHARACTERS
+    def get_agents(self):
+        """Get molecule/agent definitions"""
+        m = Model()
+        for l in self.lines:
+            logging.debug("Parsing: %s" % l.strip())
+            if re.match('%agent', l):
+                m.add_molecule_def(self.parse_mtype(l))
+        return m
+
     def parse(self):
-        cur_line = ''
-        model = Model()
+        # First get agent definitions
+        model = self.get_agents()
 
         for i, l in enumerate(self.lines):
-
-            logging.debug("Line %s: %s" % (i, l.strip()))
-
-            if re.search("\\\\\s*$", l):
-                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
-                cur_line += re.sub('\\\\', '', l.strip())
+            if re.match('%agent', l):
                 continue
-            else:
-                cur_line += l.strip()
-                if l != cur_line:
-                    logging.debug("Full line: %s" % cur_line)
 
-                if re.match('%init', cur_line):
-                    inits = self.parse_init(cur_line)
-                    for init in inits:
-                        model.add_init(init)
-                elif re.match('%agent', cur_line):
-                    model.add_molecule_def(self.parse_mtype(cur_line))
-                elif re.match('%var', cur_line) or re.match('%obs', cur_line):
-                    match = re.match("(%[vo][ab][rs]:)\s*('.*?')\s*(.*)$", cur_line)
-                    name = match.group(2).strip("'")
+            logging.debug("Parsing: %s" % l.strip())
 
-                    bname = name
-                    if re.search('\W', name):
-                        bname = re.sub('\W', '_', name)
-                        logging.warning(
-                            "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (
-                                name, bname))
+            if re.match('%init', l):
+                inits = self.parse_init(l, model.molecules)
+                for init in inits:
+                    model.add_init(init)
+            elif re.match('%var', l) or re.match('%obs', l):
+                match = re.match("%(obs|var):\s*('.*?')\s*(.*)$", l)
+                name = match.group(2).strip("'")
 
-                    if bname in model.convert_namespace.values():
-                        rebname = bname + '_'
-                        logging.warning(
-                            "Name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (bname, rebname))
-                        bname = rebname
+                bname = name
+                if re.search('\W', name):
+                    bname = re.sub('\W', '_', name)
+                    logging.warning(
+                        "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (
+                            name, bname))
 
-                    model.convert_namespace[name] = bname
-                    expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
+                if bname in model.convert_namespace.values():
+                    rebname = bname + '_'
+                    logging.warning(
+                        "Name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (bname, rebname))
+                    bname = rebname
 
-                    if self.var_contains_pattern(expr_list):
-                        if len(expr_list) == 1:
-                            model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'))))
-                            self.var_dict[name] = 'p'
-                        else:
-                            pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
-                            for p in pat_dict.keys():
-                                model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'))))
-                                self.var_dict[p] = 'p'
-                            model.add_func(Function(name, Expression(subst_expr_list)))
-                            self.var_dict[name] = 'd'
-                    elif self.var_is_dynamic_no_pat(expr_list):
-                        model.add_func(Function(name, Expression(expr_list)))
-                        self.var_dict[name] = 'd'
+                model.convert_namespace[name] = bname
+                expr_list = KappaReader.parse_alg_expr(match.group(3).strip())
+
+                if self.var_contains_pattern(expr_list):
+                    if len(expr_list) == 1:
+                        model.add_obs(Observable(name, self.parse_cpatterns(expr_list[0].strip('|'), model.molecules)))
+                        self.var_dict[name] = 'p'
                     else:
-                        model.add_parameter(Parameter(name, Expression(expr_list)))
-                        self.var_dict[name] = 'c'
-                elif re.search('@', cur_line):
-                    rules = self.parse_rule(cur_line)
-                    for rule in rules:
-                        model.add_rule(rule)
+                        pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
+                        for p in pat_dict.keys():
+                            model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'), model.molecules)))
+                            self.var_dict[p] = 'p'
+                        model.add_func(Function(name, Expression(subst_expr_list)))
+                        self.var_dict[name] = 'd'
+                elif self.var_is_dynamic_no_pat(expr_list):
+                    model.add_func(Function(name, Expression(expr_list)))
+                    self.var_dict[name] = 'd'
                 else:
-                    cur_line = ''
-                    continue
-                cur_line = ''
+                    model.add_parameter(Parameter(name, Expression(expr_list)))
+                    self.var_dict[name] = 'c'
+            elif re.search('@', l):
+                rules = self.parse_rule(l, model.molecules)
+                for rule in rules:
+                    model.add_rule(rule)
 
         logging.info("Parsed Kappa model file %s" % self.file_name)
         return model
@@ -153,10 +173,10 @@ class KappaReader(Reader):
         return pat_dict, new_expr_list
 
     @staticmethod
-    def parse_init(line):
+    def parse_init(line, mdefs):
         sline = re.split('\s+', line)
         amount = ' '.join(sline[1:-1])
-        patterns = KappaReader.parse_cpatterns(sline[-1])
+        patterns = KappaReader.parse_cpatterns(sline[-1], mdefs)
         amount_is_number = True if is_number(amount) else False
         if not amount_is_number:
             amount = Expression(KappaReader.parse_alg_expr(amount))
@@ -164,32 +184,41 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_mtype(line):
-        sline = re.split('\s+', line.strip())
+        mol_string = re.sub('\s*%agent:\s*', '', line)
 
-        psplit = re.split('\(', sline[1])
+        psplit = re.split('\(', mol_string)
         name = psplit[0]
 
         site_name_map = {}  # tracks conversion to kappa by mapping BNGL site names to Kappa site namess
 
-        sites = re.split(',', psplit[1].strip(')'))
+        sites = re.split('\s*,\s*', psplit[1].strip(')'))
         site_defs = []
+
         for s in sites:
             site_split = re.split('~', s)
             site_name = site_split[0]
             site_defs.append(SiteDef(site_name, [] if len(site_split) == 1 else site_split[1:]))
+            site_name_map[site_name] = site_name
 
         return MoleculeDef(name, site_defs, site_name_map, False)
 
     @staticmethod
-    def parse_molecule(mstr):
+    def parse_molecule(mstr, mdefs):
         smstr = mstr.strip()
         msplit = re.split('\(', smstr)
         mname = msplit[0]
+        mtype = None
+        for mdef in mdefs:
+            if mdef.name == mname:
+                mtype = mdef
+        if mtype is None:
+            raise rbexceptions.UnknownMoleculeTypeException(mname)
+
         if not re.match('[A-Za-z][-+\w]*\(.*\)\s*$', smstr):
             raise rbexceptions.NotAMoleculeException(smstr)
         sites = re.split(',', msplit[1].strip(')'))
         if not sites[0]:
-            return Molecule(mname, [])
+            return Molecule(mname, [], mtype)
         site_list = []
         for i in range(len(sites)):
             s = sites[i]
@@ -216,81 +245,10 @@ class KappaReader(Reader):
                     site_list.append(Site(s.strip('?'), i, b=bond))
                 else:
                     site_list.append(Site(s, i))
-        return Molecule(mname, site_list)
+        return Molecule(mname, site_list, mtype)
 
     @staticmethod
-    def _build_adj_list(mols):
-        """
-        Builds an adjacency list from a list of molecules
-
-        Parameters
-        ----------
-        mols : list of Molecule instances
-
-        Returns
-        -------
-        Adjacency list
-        """
-        al = []
-        for i, m0 in enumerate(mols):
-            bound = []
-            for j, m1 in enumerate(mols):
-                if i != j and m0.bound_to(m1):
-                    bound.append(j)
-            al.append(bound)
-        return al
-
-    @staticmethod
-    def _dfs(al, m, v):
-        """
-        Depth first search
-
-        Parameters
-        ----------
-        al : Adjacency list
-        m : Node list
-        v : Current node index
-
-        Returns
-        -------
-
-        """
-        m[v] = 1
-        for x in al[v]:
-            if m[x] == 0:
-                KappaReader._dfs(al, m, x)
-        return None
-
-    @staticmethod
-    def _get_components(mols):
-        """
-        Determines connected components in a list of molecules
-
-        Parameters
-        ----------
-        mols : list of Molecule instances
-
-        Returns
-        -------
-        list of list of Molecule instances
-        """
-        al = KappaReader._build_adj_list(mols)
-        visited = [0] * len(al)
-        cmps = []
-        for x in range(len(al)):
-            if visited[x] == 1:
-                continue
-            prev_visited = list(visited)
-            KappaReader._dfs(al, visited, x)
-            cur_comp = []
-            for i in range(len(visited)):
-                if visited[i] == 1 and prev_visited[i] == 0:
-                    cur_comp.append(mols[i])
-            cmps.append(cur_comp)
-        return cmps
-
-    @staticmethod
-    def parse_cpatterns(s):
+    def parse_cpatterns(s, mdefs):
         mol_list = []
         in_par = 0
         cur_mol = ''
@@ -300,16 +258,16 @@ class KappaReader(Reader):
             elif re.match('\)', c):
                 in_par -= 1
             if re.match(',', c) and in_par == 0:
-                mol_list.append(KappaReader.parse_molecule(cur_mol))
+                mol_list.append(KappaReader.parse_molecule(cur_mol, mdefs))
                 cur_mol = ''
                 continue
             cur_mol += c
-        mol_list.append(KappaReader.parse_molecule(cur_mol))
-        conn_cmps = KappaReader._get_components(mol_list)
+        mol_list.append(KappaReader.parse_molecule(cur_mol, mdefs))
+        conn_cmps = utils.get_connected_components(mol_list)
         return [CPattern(c) for c in conn_cmps]
 
     @staticmethod
-    def parse_rule(line):
+    def parse_rule(line, mdefs):
         reversible = False
         rule_str = line
 
@@ -329,13 +287,13 @@ class KappaReader(Reader):
         if rule_cps[0].strip() == '':
             lhs_patts = []
         else:
-            lhs_patts = KappaReader.parse_cpatterns(rule_cps[0])
+            lhs_patts = KappaReader.parse_cpatterns(rule_cps[0], mdefs)
 
         rhs_cps = re.split('@', rule_cps[1])
         if rhs_cps[0].strip() == '':
             rhs_patts = []
         else:
-            rhs_patts = KappaReader.parse_cpatterns(rhs_cps[0].strip())
+            rhs_patts = KappaReader.parse_cpatterns(rhs_cps[0].strip(), mdefs)
 
         n_lhs_mols = sum([p.num_molecules() for p in lhs_patts])
         n_rhs_mols = sum([p.num_molecules() for p in rhs_patts])
@@ -479,109 +437,89 @@ class BNGLReader(Reader):
         self.is_obs_block = False
         self.is_func_block = False
 
-    # TODO implement as simple grammar
+    def get_molecule_types(self):
+        m = Model()
+        for l in self.lines:
+            if re.match('begin molecule types', l):
+                logging.debug("Entering molecule types block")
+                self.is_def_block = True
+                continue
+            elif re.match('end molecule types', l):
+                logging.debug("Leaving molecule types block")
+                self.is_def_block = False
+                break
+            if self.is_def_block:
+                m.add_molecule_def(self.parse_mtype(l))
+        return m
+
     def parse(self):
         """
         Function to parse BNGL model files
 
         This function assumes that the file has the molecule types block before the rules block
         """
-        cur_line = ''  # used for line continuation
-        model = Model()
+        model = self.get_molecule_types()
+
         for i, l in enumerate(self.lines):
-            if re.match('\s*\n', l) or re.match('\s*#', l):
+
+            if re.match('\s*\n', l):
                 continue
 
-            logging.debug("Line %s: %s" % (i, l.strip()))
+            logging.debug("Parsing %s" % l.strip())
 
-            if re.match('begin parameters', l):
+            if re.match('begin\s+parameters', l):
                 logging.debug("Entering parameter block")
                 self.is_param_block = True
-                cur_line = ''
                 continue
-            elif re.match('end parameters', l):
+            elif re.match('end\s+parameters', l):
                 logging.debug("Leaving parameter block")
                 self.is_param_block = False
-                cur_line = ''
                 continue
-            elif re.match('begin molecule types', l):
-                logging.debug("Entering molecule types block")
-                self.is_def_block = True
-                cur_line = ''
-                continue
-            elif re.match('end molecule types', l):
-                logging.debug("Leaving molecule types block")
-                self.is_def_block = False
-                cur_line = ''
-                continue
-            elif re.match('begin seed species', l):
+            elif re.match('begin\s+(seed\s+)?species', l):
                 logging.debug("Entering initial conditions block")
                 self.is_init_block = True
-                cur_line = ''
                 continue
-            elif re.match('end seed species', l):
+            elif re.match('end\s+(seed\s+)?species', l):
                 logging.debug("Leaving initial conditions block")
                 self.is_init_block = False
-                cur_line = ''
                 continue
-            elif re.match('begin observables', l):
+            elif re.match('begin\s+observables', l):
                 logging.debug("Entering observables block")
                 self.is_obs_block = True
-                cur_line = ''
                 continue
-            elif re.match('end observables', l):
+            elif re.match('end\s+observables', l):
                 logging.debug("Leaving observables block")
                 self.is_obs_block = False
-                cur_line = ''
                 continue
-            elif re.match('begin functions', l):
+            elif re.match('begin\s+functions', l):
                 logging.debug("Entering functions block")
                 self.is_func_block = True
-                cur_line = ''
                 continue
-            elif re.match('end functions', l):
+            elif re.match('end\s+functions', l):
                 logging.debug("Leaving functions block")
                 self.is_func_block = False
-                cur_line = ''
                 continue
-            elif re.match('begin reaction rules', l):
+            elif re.match('begin\s+reaction\s+rules', l):
                 logging.debug("Entering rules block")
                 self.is_rule_block = True
-                cur_line = ''
                 continue
-            elif re.match('end reaction rules', l):
+            elif re.match('end\s+reaction\s+rules', l):
                 logging.debug("Leaving rules block")
                 self.is_rule_block = False
-                cur_line = ''
                 continue
 
-            # determines presence of line continuation, file cannot have backslashes in other contexts
-            if re.search("\\\\\s*$", l):
-                # saves current line, stripping trailing and leading whitespace, continues to subsequent line
-                cur_line += re.sub('\\\\', '', l.strip())
-                continue
+            if self.is_param_block:
+                model.add_parameter(self.parse_param(l))
+            elif self.is_init_block:
+                model.add_init(self.parse_init(l, model.molecules))
+            elif self.is_obs_block:
+                model.add_obs(self.parse_obs(l, model.molecules))
+            elif self.is_func_block:
+                model.add_func(self.parse_func(l))
+            elif self.is_rule_block:
+                model.add_rule(self.parse_rule(l, model.molecules))
             else:
-                sl = l.strip()
-                cur_line += sl
-                if sl != cur_line:
-                    logging.debug("Full line: %s" % cur_line)
-
-                if self.is_param_block:
-                    model.add_parameter(self.parse_param(cur_line))
-                elif self.is_def_block:
-                    model.add_molecule_def(self.parse_mtype(cur_line))
-                elif self.is_init_block:
-                    model.add_init(self.parse_init(cur_line))
-                elif self.is_obs_block:
-                    model.add_obs(self.parse_obs(cur_line))
-                elif self.is_func_block:
-                    model.add_func(self.parse_func(cur_line))
-                elif self.is_rule_block:
-                    model.add_rule(self.parse_rule(cur_line))
-                else:
-                    cur_line = ''
-                    continue
-                cur_line = ''
+                continue
 
         logging.info("Parsed BNGL model file: %s" % self.file_name)
         return model
@@ -659,7 +597,7 @@ class BNGLReader(Reader):
         return MoleculeDef(name, site_defs, site_name_map, has_site_symmetry)
 
     @classmethod
-    def parse_molecule(cls, mstr):
+    def parse_molecule(cls, mstr, mdefs):
         """
         Function that parses molecules.
 
@@ -667,6 +605,7 @@ class BNGLReader(Reader):
         ----------
         mstr : str
             String in BNGL file that represents a single molecule
+        mdefs : list of MoleculeDef instances
 
         Returns
         -------
@@ -676,11 +615,17 @@ class BNGLReader(Reader):
         smstr = mstr.strip()
         msplit = re.split('\(', smstr)
         mname = msplit[0]
+        for mdef in mdefs:
+            if mdef.name == mname:
+                mtype = mdef
+        if mtype is None:
+            raise rbexceptions.UnknownMoleculeTypeException(mname)
+
         if not re.match('[A-Za-z]\w*\(.*\)\s*$', smstr):
             raise rbexceptions.NotAMoleculeException(smstr)
         sites = re.split(',', msplit[1].strip(')'))
         if not sites[0]:
-            return Molecule(mname, [])
+            return Molecule(mname, [], mtype)
         site_list = []
         for i in range(len(sites)):
             s = sites[i]
@@ -701,11 +646,10 @@ class BNGLReader(Reader):
                     site_list.append(Site(name, i, b=bond))
                 else:
                     site_list.append(Site(s, i))
-        return Molecule(mname, site_list)
+        return Molecule(mname, site_list, mtype)
 
-    # TODO implement parsing for expression (need to identify variables for conversion to kappa syntax)
     @classmethod
-    def parse_init(cls, line):
+    def parse_init(cls, line, mdefs):
         """
         Function that parses initial conditions
 
@@ -719,14 +663,14 @@ class BNGLReader(Reader):
         InitialCondition
         """
         isplit = re.split('\s+', line.strip())
-        spec = cls.parse_cpattern(isplit[0])
+        spec = cls.parse_cpattern(isplit[0], mdefs)
         amount = ' '.join(isplit[1:])
         amount_is_number = is_number(amount)
         p_amount = float(amount) if amount_is_number else Expression(cls.parse_math_expr(amount))
         return InitialCondition(spec, p_amount, amount_is_number)
 
     @classmethod
-    def parse_cpattern(cls, pstr):
+    def parse_cpattern(cls, pstr, mdefs):
         """
         Function that parses patterns connected by the '.' operator
 
@@ -734,6 +678,7 @@ class BNGLReader(Reader):
         ----------
         pstr : str
             String in BNGL file that represents a pattern
+        mdefs : list of MoleculeDef instance
 
         Returns
         -------
@@ -742,11 +687,11 @@ class BNGLReader(Reader):
         spstr = re.split('(?<=\))\.', pstr.strip())
         m_list = []
         for s in spstr:
-            m_list.append(cls.parse_molecule(s))
+            m_list.append(cls.parse_molecule(s, mdefs))
         return CPattern(m_list)
 
     @classmethod
-    def parse_obs(cls, line):
+    def parse_obs(cls, line, mdefs):
         """
         Function that parses observables
 
@@ -762,7 +707,7 @@ class BNGLReader(Reader):
         osplit = re.split('\s+', line.strip())
         otype = osplit[0][0]
         oname = osplit[1]
-        oCPattern = [cls.parse_cpattern(p) for p in osplit[2:]]
+        oCPattern = [cls.parse_cpattern(p, mdefs) for p in osplit[2:]]
         return Observable(oname, oCPattern, otype)
 
     @staticmethod
@@ -783,11 +728,11 @@ class BNGLReader(Reader):
         if re.search('=', sline):
             s_char = '='
         else:
-            s_char = ' '
+            s_char = re.compile('\s+')
         psplit = re.split(s_char, sline)
         pname = psplit[0].strip()
-        pexpr = s_char.join(psplit[1:])
-        if re.search('[*/+-]', pexpr):
+        pexpr = ' '.join(psplit[1:]).strip()
+        if re.search('[*/+-]', pexpr) or re.match('[A-Za-z]', pexpr):
             pval = Expression(BNGLReader.parse_math_expr(pexpr))
         else:
             pval = pexpr
@@ -833,9 +778,8 @@ class BNGLReader(Reader):
                 num_changed_bonds += 1
         return num_changed_bonds == 2
 
-    # TODO parse rule label, change so that lhs and rule 'action' is returned
     @classmethod
-    def parse_rule(cls, line):
+    def parse_rule(cls, line, mdefs):
         """
         Function that parses rules
 
@@ -863,7 +807,7 @@ class BNGLReader(Reader):
         if len(lhs) == 1 and lhs[0].strip() == '0':
             lhs_cpatterns = []
         else:
-            lhs_cpatterns = [cls.parse_cpattern(x) for x in lhs]
+            lhs_cpatterns = [cls.parse_cpattern(x, mdefs) for x in lhs]
         rem = [x.strip() for x in re.split('(?<!!)\+', parts[1].strip())]
 
         def del_mol_warning(s):
@@ -872,15 +816,12 @@ class BNGLReader(Reader):
                     "Degradation rule '%s' will remove full complexes.  This cannot be exactly translated into Kappa" % sline)
                 logging.warning(
                     "Writing this rule in Kappa will only remove the matched pattern and could result in side effects")
-                return s
-            else:
-                return re.sub('\s*DeleteMolecules', '', s)
 
         if len(rem) > 1:
             one_past_final_mol_index = 0
             for i, t in enumerate(rem):
                 try:
-                    cls.parse_cpattern(t)
+                    cls.parse_cpattern(t, mdefs)
                 except rbexceptions.NotAMoleculeException:
                     one_past_final_mol_index = i
                     break
@@ -889,20 +830,25 @@ class BNGLReader(Reader):
 
             if re.match('0', rem[0]):
                 rhs_cpatterns = []
-                rem[-1] = del_mol_warning(rem[-1])
+                del_mol_warning(rem[-1])
+                rem[-1] = re.sub('\s*DeleteMolecules', '', rem[-1])
                 delmol = True
             else:
-                rhs_cpatterns = [cls.parse_cpattern(x) for x in (rem[:one_past_final_mol_index] + [mol])]
+                rhs_cpatterns = [cls.parse_cpattern(x, mdefs) for x in (rem[:one_past_final_mol_index] + [mol])]
                 n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols
                 if delmol:
-                    rem[-1] = del_mol_warning(rem[-1])
+                    del_mol_warning(rem[-1])
+                rem[-1] = re.sub('\s*DeleteMolecules', '', rem[-1])
 
-            rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
+            if len(rem[one_past_final_mol_index + 1:]) == 0:
+                rate_string = first_rate_part
+            else:
+                rate_string = first_rate_part + '+' + '+'.join(rem[one_past_final_mol_index + 1:])
 
             if is_reversible:
-                rate0, rate1 = re.split(',', rate_string)
+                rate0, rate1 = re.split(',\s*', rate_string)
                 return Rule(lhs_cpatterns, rhs_cpatterns, cls.parse_rate(rate0), is_reversible, cls.parse_rate(rate1),
                             label=label, delmol=delmol)
             else:
@@ -913,15 +859,17 @@ class BNGLReader(Reader):
 
             if re.match('0', rem_parts[0]):
                 rhs_cpatterns = []
-                rem_parts[-1] = del_mol_warning(rem_parts[-1])
+                del_mol_warning(rem_parts[-1])
+                rem_parts[-1] = re.sub('\s*DeleteMolecules', '', rem_parts[-1])
                 delmol = True
             else:
-                rhs_cpatterns = [cls.parse_cpattern(rem_parts[0])]
+                rhs_cpatterns = [cls.parse_cpattern(rem_parts[0], mdefs)]
                 n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols
                 if delmol:
-                    rem_parts[-1] = del_mol_warning(rem_parts[-1])
+                    del_mol_warning(rem_parts[-1])
+                rem_parts[-1] = re.sub('\s*DeleteMolecules', '', rem_parts[-1])
 
             rem_parts = [x for x in rem_parts if x != '']
 
@@ -933,7 +881,7 @@ class BNGLReader(Reader):
                 is_intra_r_to_l = False
                 if len(lhs_cpatterns) == 1 and len(rhs_cpatterns) == 1:
                     is_intra_r_to_l = cls._has_intramolecular_binding(rhs_cpatterns[0], lhs_cpatterns[0])
-                rate_split = re.split(',', rate_string)
+                rate_split = re.split(',\s*', rate_string)
                 rate0 = cls.parse_rate(rate_split[0], is_intra_l_to_r)
                 rate1 = cls.parse_rate(rate_split[1], is_intra_r_to_l)
                 return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, rate1, label=label, delmol=delmol)
@@ -980,18 +928,18 @@ class BNGLReader(Reader):
         Expression
         """
         sline = line.strip()
-        s_char = ''
-        for x in sline:
-            if re.match('\s', x) or re.match('=', x):
-                s_char = x
-                break
-        name, func = re.split(s_char, sline)
-        if re.search('\(.\)',
-                     name):  # a variable in between the parentheses means the function is local (not Kappa compatible)
+        if re.search('=', sline):
+            s_char = '='
+        else:
+            s_char = ' '
+        ssplit = re.split(s_char, sline)
+        name = ssplit[0].strip()
+        func = s_char.join(ssplit[1:]).strip()
+        if re.search('\(.+\)', name):  # a variable in between the parentheses means the function is local
             raise rbexceptions.NotCompatibleException(
-                "Kappa functions cannot accommodate local functions:\n\t%s\n" % sline)
+                "Kappa functions cannot accommodate BNGL local functions:\n\t%s\n" % sline)
         p_func = cls.parse_math_expr(func)
-        return Expression(name, p_func.asList())
+        return Function(name, Expression(p_func.asList()))
 
     # needs to be able to identify built in functions, numbers, variables, (previously defined functions?)
     # functions are an alphanumeric string starting with a letter; they are preceded by an operator or parenthesis and encompass something in parentheses
@@ -1028,10 +976,12 @@ class BNGLReader(Reader):
         addop = plus | minus
         multop = mult | div
         expop = pp.Literal("^")
-        pi = pp.CaselessLiteral("PI")
+        lowerPi = pp.Literal("pi")
+        upperPi = pp.Literal("PI")
+        pi = lowerPi | upperPi
 
         expr = pp.Forward()
-        atom = (pp.Optional("-") + (pi | e | fnumber | ident + lpar + expr + rpar | ident) | (lpar + expr + rpar))
+        atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ ident) ^ (lpar + expr + rpar))
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
