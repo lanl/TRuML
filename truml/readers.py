@@ -467,43 +467,43 @@ class BNGLReader(Reader):
 
             logging.debug("Parsing %s" % l.strip())
 
-            if re.match('begin parameters', l):
+            if re.match('begin\s+parameters', l):
                 logging.debug("Entering parameter block")
                 self.is_param_block = True
                 continue
-            elif re.match('end parameters', l):
+            elif re.match('end\s+parameters', l):
                 logging.debug("Leaving parameter block")
                 self.is_param_block = False
                 continue
-            elif re.match('begin seed species', l):
+            elif re.match('begin\s+(seed\s+)?species', l):
                 logging.debug("Entering initial conditions block")
                 self.is_init_block = True
                 continue
-            elif re.match('end seed species', l):
+            elif re.match('end\s+(seed\s+)?species', l):
                 logging.debug("Leaving initial conditions block")
                 self.is_init_block = False
                 continue
-            elif re.match('begin observables', l):
+            elif re.match('begin\s+observables', l):
                 logging.debug("Entering observables block")
                 self.is_obs_block = True
                 continue
-            elif re.match('end observables', l):
+            elif re.match('end\s+observables', l):
                 logging.debug("Leaving observables block")
                 self.is_obs_block = False
                 continue
-            elif re.match('begin functions', l):
+            elif re.match('begin\s+functions', l):
                 logging.debug("Entering functions block")
                 self.is_func_block = True
                 continue
-            elif re.match('end functions', l):
+            elif re.match('end\s+functions', l):
                 logging.debug("Leaving functions block")
                 self.is_func_block = False
                 continue
-            elif re.match('begin reaction rules', l):
+            elif re.match('begin\s+reaction\s+rules', l):
                 logging.debug("Entering rules block")
                 self.is_rule_block = True
                 continue
-            elif re.match('end reaction rules', l):
+            elif re.match('end\s+reaction\s+rules', l):
                 logging.debug("Leaving rules block")
                 self.is_rule_block = False
                 continue
