@@ -1,5 +1,6 @@
 """truml.readers: module containing classes for reading BNGL and Kappa model files"""
 
+
 from deepdiff import DeepDiff
 from objects import *
 from parsers import KappaParser, BNGLParser
@@ -38,6 +39,7 @@ class Reader(object):
 
     @staticmethod
     def ignore_line(l):
+        """Finds empty lines"""
         return l == '' or re.match('\s*\n', l)
 
 
