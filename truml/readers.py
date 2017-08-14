@@ -728,10 +728,10 @@ class BNGLReader(Reader):
         if re.search('=', sline):
             s_char = '='
         else:
-            s_char = ' '
+            s_char = re.compile('\s+')
         psplit = re.split(s_char, sline)
         pname = psplit[0].strip()
-        pexpr = s_char.join(psplit[1:]).strip()
+        pexpr = ' '.join(psplit[1:]).strip()
         if re.search('[*/+-]', pexpr) or re.match('[A-Za-z]', pexpr):
             pval = Expression(BNGLReader.parse_math_expr(pexpr))
         else:
@@ -816,9 +816,6 @@ class BNGLReader(Reader):
                     "Degradation rule '%s' will remove full complexes.  This cannot be exactly translated into Kappa" % sline)
                 logging.warning(
                     "Writing this rule in Kappa will only remove the matched pattern and could result in side effects")
-                return s
-            else:
-                return re.sub('\s*DeleteMolecules', '', s)
 
         if len(rem) > 1:
             one_past_final_mol_index = 0
@@ -833,7 +830,8 @@ class BNGLReader(Reader):
 
             if re.match('0', rem[0]):
                 rhs_cpatterns = []
-                rem[-1] = del_mol_warning(rem[-1])
+                del_mol_warning(rem[-1])
+                rem[-1] = re.sub('\s*DeleteMolecules', '', rem[-1])
                 delmol = True
             else:
                 rhs_cpatterns = [cls.parse_cpattern(x, mdefs) for x in (rem[:one_past_final_mol_index] + [mol])]
@@ -841,7 +839,8 @@ class BNGLReader(Reader):
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols
                 if delmol:
-                    rem[-1] = del_mol_warning(rem[-1])
+                    del_mol_warning(rem[-1])
+                rem[-1] = re.sub('\s*DeleteMolecules', '', rem[-1])
 
             if len(rem[one_past_final_mol_index + 1:]) == 0:
                 rate_string = first_rate_part
@@ -860,7 +859,8 @@ class BNGLReader(Reader):
 
             if re.match('0', rem_parts[0]):
                 rhs_cpatterns = []
-                rem_parts[-1] = del_mol_warning(rem_parts[-1])
+                del_mol_warning(rem_parts[-1])
+                rem_parts[-1] = re.sub('\s*DeleteMolecules', '', rem_parts[-1])
                 delmol = True
             else:
                 rhs_cpatterns = [cls.parse_cpattern(rem_parts[0], mdefs)]
@@ -868,7 +868,8 @@ class BNGLReader(Reader):
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols
                 if delmol:
-                    rem_parts[-1] = del_mol_warning(rem_parts[-1])
+                    del_mol_warning(rem_parts[-1])
+                rem_parts[-1] = re.sub('\s*DeleteMolecules', '', rem_parts[-1])
 
             rem_parts = [x for x in rem_parts if x != '']
 
@@ -975,7 +976,9 @@ class BNGLReader(Reader):
         addop = plus | minus
         multop = mult | div
         expop = pp.Literal("^")
-        pi = pp.CaselessLiteral("PI")
+        lowerPi = pp.Literal("pi")
+        upperPi = pp.Literal("PI")
+        pi = lowerPi | upperPi
 
         expr = pp.Forward()
         atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ ident) ^ (lpar + expr + rpar))

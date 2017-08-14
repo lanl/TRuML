@@ -1097,8 +1097,13 @@ class Rule:
                     rs.append(Rule(l, all_rhs[j], self.rate, self.rev, self.rev_rate, self.label, self.delmol))
 
             assert len(rs) == len(all_rhs)
+        elif len(all_lhs) % len(all_rhs) == 0:
+            ls_per_r = len(all_lhs) / len(all_rhs)
+            for i, r in enumerate(all_rhs):
+                for j in range(ls_per_r * i, ls_per_r * i + ls_per_r):
+                    rs.append(Rule(all_lhs[i], r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
         else:
-            logging.critical("Rule conversion error.  Please review rule '%s'" % self)
+            logging.critical("Rule conversion error.  Please review rule '%s'" % self.write_as_bngl())
 
         un_rules = [rs[0]]
         for rule in rs[1:]:
