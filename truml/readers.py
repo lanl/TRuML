@@ -557,6 +557,8 @@ class BNGLReader(Reader):
         return condensed_lines
 
     def get_molecule_types(self):
+        """Parses the molecule types block and returns a Model instance
+         containing the corresponding MoleculeDef instances"""
         m = Model(bngl=True)
         for l in self.lines:
             if re.match('begin molecule types', l):
@@ -572,11 +574,7 @@ class BNGLReader(Reader):
         return m
 
     def parse(self):
-        """
-        Function to parse BNGL model files
-
-        This function assumes that the file has the molecule types block before the rules block
-        """
+        """Function to parse BNGL model files"""
         model = self.get_molecule_types()
 
         if len(model.molecules) == 0:
@@ -682,7 +680,6 @@ class BNGLReader(Reader):
     @staticmethod
     def _get_molecdef(m):
         site_defs = m.sites[:]
-
         site_name_map = {}
         site_name_counter = {}
         has_site_symmetry = False
@@ -766,7 +763,6 @@ class BNGLReader(Reader):
         Returns
         -------
         Molecule
-            Builds a Molecule or raises a NotAMoleculeException
         """
         smstr = mstr.strip()
 
@@ -886,11 +882,6 @@ class BNGLReader(Reader):
             pval = pexpr
         return Parameter(pname, pval)
 
-    # assumes that pattern mapping is left to right and that there is
-    # only 1 component on either side of the rule (doesn't make sense to
-    # have components that aren't operated on).  The change will be from
-    # a Site with bond = None to a Site with a Bond object containing a
-    # link to another Molecule in the same component
     @staticmethod
     def _has_intramolecular_binding(lhs_cp, rhs_cp):
         """
@@ -1063,7 +1054,6 @@ class BNGLReader(Reader):
         else:
             return Rate(rs, is_intra)
 
-    # needs to identify other user-defined functions + stuff in parse_math_expr
     @classmethod
     def parse_func(cls, line):
         """
@@ -1076,7 +1066,7 @@ class BNGLReader(Reader):
 
         Returns
         -------
-        Expression
+        Function
         """
         sline = line.strip()
         if re.search('=', sline):
@@ -1098,7 +1088,13 @@ class BNGLReader(Reader):
     @staticmethod
     def parse_math_expr(estr):
         """
-        Function to parse algebraic expressions
+        Function to parse algebraic expressions.
+
+            This function identifies built-in functions, numbers, variables and previously defined functions as
+            they occur in algebraic expressions.  Functions are alphanumeric strings starting with a letter.  They
+            are preceded by an arithmetic operator or a parenthesis and encompass something in parentheses.  Parameters
+            are also alphanumeric strings starting with a letter.  They are preceded and succeeded by operators or
+            parentheses
 
         Parameters
         ----------
@@ -1116,7 +1112,7 @@ class BNGLReader(Reader):
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
                              pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
                              pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
-        ident = pp.Word(pp.alphas, pp.alphas + pp.nums + "_$")
+        ident = pp.Word(pp.alphas, pp.alphas + pp.nums + "_")
 
         plus = pp.Literal("+")
         minus = pp.Literal("-")
@@ -1136,8 +1132,6 @@ class BNGLReader(Reader):
         expr = pp.Forward()
         atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ func ^ ident) ^ (lpar + expr + rpar))
 
-        # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
-        # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
         factor = pp.Forward()
         factor << atom + pp.ZeroOrMore((expop + factor))
 
