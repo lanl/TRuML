@@ -1,6 +1,6 @@
-==========
-References
-==========
+===================
+External References
+===================
 
 Main page describing the BioNetGen language:
     * `BioNetGen <http://bionetgen.org/index.php/Main_Page>`_

@@ -7,12 +7,12 @@ Welcome to TRuML's documentation!
 =================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
    :caption: Contents:
 
    installation
    tutorial
-   modules/index
+   modules/index.rst
    references
 
 
