@@ -35,7 +35,7 @@ def dfs(al, m, v):
 
     Returns
     -------
-
+    None
     """
     m[v] = 1
     for x in al[v]:
