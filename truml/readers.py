@@ -43,9 +43,8 @@ class Reader(object):
         return l == '' or re.match('\s*\n', l)
 
 
-# ignores perturbation and action commands
 class KappaReader(Reader):
-    """Reader for Kappa model files"""
+    """Reader for Kappa model files.  Ignores perturbation language."""
 
     parser = KappaParser()
 
@@ -65,7 +64,8 @@ class KappaReader(Reader):
         self.num_anon_pats = 0
 
     def get_agents(self):
-        """Get molecule/agent definitions"""
+        """Get molecule/agent definitions and return a Model instance
+        containing the corresponding MoleculeDef instances"""
         m = Model(bngl=False)
         for l in self.lines:
             logging.debug("Parsing: %s" % l.strip())
@@ -74,6 +74,8 @@ class KappaReader(Reader):
         return m
 
     def parse(self):
+        """Parses a Kappa model and returns a Model instance"""
+
         # First get agent definitions
         model = self.get_agents()
 
@@ -138,6 +140,20 @@ class KappaReader(Reader):
         return model
 
     def var_is_dynamic_no_pat(self, expr_list):
+        """
+        Determines if a Kappa variable is a dynamically changing quantity even if it doesn't
+        contain a Kappa pattern
+
+        Parameters
+        ----------
+        expr_list : list
+            A list of tokens as parsed by the parse_alg_expr function
+
+        Returns
+        -------
+        bool
+            True if dynamic, False otherwise
+        """
         for atom in expr_list:
             if re.match('\[T', atom):
                 return True
@@ -148,12 +164,27 @@ class KappaReader(Reader):
 
     @staticmethod
     def var_contains_pattern(expr_list):
+        """Determines if a Kappa variable contains a Kappa pattern"""
         for atom in expr_list:
             if re.match('\|', atom):
                 return True
         return False
 
     def get_var_patterns(self, expr_list):
+        """
+        Finds anonymous patterns defined in Kappa variables and observables
+
+        Parameters
+        ----------
+        expr_list : list
+            A list of tokens as parsed by the parse_alg_expr function
+
+        Returns
+        -------
+        dict, list
+            Returns a dictionary that names previously anonymous patterns and an updated token list using the
+            defined pattern names
+        """
         pat_dict = {}
         new_expr_list = []
         for atom in expr_list:
@@ -168,6 +199,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_init(line, mdefs):
+        """
+        Parses a Kappa initial condition
+
+        Parameters
+        ----------
+        line : str
+            Line containing an initial condition
+        mdefs : list
+            List of MoleculeDef instances that encompass the species present in the initial condition
+
+        Returns
+        -------
+        list
+            Returns a list of InitialCondition instances, one per CPattern
+        """
         sline = re.split('\s+', line)
         for i in range(len(sline)):
             try:
@@ -194,6 +240,19 @@ class KappaReader(Reader):
 
     @classmethod
     def parse_mtype(cls, line):
+        """
+        Parses a Kappa agent/molecule definition
+
+        Parameters
+        ----------
+        line : str
+            Line containing an agent declaration
+
+        Returns
+        -------
+        MoleculeDef
+        """
+
         mol_string = re.sub('\s*%agent:\s*', '', line)
 
         cls.parser.site_def.setParseAction(cls._get_sitedef)
@@ -203,6 +262,20 @@ class KappaReader(Reader):
 
     @classmethod
     def parse_molecule(cls, mstr, mdefs):
+        """
+        Parses a string corresponding to an agent/molecule
+
+        Parameters
+        ----------
+        mstr : str
+            String corresponding to an agent/molecule
+        mdefs : list
+            List of MoleculeDef instances containing one corresponding to the agent/molecule in mstr
+
+        Returns
+        -------
+        Molecule
+        """
         smstr = mstr.strip()
 
         res = cls.parser.agent.parseString(smstr)
@@ -227,6 +300,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_cpatterns(s, mdefs):
+        """
+        Parses a string corresponding to a connected pattern
+
+        Parameters
+        ----------
+        s : str
+            String corresponding to a pattern
+        mdefs : list
+            List of MoleculeDef instances encompassing the molecules present in the pattern
+
+        Returns
+        -------
+        list
+            Returns a list of CPattern instances, where each CPattern is a connected component
+        """
         mol_list = []
         in_par = 0
         cur_mol = ''
@@ -246,6 +334,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_rule(line, mdefs):
+        """
+        Parses a Kappa rule
+
+        Parameters
+        ----------
+        line : str
+            Line corresponding to a rule
+        mdefs : list
+            List of MoleculeDef instances encompassing molecules present in line
+
+        Returns
+        -------
+        list
+            Returns a list of Rule instances
+        """
         reversible = False
         rule_str = line
 
@@ -330,6 +433,19 @@ class KappaReader(Reader):
 
     @classmethod
     def parse_alg_expr(cls, estr):
+        """
+        Parses algebraic expressions compatible with Kappa syntax
+
+        Parameters
+        ----------
+        estr : str
+            String corresponding to an algebraic expression
+
+        Returns
+        -------
+        list
+            Returns a list of tokens corresponding to elements in a Kappa algebraic expression
+        """
         point = pp.Literal(".")
         e = pp.CaselessLiteral("E")
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
@@ -402,7 +518,7 @@ class KappaReader(Reader):
 
 # ignores action commands
 class BNGLReader(Reader):
-    """Reader for BNGL model files"""
+    """Reader for BNGL model files.  Ignores action block"""
 
     parser = BNGLParser()
 
