@@ -1082,9 +1082,6 @@ class BNGLReader(Reader):
         p_func = cls.parse_math_expr(func)
         return Function(name, Expression(p_func.asList()))
 
-    # needs to be able to identify built in functions, numbers, variables, (previously defined functions?)
-    # functions are an alphanumeric string starting with a letter; they are preceded by an operator or parenthesis and encompass something in parentheses
-    # parameters are also alphanumeric strings starting with a letter; they are preceded by operators or parentheses and succeeded by operators
     @staticmethod
     def parse_math_expr(estr):
         """
