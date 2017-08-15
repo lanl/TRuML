@@ -10,6 +10,10 @@ Welcome to TRuML's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   installation
+   tutorial
+   modules/index
+   references
 
 
 Indices and tables
