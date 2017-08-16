@@ -1,4 +1,4 @@
-"""truml.objects: module containing classes representing the semantics of rule-based modeling languages"""
+"""Classes representing the semantics of rule-based modeling languages"""
 
 
 import re
@@ -704,10 +704,10 @@ class CPattern:
     """
     Defines a pattern as a list of Molecules
 
-        In BNGL the pattern is defined as molecules joined by the '.' operator.  This
-        means that a pattern matches either a single molecule or a complex of multiple
-        molecules.  This is in contrast to Kappa, where all patterns are joined by the
-        ',' operator and may match multiple molecules or complexes.
+    In BNGL the pattern is defined as molecules joined by the '.' operator.  This
+    means that a pattern matches either a single molecule or a complex of multiple
+    molecules.  This is in contrast to Kappa, where all patterns are joined by the
+    ',' operator and may match multiple molecules or complexes.
     """
 
     def __init__(self, ml):
@@ -774,6 +774,7 @@ class CPattern:
         ----------
         g : Graph
             An input graph to permute
+
         Returns
         -------
         list
@@ -821,10 +822,8 @@ class CPattern:
     # on the level of the molecule
     def automorphisms(self):
         """
-        Determines the number of automorphisms in a CPattern
+        Determines the number of automorphisms in a :class:`~truml.objects.CPattern`
 
-        Notes
-        -----
         Only performed after conversion to Kappa compatible site names.  Thus
         the count will only include automorphisms on the level of molecules
 

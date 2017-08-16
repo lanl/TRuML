@@ -1,4 +1,4 @@
-"""truml.utils: miscellaneous support functions"""
+"""Miscellaneous support functions"""
 
 
 def build_adj_list(mols):

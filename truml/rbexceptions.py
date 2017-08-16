@@ -1,4 +1,4 @@
-"""truml.rbexceptions: module containing custom exceptions for TRuML"""
+"""Custom exceptions for TRuML"""
 
 
 class NotAMoleculeException(Exception):

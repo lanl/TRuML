@@ -1,4 +1,4 @@
-"""truml.readers: module containing classes for reading BNGL and Kappa model files"""
+"""Contains classes for reading BNGL and Kappa model files"""
 
 
 from deepdiff import DeepDiff
