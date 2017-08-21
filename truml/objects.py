@@ -1454,6 +1454,55 @@ class Model:
         self.parameters.append(param)
 
 
+class Action(object):
+    """
+    Abstract class that defines an action that when applied to a CPattern or list of CPattern instances,
+    results in a distinct CPattern or list of CPatterns
+    """
+    def __init__(self):
+        pass
+
+    def rewrite(self):
+        raise NotImplementedError("rewrite method not implemented in Action")
+
+
+class Binding(Action):
+    """Action subclass that defines bond formation"""
+    def __init__(self):
+        super(Binding, self).__init__()
+
+
+class Unbinding(Action):
+    """Action subclass that defines bond dissociation"""
+    def __init__(self):
+        super(Unbinding, self).__init__()
+
+
+class StateChange(Action):
+    """Action subclass that defines a change in a Site instance's state"""
+    def __init__(self):
+        super(StateChange, self).__init__()
+
+
+class Degradation(Action):
+    """Action subclass that defines the removal of a Molecule or CPattern instance"""
+    def __init__(self):
+        super(Degradation, self).__init__()
+
+
+class Synthesis(Action):
+    """Action subclass that defines the addition of a Molecule or CPattern instance"""
+    def __init__(self):
+        super(Synthesis, self).__init__()
+
+
+class MultiAction(object):
+    """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
+
+    def __init__(self, ls):
+        pass
+
+
 def is_number(n):
     try:
         float(n)
