@@ -320,6 +320,13 @@ class Molecule:
                         return True
             return False
 
+    def has_same_interface(self, other):
+        if isinstance(other, self.__class__):
+            return self.name == other.name and \
+                   sorted([s.name for s in self.sites]) == sorted([s.name for s in other.sites])
+        else:
+            return False
+
     def _write(self, bngl=True):
         """
         Writes the Molecule in Kappa or BNGL syntax

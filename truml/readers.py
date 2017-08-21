@@ -889,6 +889,24 @@ class BNGLReader(Reader):
                 rate0 = cls.parse_rate(rate_string, is_intra_l_to_r)
                 return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, label=label, delmol=delmol)
 
+    def _build_action(self, lhs, rhs):
+        pass
+
+    @staticmethod
+    def _build_mol_map(lhs, rhs):
+        """Builds a map between Molecule instances on the LHS and RHS of a rule"""
+        lhs_mols = [x for cp in lhs for x in cp.molecule_list]
+        rhs_mols = [x for cp in rhs for x in cp.molecule_list]
+        mmap = dict()
+        used_rhs_mol_idcs = []
+        for i, lm in enumerate(lhs_mols):
+            mmap[i] = None
+            for j, rm in enumerate(rhs_mols):
+                if lm.has_same_interface(rm) and j not in used_rhs_mol_idcs:
+                    mmap[i] = j
+                    used_rhs_mol_idcs.append(j)
+        return mmap
+
     @classmethod
     def parse_rate(cls, rs, is_intra=False):
         """
