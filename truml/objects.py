@@ -327,6 +327,49 @@ class Molecule:
         else:
             return False
 
+    @staticmethod
+    def _diff_quant(d):
+        if d == (None, None):
+            return 0
+        elif d[0] is None:
+            return 1
+        elif d[1] is None:
+            return 2
+        else:
+            return 3
+
+    def interface_diff_map(self, other):
+        imap = dict()
+        if len(self.sites) != len(other.sites):
+            return None
+
+        used_other_idcs = []
+        for i, s in enumerate(self.sites):
+            imap[i] = None
+            possible = []
+            # Map to most similar site
+            for j, t in enumerate(other.sites):
+                diff = s.diff(t)
+                # Check to see if there is any difference between sites s and t
+                if t.name == s.name and j not in used_other_idcs and diff == (None, None):
+                    used_other_idcs.append(j)
+                    imap[i] = (None, None)
+                    possible = []
+                    break
+                elif t.name == s.name and j not in used_other_idcs:
+                    possible.append((j, self._diff_quant(diff)))
+            if imap[i] is None and len(possible) == 0:
+                return None  # there is no match for site s in other.sites
+            elif imap[i] is None:
+                sd = sorted(possible, key=lambda l: l[1])
+                idx = sd[0][0]
+                imap[i] = s.diff(other.sites[idx])
+                used_other_idcs.append(idx)
+        if len(used_other_idcs) < len(other.sites):
+            return None  # there are unmatched sites in other
+        else:
+            return {k: v for k, v in imap.iteritems() if v != (None, None)}
+
     def _write(self, bngl=True):
         """
         Writes the Molecule in Kappa or BNGL syntax
@@ -1496,9 +1539,10 @@ class Action(object):
 
 class Binding(Action):
     """Action subclass that defines bond formation"""
-    def __init__(self, i, tup):
+    def __init__(self, i, j, tup):
         super(Binding, self).__init__()
-        self.index = i
+        self.mol_index = i
+        self.site_index = j
         self.site_name = tup[0]
         self.old_bond = tup[1]
         self.new_bond = tup[2]
@@ -1506,9 +1550,10 @@ class Binding(Action):
 
 class Unbinding(Action):
     """Action subclass that defines bond dissociation"""
-    def __init__(self, i, tup):
+    def __init__(self, i, j, tup):
         super(Unbinding, self).__init__()
-        self.index = i
+        self.mol_index = i
+        self.site_index = j
         self.site_name = tup[0]
         self.old_bond = tup[1]
         self.new_bond = tup[2]
@@ -1516,9 +1561,10 @@ class Unbinding(Action):
 
 class StateChange(Action):
     """Action subclass that defines a change in a Site instance's state"""
-    def __init__(self, i, tup):
+    def __init__(self, i, j, tup):
         super(StateChange, self).__init__()
-        self.index = i
+        self.mol_index = i
+        self.site_index = j
         self.site_name = tup[0]
         self.old_state = tup[1]
         self.new_state = tup[2]
@@ -1529,7 +1575,7 @@ class Degradation(Action):
     """Action subclass that defines the removal of a Molecule or CPattern instance"""
     def __init__(self, i):
         super(Degradation, self).__init__()
-        self.index = i
+        self.mol_index = i
 
 
 class Synthesis(Action):
@@ -1541,9 +1587,8 @@ class Synthesis(Action):
 
 class MultiAction(object):
     """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
-
     def __init__(self, ls):
-        pass
+        self.action_list = ls
 
 
 def is_number(n):
