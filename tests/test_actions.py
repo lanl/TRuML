@@ -103,4 +103,6 @@ class TestAction:
         assert len(a3) == 4
 
     def test_action_apply(self):
-        pass
+        synth = objects.Synthesis(self.p3)
+        rhs = synth.apply(self.rule0.lhs)
+        assert len(rhs) == 2

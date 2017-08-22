@@ -1,5 +1,6 @@
 """truml.objects: module containing classes representing the semantics of rule-based modeling languages"""
 
+
 import re
 import itertools as it
 import logging
@@ -1536,6 +1537,9 @@ class Action(object):
     def __init__(self):
         pass
 
+    def apply(self, cps):
+        NotImplementedError("apply is not implemented")
+
 
 class Binding(Action):
     """Action subclass that defines bond formation"""
@@ -1569,6 +1573,10 @@ class StateChange(Action):
         self.old_state = tup[1]
         self.new_state = tup[2]
 
+    def apply(self, cps):
+        mols = utils.flatten_pattern(cps)
+        mols[self.mol_index].sites[self.site_index] = self.new_state
+        return [CPattern(x) for x in utils.get_connected_components(mols)]
 
 # for degradation rules, make sure to remove bonds from binding partners
 class Degradation(Action):
@@ -1583,6 +1591,11 @@ class Synthesis(Action):
     def __init__(self, cp):
         super(Synthesis, self).__init__()
         self.cpattern = cp
+
+    def apply(self, cps):
+        new_cps = list(cps)
+        new_cps.append(self.cpattern)
+        return new_cps
 
 
 class MultiAction(object):
