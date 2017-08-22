@@ -440,6 +440,30 @@ class Site:
         """Write Site as Kappa string"""
         return self._write(True)
 
+    def diff(self, other):
+        """
+        Provides a 2-tuple composed of a 3-tuple and a 4-tuple
+
+        Parameters
+        ----------
+        other : Site
+            A product site in a corresponding Molecule
+
+        Returns
+        -------
+        tuple
+            Contains 2 elements containing information about site state and site bond, respectively.
+            The first element is a 3-tuple containing the state name, self state and other site state.
+            The second element is a 4-tuple containing site name, self Bond, other Bond and a boolean
+            value that is True if the other Bond is not None
+        """
+        diff_tuple = [None, None]
+        if self.state != other.state:
+            diff_tuple[0] = (self.name, self.state, other.state)
+        if self.bond != other.bond:
+            diff_tuple[1] = (self.name, self.bond, other.bond, other.bond is not None)
+        return tuple(diff_tuple)
+
     def __eq__(self, other):
         """
         Check for equality with another site
@@ -1469,38 +1493,50 @@ class Action(object):
     def __init__(self):
         pass
 
-    def rewrite(self):
-        raise NotImplementedError("rewrite method not implemented in Action")
-
 
 class Binding(Action):
     """Action subclass that defines bond formation"""
-    def __init__(self):
+    def __init__(self, i, tup):
         super(Binding, self).__init__()
+        self.index = i
+        self.site_name = tup[0]
+        self.old_bond = tup[1]
+        self.new_bond = tup[2]
 
 
 class Unbinding(Action):
     """Action subclass that defines bond dissociation"""
-    def __init__(self):
+    def __init__(self, i, tup):
         super(Unbinding, self).__init__()
+        self.index = i
+        self.site_name = tup[0]
+        self.old_bond = tup[1]
+        self.new_bond = tup[2]
 
 
 class StateChange(Action):
     """Action subclass that defines a change in a Site instance's state"""
-    def __init__(self):
+    def __init__(self, i, tup):
         super(StateChange, self).__init__()
+        self.index = i
+        self.site_name = tup[0]
+        self.old_state = tup[1]
+        self.new_state = tup[2]
 
 
+# for degradation rules, make sure to remove bonds from binding partners
 class Degradation(Action):
     """Action subclass that defines the removal of a Molecule or CPattern instance"""
-    def __init__(self):
+    def __init__(self, i):
         super(Degradation, self).__init__()
+        self.index = i
 
 
 class Synthesis(Action):
-    """Action subclass that defines the addition of a Molecule or CPattern instance"""
-    def __init__(self):
+    """Action subclass that defines the addition of a CPattern instance"""
+    def __init__(self, cp):
         super(Synthesis, self).__init__()
+        self.cpattern = cp
 
 
 class MultiAction(object):
