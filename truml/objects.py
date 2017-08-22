@@ -1099,6 +1099,24 @@ class Rate:
         return "Rate: %s" % self.rate
 
 
+class AltRule:
+    """Defines a rule in terms of a list of CPattern instances (reactants) and a list of Action
+    instances (reactions)"""
+    def __init__(self, lhs, actions, rate, rev=False, rev_rate=None, label=None, delmol=False):
+        self.lhs = lhs
+        self.actions = actions
+        self.rate = rate
+        self.rev = rev
+        self.arrow = '->' if not rev else '<->'
+        self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
+        self.label = label
+        self.delmol = delmol
+
+    def rhs(self):
+        for action in self.actions:
+            action.apply(self.lhs)
+
+
 class Rule:
     """Defines a rule"""
 
