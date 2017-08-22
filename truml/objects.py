@@ -1593,8 +1593,9 @@ class StateChange(Action):
 
     def apply(self, cps):
         mols = utils.flatten_pattern(cps)
-        mols[self.mol_index].sites[self.site_index] = self.new_state
+        mols[self.mol_index].sites[self.site_index].state = self.new_state
         return [CPattern(x) for x in utils.get_connected_components(mols)]
+
 
 # for degradation rules, make sure to remove bonds from binding partners
 class Degradation(Action):

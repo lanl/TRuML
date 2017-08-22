@@ -1,6 +1,7 @@
 from .context import objects
 from .context import readers
 
+
 class TestAction:
     def __init__(self):
         pass
@@ -9,12 +10,9 @@ class TestAction:
     def setup_class(cls):
         cls.wild_bond = objects.Bond(-1, w=True)
 
-        cls.s2 = objects.Site('site2', 1, b=cls.wild_bond)
         cls.s3 = objects.Site('site0', 0, s='state')
 
         cls.sd0 = objects.SiteDef('site0', ['state', 'state2'])
-        cls.sd1 = objects.SiteDef('site1', [])
-        cls.sd2 = objects.SiteDef('site2', [])
         cls.sd3 = objects.SiteDef('a', ['0', '1', '2'])
         cls.sd4 = objects.SiteDef('b', [])
         cls.sd5 = objects.SiteDef('c', [])
@@ -24,7 +22,9 @@ class TestAction:
                                       hss=True)
         cls.md3 = objects.MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
         cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
-        cls.md5 = objects.MoleculeDef('C', [], {})
+        cls.md5 = objects.MoleculeDef('C', [cls.sd0], {'site0': 'site0'})
+
+        cls.m0 = objects.Molecule('C', [objects.Site('site0', 0, s='state')], cls.md5)
 
         cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
                                         objects.Site('a', 1)], cls.md3)
@@ -102,7 +102,13 @@ class TestAction:
         print a3
         assert len(a3) == 4
 
-    def test_action_apply(self):
+    def test_synth_action_apply(self):
         synth = objects.Synthesis(self.p3)
         rhs = synth.apply(self.rule0.lhs)
         assert len(rhs) == 2
+
+    def test_statechange_action_apply(self):
+        sc = objects.StateChange(0, 0, ('site0', 'state', 'state2'))
+        rhs = sc.apply([objects.CPattern([self.m0])])
+        assert len(rhs) == 1
+        assert rhs[0][0].sites[0].state == 'state2'
