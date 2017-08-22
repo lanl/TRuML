@@ -26,7 +26,8 @@ class TestAction:
         cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
         cls.md5 = objects.MoleculeDef('C', [], {})
 
-        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)], cls.md3)
+        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
+                                        objects.Site('a', 1)], cls.md3)
         cls.m8 = objects.Molecule('B', [objects.Site('b', 0)], cls.md4)
         cls.m9 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
                                         objects.Site('a', 1, b=objects.Bond(1))], cls.md3)
@@ -44,28 +45,62 @@ class TestAction:
         cls.rule0 = objects.Rule([cls.p2], [cls.p3], cls.rate0)
         cls.rule1 = objects.Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
         cls.rule2 = objects.Rule([cls.p4, cls.p2, cls.p3], [cls.p3, cls.p4], cls.rate0)
+        cls.rule3 = objects.Rule([cls.p3, cls.p5, cls.p6], [cls.p7, cls.p4], cls.rate0)
 
     @classmethod
     def teardown_class(cls):
         pass
 
+    def test_interface_map(self):
+        assert self.p2[0].interface_diff_map(self.p3[0]) == dict()
+        idm0 = self.m7.interface_diff_map(self.m9)
+        assert len(idm0) == 1
+        assert 1 in idm0.keys()
+        assert idm0[1] == (None, ('a', None, objects.Bond(1), True))
+
     def test_build_mol_map(self):
-        mmap0 = readers.BNGLReader()._build_mol_map(self.rule0.lhs, self.rule0.rhs)
+        r0_lhs_mols = [x for cp in self.rule0.lhs for x in cp.molecule_list]
+        r0_rhs_mols = [x for cp in self.rule0.rhs for x in cp.molecule_list]
+        mmap0 = readers.BNGLReader()._build_mol_map(r0_lhs_mols, r0_rhs_mols)
         assert mmap0[0] is None
         assert len(mmap0.keys()) == 1
 
-        mmap1 = readers.BNGLReader()._build_mol_map(self.rule1.lhs, self.rule1.rhs)
+        r1_lhs_mols = [x for cp in self.rule1.lhs for x in cp.molecule_list]
+        r1_rhs_mols = [x for cp in self.rule1.rhs for x in cp.molecule_list]
+        mmap1 = readers.BNGLReader()._build_mol_map(r1_lhs_mols, r1_rhs_mols)
         assert mmap1[0] == 0
         assert mmap1[1] == 1
         assert len(mmap1.keys()) == 2
 
-        mmap2 = readers.BNGLReader()._build_mol_map(self.rule2.lhs, self.rule2.rhs)
+        r2_lhs_mols = [x for cp in self.rule2.lhs for x in cp.molecule_list]
+        r2_rhs_mols = [x for cp in self.rule2.rhs for x in cp.molecule_list]
+        mmap2 = readers.BNGLReader()._build_mol_map(r2_lhs_mols, r2_rhs_mols)
         assert mmap2[0] == 1
         assert mmap2[1] is None
         assert mmap2[2] == 0
 
     def test_action_parse(self):
-        pass
+        a0 = readers.BNGLReader()._build_actions(self.rule0.lhs, self.rule0.rhs)
+        assert len(a0) == 2
+        assert isinstance(a0[0], objects.Degradation)
+        assert isinstance(a0[1], objects.Synthesis)
+        assert a0[0].mol_index == 0
+        assert isinstance(a0[1].cpattern, objects.CPattern)
+        assert len(a0[1].cpattern.molecule_list) == 1
+
+        a1 = readers.BNGLReader()._build_actions(self.rule1.lhs, self.rule1.rhs)
+        assert len(a1) == 2
+        assert isinstance(a1[0], objects.Binding)
+        assert isinstance(a1[1], objects.Binding)
+
+        a2 = readers.BNGLReader()._build_actions(self.rule1.rhs, self.rule1.lhs)
+        assert len(a2) == 2
+        assert isinstance(a2[0], objects.Unbinding)
+        assert isinstance(a2[1], objects.Unbinding)
+
+        a3 = readers.BNGLReader()._build_actions(self.rule3.lhs, self.rule3.rhs)
+        print a3
+        assert len(a3) == 4
 
     def test_action_apply(self):
         pass
