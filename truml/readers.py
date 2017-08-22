@@ -894,8 +894,8 @@ class BNGLReader(Reader):
         """Builds a list of Action instances corresponding to the differences between the reactant
         list of Molecule instances and the product list of Molecule instances"""
         action_list = []
-        lhs_mols = [x for cp in lhs for x in cp.molecule_list]
-        rhs_mols = [x for cp in rhs for x in cp.molecule_list]
+        lhs_mols = utils.flatten_pattern(lhs)
+        rhs_mols = utils.flatten_pattern(rhs)
         mmap = cls._build_mol_map(lhs_mols, rhs_mols)
         for l, r in mmap.iteritems():
             if r is None:
