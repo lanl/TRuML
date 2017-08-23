@@ -55,6 +55,7 @@ class TestAction:
     def test_interface_map(self):
         assert self.p2[0].interface_diff_map(self.p3[0]) == dict()
         idm0 = self.m7.interface_diff_map(self.m9)
+        print idm0, self.m7, self.m9
         assert len(idm0) == 1
         assert 1 in idm0.keys()
         assert idm0[1] == (None, ('a', None, objects.Bond(1), True))
@@ -100,7 +101,6 @@ class TestAction:
         assert isinstance(a2[1], objects.Unbinding)
 
         a3 = readers.BNGLReader()._build_actions(self.rule3.lhs, self.rule3.rhs)
-        print a3
         assert len(a3) == 4
 
     def test_synth_action_apply(self):
@@ -119,3 +119,27 @@ class TestAction:
         rhs = d.apply(self.rule4.lhs)
         assert len(rhs) == 1
         assert rhs[0][0].name == 'B'
+
+    def test_binding_action_apply(self):
+        b0 = objects.Binding(0, 1, ('a', None, objects.Bond(1)))
+        b1 = objects.Binding(1, 0, ('b', None, objects.Bond(1)))
+        rhs0 = b0.apply(b1.apply(self.rule1.lhs))
+        assert len(rhs0) == 1
+        assert rhs0[0][0].sites[1].bond == objects.Bond(1)
+        assert rhs0[0][1].sites[0].bond == objects.Bond(1)
+        rhs1 = b1.apply(b0.apply(self.rule1.lhs))
+        assert len(rhs1) == 1
+        assert rhs1[0][0].sites[1].bond == objects.Bond(1)
+        assert rhs1[0][1].sites[0].bond == objects.Bond(1)
+
+    def test_unbinding_action_apply(self):
+        u0 = objects.Unbinding(0, 1, ('a', objects.Bond(1), None))
+        u1 = objects.Unbinding(1, 0, ('b', objects.Bond(1), None))
+        rhs0 = u0.apply(u1.apply(self.rule1.rhs))
+        assert len(rhs0) == 2
+        assert rhs0[0][0].sites[1].bond is None
+        assert rhs0[1][0].sites[0].bond is None
+        rhs1 = u1.apply(u0.apply(self.rule1.rhs))
+        assert len(rhs1) == 2
+        assert rhs1[0][0].sites[1].bond is None
+        assert rhs1[1][0].sites[0].bond is None

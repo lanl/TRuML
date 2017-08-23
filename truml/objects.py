@@ -9,6 +9,8 @@ import networkx.algorithms.isomorphism as iso
 import rbexceptions
 import utils
 
+from copy import deepcopy
+
 
 class SiteDef:
     """A site definition composed of a name and a finite set of states"""
@@ -1555,6 +1557,7 @@ class Action(object):
     def __init__(self):
         pass
 
+    # TODO make sure that apply does not modify the object in place
     def apply(self, cps):
         NotImplementedError("apply is not implemented")
 
@@ -1569,6 +1572,12 @@ class Binding(Action):
         self.old_bond = tup[1]
         self.new_bond = tup[2]
 
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
+        mols[self.mol_index].sites[self.site_index].bond = self.new_bond
+        return [CPattern(x) for x in utils.get_connected_components(mols)]
+
 
 class Unbinding(Action):
     """Action subclass that defines bond dissociation"""
@@ -1579,6 +1588,12 @@ class Unbinding(Action):
         self.site_name = tup[0]
         self.old_bond = tup[1]
         self.new_bond = tup[2]
+
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
+        mols[self.mol_index].sites[self.site_index].bond = self.new_bond
+        return [CPattern(x) for x in utils.get_connected_components(mols)]
 
 
 class StateChange(Action):
@@ -1592,7 +1607,8 @@ class StateChange(Action):
         self.new_state = tup[2]
 
     def apply(self, cps):
-        mols = utils.flatten_pattern(cps)
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
         mols[self.mol_index].sites[self.site_index].state = self.new_state
         return [CPattern(x) for x in utils.get_connected_components(mols)]
 
@@ -1601,7 +1617,7 @@ class StateChange(Action):
 # this should be accommodated by having distinct Unbinding actions as a
 # result of action detection
 class Degradation(Action):
-    """Action subclass that defines the removal of a Molecule or CPattern instance"""
+    """Action subclass that defines the removal of a Molecule instance"""
     def __init__(self, i):
         super(Degradation, self).__init__()
         self.mol_index = i
@@ -1616,7 +1632,8 @@ class Degradation(Action):
             return True
 
     def apply(self, cps):
-        mols = utils.flatten_pattern(cps)
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
         mols.pop(self.mol_index)
         return [CPattern(x) for x in utils.get_connected_components(mols)]
 
@@ -1628,9 +1645,9 @@ class Synthesis(Action):
         self.cpattern = cp
 
     def apply(self, cps):
-        new_cps = list(cps)
-        new_cps.append(self.cpattern)
-        return new_cps
+        cps_copy = deepcopy(cps)
+        cps_copy.append(self.cpattern)
+        return cps_copy
 
 
 class MultiAction(object):
