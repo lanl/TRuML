@@ -46,6 +46,7 @@ class TestAction:
         cls.rule1 = objects.Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
         cls.rule2 = objects.Rule([cls.p4, cls.p2, cls.p3], [cls.p3, cls.p4], cls.rate0)
         cls.rule3 = objects.Rule([cls.p3, cls.p5, cls.p6], [cls.p7, cls.p4], cls.rate0)
+        cls.rule4 = objects.Rule([cls.p7], [cls.p6], cls.rate0)
 
     @classmethod
     def teardown_class(cls):
@@ -112,3 +113,9 @@ class TestAction:
         rhs = sc.apply([objects.CPattern([self.m0])])
         assert len(rhs) == 1
         assert rhs[0][0].sites[0].state == 'state2'
+
+    def test_degradation_action_apply(self):
+        d = objects.Degradation(0)
+        rhs = d.apply(self.rule4.lhs)
+        assert len(rhs) == 1
+        assert rhs[0][0].name == 'B'

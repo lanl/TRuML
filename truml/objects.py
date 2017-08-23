@@ -1598,11 +1598,27 @@ class StateChange(Action):
 
 
 # for degradation rules, make sure to remove bonds from binding partners
+# this should be accommodated by having distinct Unbinding actions as a
+# result of action detection
 class Degradation(Action):
     """Action subclass that defines the removal of a Molecule or CPattern instance"""
     def __init__(self, i):
         super(Degradation, self).__init__()
         self.mol_index = i
+
+    @staticmethod
+    def _filter_explicit_bonds(bond):
+        if bond is None:
+            return False
+        elif bond.num < 0:
+            return False
+        else:
+            return True
+
+    def apply(self, cps):
+        mols = utils.flatten_pattern(cps)
+        mols.pop(self.mol_index)
+        return [CPattern(x) for x in utils.get_connected_components(mols)]
 
 
 class Synthesis(Action):
