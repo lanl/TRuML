@@ -1653,7 +1653,33 @@ class Synthesis(Action):
 class MultiAction(object):
     """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
     def __init__(self, ls):
-        self.action_list = ls
+        self.action_list = self._order_actions(ls)
+
+    @staticmethod
+    def _order_actions(ls):
+        ordered_action_list = []
+        for action in ls:
+            if isinstance(action, Degradation):
+                ordered_action_list.append(action)
+            else:
+                ordered_action_list.insert(0, action)
+        return ordered_action_list
+
+    # Make sure to order actions with Degradation instances last
+    def apply(self, cps):
+        tmp_patt = deepcopy(cps)
+        for action in self.action_list:
+            tmp_patt = action.apply(tmp_patt)
+        return tmp_patt
+
+    def __len__(self):
+        return len(self.action_list)
+
+    def __getitem__(self, item):
+        if isinstance(item, (int, slice)):
+            return self.action_list[item]
+        else:
+            raise TypeError
 
 
 def is_number(n):

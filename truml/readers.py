@@ -919,7 +919,7 @@ class BNGLReader(Reader):
             for c in conn_cmps:
                 action_list.append(Synthesis(CPattern(c)))
 
-        return action_list
+        return MultiAction(action_list)
 
     @staticmethod
     def _build_mol_map(lhs, rhs):

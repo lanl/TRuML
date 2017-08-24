@@ -84,11 +84,11 @@ class TestAction:
     def test_action_parse(self):
         a0 = readers.BNGLReader()._build_actions(self.rule0.lhs, self.rule0.rhs)
         assert len(a0) == 2
-        assert isinstance(a0[0], objects.Degradation)
-        assert isinstance(a0[1], objects.Synthesis)
-        assert a0[0].mol_index == 0
-        assert isinstance(a0[1].cpattern, objects.CPattern)
-        assert len(a0[1].cpattern.molecule_list) == 1
+        assert isinstance(a0[1], objects.Degradation)
+        assert isinstance(a0[0], objects.Synthesis)
+        assert a0[1].mol_index == 0
+        assert isinstance(a0[0].cpattern, objects.CPattern)
+        assert len(a0[0].cpattern.molecule_list) == 1
 
         a1 = readers.BNGLReader()._build_actions(self.rule1.lhs, self.rule1.rhs)
         assert len(a1) == 2
@@ -143,3 +143,26 @@ class TestAction:
         assert len(rhs1) == 2
         assert rhs1[0][0].sites[1].bond is None
         assert rhs1[1][0].sites[0].bond is None
+        m = objects.MultiAction([u0, u1])
+        rhs2 = m.apply(self.rule1.rhs)
+        assert len(rhs2) == 2
+        assert rhs2[0][0].sites[1].bond is None
+        assert rhs2[1][0].sites[0].bond is None
+
+    def test_deg_unbinding_parse_apply(self):
+        acts = readers.BNGLReader._build_actions(self.rule4.lhs, self.rule4.rhs)
+        assert len(acts) == 2
+        rhs = self.rule4.lhs
+        for act in acts:
+            rhs = act.apply(rhs)
+        assert len(rhs) == 1
+        assert len(rhs[0].molecule_list) == 1
+        assert rhs[0][0].sites[0].bond is None
+
+    def test_full_application(self):
+        acts = readers.BNGLReader._build_actions(self.rule4.lhs, self.rule4.rhs)
+        assert len(acts) == 2
+        rhs = acts.apply(self.rule4.lhs)
+        assert len(rhs) == 1
+        assert rhs[0][0].name == 'B'
+        assert rhs[0][0].sites[0].bond is None
