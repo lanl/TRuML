@@ -347,8 +347,8 @@ class Molecule:
             return None
 
         used_other_idcs = []
-        for i, s in enumerate(self.sites):
-            imap[i] = None
+        for s in self.sites:
+            imap[s] = None
             possible = []
             # Map to most similar site
             for j, t in enumerate(other.sites):
@@ -356,17 +356,17 @@ class Molecule:
                 # Check to see if there is any difference between sites s and t
                 if t.name == s.name and j not in used_other_idcs and diff == (None, None):
                     used_other_idcs.append(j)
-                    imap[i] = (None, None)
+                    imap[s] = (None, None)
                     possible = []
                     break
                 elif t.name == s.name and j not in used_other_idcs:
                     possible.append((j, self._diff_quant(diff)))
-            if imap[i] is None and len(possible) == 0:
+            if imap[s] is None and len(possible) == 0:
                 return None  # there is no match for site s in other.sites
-            elif imap[i] is None:
+            elif imap[s] is None:
                 sd = sorted(possible, key=lambda l: l[1])
                 idx = sd[0][0]
-                imap[i] = s.diff(other.sites[idx])
+                imap[s] = s.diff(other.sites[idx])
                 used_other_idcs.append(idx)
         if len(used_other_idcs) < len(other.sites):
             return None  # there are unmatched sites in other
@@ -499,15 +499,13 @@ class Site:
         -------
         tuple
             Contains 2 elements containing information about site state and site bond, respectively.
-            The first element is a 3-tuple containing the state name, self state and other site state.
-            The second element is a 4-tuple containing site name, self Bond, other Bond and a boolean
-            value that is True if the other Bond is not None
+            The first element is the other site state, and the second element is the other site Bond.
         """
         diff_tuple = [None, None]
         if self.state != other.state:
-            diff_tuple[0] = (self.name, self.state, other.state)
+            diff_tuple[0] = other.state
         if self.bond != other.bond:
-            diff_tuple[1] = (self.name, self.bond, other.bond, other.bond is not None)
+            diff_tuple[1] = other.bond if other.bond is not None else 0
         return tuple(diff_tuple)
 
     def __eq__(self, other):
@@ -1549,6 +1547,10 @@ class Model:
         self.parameters.append(param)
 
 
+# when reading from BNGL files with identical site names, this schema will have Action objects
+# that contain site names corresponding to the BNGL format.  Thus, the molecule definition
+# needs to be included to detect and rewrite patterns that have converted to Kappa-compatible
+# site names
 class Action(object):
     """
     Abstract class that defines an action that when applied to a CPattern or list of CPattern instances,
@@ -1557,20 +1559,18 @@ class Action(object):
     def __init__(self):
         pass
 
-    # TODO make sure that apply does not modify the object in place
     def apply(self, cps):
         NotImplementedError("apply is not implemented")
 
 
 class Binding(Action):
     """Action subclass that defines bond formation"""
-    def __init__(self, i, j, tup):
+    def __init__(self, i, s, b, md):
         super(Binding, self).__init__()
         self.mol_index = i
-        self.site_index = j
-        self.site_name = tup[0]
-        self.old_bond = tup[1]
-        self.new_bond = tup[2]
+        self.site = s
+        self.new_bond = b
+        self.molecule_def = md
 
     def apply(self, cps):
         cps_copy = deepcopy(cps)
@@ -1581,13 +1581,12 @@ class Binding(Action):
 
 class Unbinding(Action):
     """Action subclass that defines bond dissociation"""
-    def __init__(self, i, j, tup):
+    def __init__(self, i, s, b, md):
         super(Unbinding, self).__init__()
         self.mol_index = i
-        self.site_index = j
-        self.site_name = tup[0]
-        self.old_bond = tup[1]
-        self.new_bond = tup[2]
+        self.site = s
+        self.new_bond = b
+        self.molecule_def = md
 
     def apply(self, cps):
         cps_copy = deepcopy(cps)
@@ -1598,24 +1597,29 @@ class Unbinding(Action):
 
 class StateChange(Action):
     """Action subclass that defines a change in a Site instance's state"""
-    def __init__(self, i, j, tup):
+    def __init__(self, i, s, ns, md):
         super(StateChange, self).__init__()
         self.mol_index = i
-        self.site_index = j
-        self.site_name = tup[0]
-        self.old_state = tup[1]
-        self.new_state = tup[2]
+        self.site = s
+        self.new_state = ns
+        self.molecule_def = md
 
     def apply(self, cps):
         cps_copy = deepcopy(cps)
         mols = utils.flatten_pattern(cps_copy)
-        mols[self.mol_index].sites[self.site_index].state = self.new_state
-        return [CPattern(x) for x in utils.get_connected_components(mols)]
+        applications = []
+        for s in mols[self.mol_index].sites:
+            bname = self.molecule_def.site_name_map[s.name]
+            tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
+            if tmp_site == self.site:
+                mols_copy = deepcopy(mols)
+                mols_copy[self.mol_index].sites[s.index].state = self.new_state
+                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                applications.append(new_cps)
+
+        return applications
 
 
-# for degradation rules, make sure to remove bonds from binding partners
-# this should be accommodated by having distinct Unbinding actions as a
-# result of action detection
 class Degradation(Action):
     """Action subclass that defines the removal of a Molecule instance"""
     def __init__(self, i):

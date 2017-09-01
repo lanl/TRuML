@@ -11,8 +11,10 @@ class TestAction:
         cls.wild_bond = objects.Bond(-1, w=True)
 
         cls.s3 = objects.Site('site0', 0, s='state')
+        cls.s4 = objects.Site('site', 0, s='state')
 
         cls.sd0 = objects.SiteDef('site0', ['state', 'state2'])
+        cls.sd1 = objects.SiteDef('site', ['state', 'state2'])
         cls.sd3 = objects.SiteDef('a', ['0', '1', '2'])
         cls.sd4 = objects.SiteDef('b', [])
         cls.sd5 = objects.SiteDef('c', [])
@@ -22,9 +24,11 @@ class TestAction:
                                       hss=True)
         cls.md3 = objects.MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
         cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
-        cls.md5 = objects.MoleculeDef('C', [cls.sd0], {'site0': 'site0'})
+        cls.md5 = objects.MoleculeDef('C', [cls.sd0], {'site0': 'site'})
+        cls.md6 = objects.MoleculeDef('D', [cls.sd1, cls.sd1], {'site0': 'site', 'site1': 'site'})
 
         cls.m0 = objects.Molecule('C', [objects.Site('site0', 0, s='state')], cls.md5)
+        cls.m1 = objects.Molecule('D', [cls.s4], cls.md6)
 
         cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
                                         objects.Site('a', 1)], cls.md3)
@@ -109,10 +113,17 @@ class TestAction:
         assert len(rhs) == 2
 
     def test_statechange_action_apply(self):
-        sc = objects.StateChange(0, 0, ('site0', 'state', 'state2'))
-        rhs = sc.apply([objects.CPattern([self.m0])])
-        assert len(rhs) == 1
-        assert rhs[0][0].sites[0].state == 'state2'
+        lhs = [objects.CPattern([self.m1])]
+        conv_lhs = []
+        for l in lhs:
+            conv_lhs.append(l.convert())
+        print conv_lhs
+        sc = objects.StateChange(0, self.s4, 'state2', self.m1.mdef)
+        rhss = [sc.apply(c) for c in conv_lhs]
+        assert len(rhss) == len(conv_lhs)
+        for rhs in rhss:
+            assert len(rhs) == 1
+        assert rhss[0][0][0][0].sites[0].state == 'state2'
 
     def test_degradation_action_apply(self):
         d = objects.Degradation(0)
