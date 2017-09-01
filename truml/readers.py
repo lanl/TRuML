@@ -903,14 +903,15 @@ class BNGLReader(Reader):
                 continue
 
             smap = lhs_mols[l].interface_diff_map(rhs_mols[r])
+            mdef = lhs_mols[l].mdef
             for k in smap.keys():
                 diff = smap[k]
                 if diff[0] is not None:
-                    action_list.append(StateChange(l, k, diff[0]))
-                if diff[1] is not None and diff[1][-1]:
-                    action_list.append(Binding(l, k, diff[1]))
+                    action_list.append(StateChange(l, k, diff[0], mdef))
+                if diff[1] is not None and diff[1] != 0:
+                    action_list.append(Binding(l, k, diff[1], mdef))
                 elif diff[1] is not None:
-                    action_list.append(Unbinding(l, k, diff[1]))
+                    action_list.append(Unbinding(l, k, diff[1], mdef))
 
         mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
         unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
