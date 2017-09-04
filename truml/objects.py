@@ -1227,14 +1227,17 @@ class Rule:
         else:
             return False
 
-    @classmethod
-    def _build_actions(cls, lhs, rhs):
+    def _build_actions(self, rev=False):
         """Builds a list of Action instances corresponding to the differences between the reactant
         list of Molecule instances and the product list of Molecule instances"""
         action_list = []
-        lhs_mols = utils.flatten_pattern(lhs)
-        rhs_mols = utils.flatten_pattern(rhs)
-        mmap = cls._build_mol_map(lhs_mols, rhs_mols)
+        if rev:
+            lhs_mols = utils.flatten_pattern(self.rhs)
+            rhs_mols = utils.flatten_pattern(self.lhs)
+        else:
+            lhs_mols = utils.flatten_pattern(self.lhs)
+            rhs_mols = utils.flatten_pattern(self.rhs)
+        mmap = self._build_mol_map(lhs_mols, rhs_mols)
         for l, r in mmap.iteritems():
             if r is None:
                 action_list.append(Degradation(l))

@@ -1,5 +1,4 @@
 from .context import objects
-from .context import readers
 
 
 class TestAction:
@@ -67,26 +66,26 @@ class TestAction:
     def test_build_mol_map(self):
         r0_lhs_mols = [x for cp in self.rule0.lhs for x in cp.molecule_list]
         r0_rhs_mols = [x for cp in self.rule0.rhs for x in cp.molecule_list]
-        mmap0 = readers.BNGLReader()._build_mol_map(r0_lhs_mols, r0_rhs_mols)
+        mmap0 = objects.Rule._build_mol_map(r0_lhs_mols, r0_rhs_mols)
         assert mmap0[0] is None
         assert len(mmap0.keys()) == 1
 
         r1_lhs_mols = [x for cp in self.rule1.lhs for x in cp.molecule_list]
         r1_rhs_mols = [x for cp in self.rule1.rhs for x in cp.molecule_list]
-        mmap1 = readers.BNGLReader()._build_mol_map(r1_lhs_mols, r1_rhs_mols)
+        mmap1 = objects.Rule._build_mol_map(r1_lhs_mols, r1_rhs_mols)
         assert mmap1[0] == 0
         assert mmap1[1] == 1
         assert len(mmap1.keys()) == 2
 
         r2_lhs_mols = [x for cp in self.rule2.lhs for x in cp.molecule_list]
         r2_rhs_mols = [x for cp in self.rule2.rhs for x in cp.molecule_list]
-        mmap2 = readers.BNGLReader()._build_mol_map(r2_lhs_mols, r2_rhs_mols)
+        mmap2 = objects.Rule._build_mol_map(r2_lhs_mols, r2_rhs_mols)
         assert mmap2[0] == 1
         assert mmap2[1] is None
         assert mmap2[2] == 0
 
     def test_action_parse(self):
-        a0 = readers.BNGLReader()._build_actions(self.rule0.lhs, self.rule0.rhs)
+        a0 = self.rule0._build_actions()
         assert len(a0) == 2
         assert isinstance(a0[1], objects.Degradation)
         assert isinstance(a0[0], objects.Synthesis)
@@ -94,17 +93,17 @@ class TestAction:
         assert isinstance(a0[0].cpattern, objects.CPattern)
         assert len(a0[0].cpattern.molecule_list) == 1
 
-        a1 = readers.BNGLReader()._build_actions(self.rule1.lhs, self.rule1.rhs)
+        a1 = self.rule1._build_actions()
         assert len(a1) == 2
         assert isinstance(a1[0], objects.BondChange)
         assert isinstance(a1[1], objects.BondChange)
 
-        a2 = readers.BNGLReader()._build_actions(self.rule1.rhs, self.rule1.lhs)
+        a2 = self.rule1._build_actions(True)
         assert len(a2) == 2
         assert isinstance(a2[0], objects.BondChange)
         assert isinstance(a2[1], objects.BondChange)
 
-        a3 = readers.BNGLReader()._build_actions(self.rule3.lhs, self.rule3.rhs)
+        a3 = self.rule3._build_actions()
         assert len(a3) == 4
 
     def test_synth_action_apply(self):
@@ -163,7 +162,7 @@ class TestAction:
         assert rhs2[0][1][0].sites[0].bond is None
 
     def test_deg_unbinding_parse_apply(self):
-        acts = readers.BNGLReader._build_actions(self.rule4.lhs, self.rule4.rhs)
+        acts = self.rule4._build_actions()
         assert len(acts) == 2
         rhs = acts.apply(self.rule4.lhs)
         assert len(rhs) == 1
@@ -171,7 +170,7 @@ class TestAction:
         assert rhs[0][0].sites[0].bond is None
 
     def test_full_application(self):
-        acts = readers.BNGLReader._build_actions(self.rule4.lhs, self.rule4.rhs)
+        acts = self.rule4._build_actions()
         assert len(acts) == 2
         rhs = acts.apply(self.rule4.lhs)
         assert len(rhs) == 1
