@@ -908,10 +908,9 @@ class BNGLReader(Reader):
                 diff = smap[k]
                 if diff[0] is not None:
                     action_list.append(StateChange(l, k, diff[0], mdef))
-                if diff[1] is not None and diff[1] != 0:
-                    action_list.append(Binding(l, k, diff[1], mdef))
-                elif diff[1] is not None:
-                    action_list.append(Unbinding(l, k, diff[1], mdef))
+                if diff[1] is not None:
+                    bond = Bond(diff[1]) if diff[1] >= 0 else None
+                    action_list.append(BondChange(l, k, bond, mdef))
 
         mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
         unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs

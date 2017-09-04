@@ -505,7 +505,7 @@ class Site:
         if self.state != other.state:
             diff_tuple[0] = other.state
         if self.bond != other.bond:
-            diff_tuple[1] = other.bond if other.bond is not None else 0
+            diff_tuple[1] = other.bond if other.bond is not None else -1
         return tuple(diff_tuple)
 
     def __eq__(self, other):
@@ -1563,36 +1563,37 @@ class Action(object):
         NotImplementedError("apply is not implemented")
 
 
-class Binding(Action):
-    """Action subclass that defines bond formation"""
-    def __init__(self, i, s, b, md):
-        super(Binding, self).__init__()
+class BondChange(Action):
+    """Action subclass that defines an bond action on a site"""
+    def __init__(self, i, s, nb, md):
+        super(BondChange, self).__init__()
         self.mol_index = i
         self.site = s
-        self.new_bond = b
+        self.new_bond = nb
         self.molecule_def = md
 
     def apply(self, cps):
         cps_copy = deepcopy(cps)
         mols = utils.flatten_pattern(cps_copy)
-        mols[self.mol_index].sites[self.site_index].bond = self.new_bond
-        return [CPattern(x) for x in utils.get_connected_components(mols)]
+        applications = []
+        for s in mols[self.mol_index].sites:
+            try:
+                bname = self.molecule_def.site_name_map[s.name]
+            except KeyError:
+                bname = s.name
+            tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
+            if tmp_site == self.site:
+                mols_copy = deepcopy(mols)
+                mols_copy[self.mol_index].sites[s.index].bond = self.new_bond
+                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                applications.append(new_cps)
+        return applications
 
+    def __str__(self):
+        return "BondChange(%s, %s, %s)" % (self.mol_index, self.site, self.new_bond)
 
-class Unbinding(Action):
-    """Action subclass that defines bond dissociation"""
-    def __init__(self, i, s, b, md):
-        super(Unbinding, self).__init__()
-        self.mol_index = i
-        self.site = s
-        self.new_bond = b
-        self.molecule_def = md
-
-    def apply(self, cps):
-        cps_copy = deepcopy(cps)
-        mols = utils.flatten_pattern(cps_copy)
-        mols[self.mol_index].sites[self.site_index].bond = self.new_bond
-        return [CPattern(x) for x in utils.get_connected_components(mols)]
+    def __repr__(self):
+        return str(self)
 
 
 class StateChange(Action):
@@ -1619,6 +1620,12 @@ class StateChange(Action):
 
         return applications
 
+    def __str__(self):
+        return "StateChange(%s, %s, %s)" % (self.mol_index, self.site, self.new_state)
+
+    def __repr__(self):
+        return str(self)
+
 
 class Degradation(Action):
     """Action subclass that defines the removal of a Molecule instance"""
@@ -1636,10 +1643,17 @@ class Degradation(Action):
             return True
 
     def apply(self, cps):
+        print cps
         cps_copy = deepcopy(cps)
         mols = utils.flatten_pattern(cps_copy)
         mols.pop(self.mol_index)
         return [CPattern(x) for x in utils.get_connected_components(mols)]
+
+    def __str__(self):
+        return "Degradation(%s)" % self.mol_index
+
+    def __repr__(self):
+        return str(self)
 
 
 class Synthesis(Action):
@@ -1652,6 +1666,12 @@ class Synthesis(Action):
         cps_copy = deepcopy(cps)
         cps_copy.append(self.cpattern)
         return cps_copy
+
+    def __str__(self):
+        return "Synthesis(%s)" % self.cpattern
+
+    def __repr__(self):
+        return str(self)
 
 
 class MultiAction(object):
@@ -1669,12 +1689,14 @@ class MultiAction(object):
                 ordered_action_list.insert(0, action)
         return ordered_action_list
 
-    # Make sure to order actions with Degradation instances last
     def apply(self, cps):
-        tmp_patt = deepcopy(cps)
+        cpss = [deepcopy(cps)]  # list of list of CPattern instances
         for action in self.action_list:
-            tmp_patt = action.apply(tmp_patt)
-        return tmp_patt
+            cpsss = []
+            for cpsi in cpss:
+                cpsss.append(action.apply(cpsi))  # 3-D list
+            cpss = [j for i in cpsss for j in i]
+        return cpss
 
     def __len__(self):
         return len(self.action_list)
@@ -1684,6 +1706,9 @@ class MultiAction(object):
             return self.action_list[item]
         else:
             raise TypeError
+
+    def __str__(self):
+        return "MultiAction(\n\t%s\n)" % '\n\t'.join([str(action) for action in self.action_list])
 
 
 def is_number(n):
