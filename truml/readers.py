@@ -890,6 +890,51 @@ class BNGLReader(Reader):
                 return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, label=label, delmol=delmol)
 
     @classmethod
+    def _build_actions(cls, lhs, rhs):
+        """Builds a list of Action instances corresponding to the differences between the reactant
+        list of Molecule instances and the product list of Molecule instances"""
+        action_list = []
+        lhs_mols = utils.flatten_pattern(lhs)
+        rhs_mols = utils.flatten_pattern(rhs)
+        mmap = cls._build_mol_map(lhs_mols, rhs_mols)
+        for l, r in mmap.iteritems():
+            if r is None:
+                action_list.append(Degradation(l))
+                continue
+
+            smap = lhs_mols[l].interface_diff_map(rhs_mols[r])
+            mdef = lhs_mols[l].mdef
+            for k in smap.keys():
+                diff = smap[k]
+                if diff[0] is not None:
+                    action_list.append(StateChange(l, k, diff[0], mdef))
+                if diff[1] is not None:
+                    bond = Bond(diff[1]) if diff[1] >= 0 else None
+                    action_list.append(BondChange(l, k, bond, mdef))
+
+        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
+        unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
+        if len(unmapped_rhs_idcs) > 0:
+            conn_cmps = utils.get_connected_components([rhs_mols[i] for i in unmapped_rhs_idcs])
+            for c in conn_cmps:
+                action_list.append(Synthesis(CPattern(c)))
+
+        return MultiAction(action_list)
+
+    @staticmethod
+    def _build_mol_map(lhs, rhs):
+        """Builds a map between Molecule instances on the LHS and RHS of a rule"""
+        mmap = dict()
+        used_rhs_mol_idcs = []
+        for i, lm in enumerate(lhs):
+            mmap[i] = None
+            for j, rm in enumerate(rhs):
+                if lm.has_same_interface(rm) and j not in used_rhs_mol_idcs:
+                    mmap[i] = j
+                    used_rhs_mol_idcs.append(j)
+        return mmap
+
+    @classmethod
     def parse_rate(cls, rs, is_intra=False):
         """
         Function for parsing rates

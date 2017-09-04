@@ -70,3 +70,7 @@ def get_connected_components(mols):
                 cur_comp.append(mols[i])
         cmps.append(cur_comp)
     return cmps
+
+
+def flatten_pattern(cps):
+    return [m for cp in cps for m in cp.molecule_list]

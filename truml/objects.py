@@ -1,5 +1,6 @@
 """truml.objects: module containing classes representing the semantics of rule-based modeling languages"""
 
+
 import re
 import itertools as it
 import logging
@@ -7,6 +8,8 @@ import networkx as nx
 import networkx.algorithms.isomorphism as iso
 import rbexceptions
 import utils
+
+from copy import deepcopy
 
 
 class SiteDef:
@@ -320,6 +323,56 @@ class Molecule:
                         return True
             return False
 
+    def has_same_interface(self, other):
+        if isinstance(other, self.__class__):
+            return self.name == other.name and \
+                   sorted([s.name for s in self.sites]) == sorted([s.name for s in other.sites])
+        else:
+            return False
+
+    @staticmethod
+    def _diff_quant(d):
+        if d == (None, None):
+            return 0
+        elif d[0] is None:
+            return 1
+        elif d[1] is None:
+            return 2
+        else:
+            return 3
+
+    def interface_diff_map(self, other):
+        imap = dict()
+        if len(self.sites) != len(other.sites):
+            return None
+
+        used_other_idcs = []
+        for s in self.sites:
+            imap[s] = None
+            possible = []
+            # Map to most similar site
+            for j, t in enumerate(other.sites):
+                diff = s.diff(t)
+                # Check to see if there is any difference between sites s and t
+                if t.name == s.name and j not in used_other_idcs and diff == (None, None):
+                    used_other_idcs.append(j)
+                    imap[s] = (None, None)
+                    possible = []
+                    break
+                elif t.name == s.name and j not in used_other_idcs:
+                    possible.append((j, self._diff_quant(diff)))
+            if imap[s] is None and len(possible) == 0:
+                return None  # there is no match for site s in other.sites
+            elif imap[s] is None:
+                sd = sorted(possible, key=lambda l: l[1])
+                idx = sd[0][0]
+                imap[s] = s.diff(other.sites[idx])
+                used_other_idcs.append(idx)
+        if len(used_other_idcs) < len(other.sites):
+            return None  # there are unmatched sites in other
+        else:
+            return {k: v for k, v in imap.iteritems() if v != (None, None)}
+
     def _write(self, bngl=True):
         """
         Writes the Molecule in Kappa or BNGL syntax
@@ -432,6 +485,28 @@ class Site:
     def write_as_kappa(self):
         """Write Site as Kappa string"""
         return self._write(True)
+
+    def diff(self, other):
+        """
+        Provides a 2-tuple composed of a 3-tuple and a 4-tuple
+
+        Parameters
+        ----------
+        other : Site
+            A product site in a corresponding Molecule
+
+        Returns
+        -------
+        tuple
+            Contains 2 elements containing information about site state and site bond, respectively.
+            The first element is the other site state, and the second element is the other site Bond.
+        """
+        diff_tuple = [None, None]
+        if self.state != other.state:
+            diff_tuple[0] = other.state
+        if self.bond != other.bond:
+            diff_tuple[1] = other.bond if other.bond is not None else -1
+        return tuple(diff_tuple)
 
     def __eq__(self, other):
         """
@@ -1024,6 +1099,24 @@ class Rate:
         return "Rate: %s" % self.rate
 
 
+class AltRule:
+    """Defines a rule in terms of a list of CPattern instances (reactants) and a list of Action
+    instances (reactions)"""
+    def __init__(self, lhs, actions, rate, rev=False, rev_rate=None, label=None, delmol=False):
+        self.lhs = lhs
+        self.actions = actions
+        self.rate = rate
+        self.rev = rev
+        self.arrow = '->' if not rev else '<->'
+        self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
+        self.label = label
+        self.delmol = delmol
+
+    def rhs(self):
+        for action in self.actions:
+            action.apply(self.lhs)
+
+
 class Rule:
     """Defines a rule"""
 
@@ -1452,6 +1545,169 @@ class Model:
         """
         logging.debug("Added a parameter to the model: %s" % param)
         self.parameters.append(param)
+
+
+# when reading from BNGL files with identical site names, this schema will have Action objects
+# that contain site names corresponding to the BNGL format.  Thus, the molecule definition
+# needs to be included to detect and rewrite patterns that have converted to Kappa-compatible
+# site names
+class Action(object):
+    """
+    Abstract class that defines an action that when applied to a CPattern or list of CPattern instances,
+    results in a distinct CPattern or list of CPatterns
+    """
+    def __init__(self):
+        pass
+
+    def apply(self, cps):
+        NotImplementedError("apply is not implemented")
+
+
+class BondChange(Action):
+    """Action subclass that defines an bond action on a site"""
+    def __init__(self, i, s, nb, md):
+        super(BondChange, self).__init__()
+        self.mol_index = i
+        self.site = s
+        self.new_bond = nb
+        self.molecule_def = md
+
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
+        applications = []
+        for s in mols[self.mol_index].sites:
+            try:
+                bname = self.molecule_def.site_name_map[s.name]
+            except KeyError:
+                bname = s.name
+            tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
+            if tmp_site == self.site:
+                mols_copy = deepcopy(mols)
+                mols_copy[self.mol_index].sites[s.index].bond = self.new_bond
+                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                applications.append(new_cps)
+        return applications
+
+    def __str__(self):
+        return "BondChange(%s, %s, %s)" % (self.mol_index, self.site, self.new_bond)
+
+    def __repr__(self):
+        return str(self)
+
+
+class StateChange(Action):
+    """Action subclass that defines a change in a Site instance's state"""
+    def __init__(self, i, s, ns, md):
+        super(StateChange, self).__init__()
+        self.mol_index = i
+        self.site = s
+        self.new_state = ns
+        self.molecule_def = md
+
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
+        applications = []
+        for s in mols[self.mol_index].sites:
+            bname = self.molecule_def.site_name_map[s.name]
+            tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
+            if tmp_site == self.site:
+                mols_copy = deepcopy(mols)
+                mols_copy[self.mol_index].sites[s.index].state = self.new_state
+                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                applications.append(new_cps)
+
+        return applications
+
+    def __str__(self):
+        return "StateChange(%s, %s, %s)" % (self.mol_index, self.site, self.new_state)
+
+    def __repr__(self):
+        return str(self)
+
+
+class Degradation(Action):
+    """Action subclass that defines the removal of a Molecule instance"""
+    def __init__(self, i):
+        super(Degradation, self).__init__()
+        self.mol_index = i
+
+    @staticmethod
+    def _filter_explicit_bonds(bond):
+        if bond is None:
+            return False
+        elif bond.num < 0:
+            return False
+        else:
+            return True
+
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
+        mols.pop(self.mol_index)
+        return [CPattern(x) for x in utils.get_connected_components(mols)]
+
+    def __str__(self):
+        return "Degradation(%s)" % self.mol_index
+
+    def __repr__(self):
+        return str(self)
+
+
+class Synthesis(Action):
+    """Action subclass that defines the addition of a CPattern instance"""
+    def __init__(self, cp):
+        super(Synthesis, self).__init__()
+        self.cpattern = cp
+
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        cps_copy.append(self.cpattern)
+        return cps_copy
+
+    def __str__(self):
+        return "Synthesis(%s)" % self.cpattern
+
+    def __repr__(self):
+        return str(self)
+
+
+class MultiAction(object):
+    """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
+    def __init__(self, ls):
+        self.action_list = self._order_actions(ls)
+
+    @staticmethod
+    def _order_actions(ls):
+        ordered_action_list = []
+        for action in ls:
+            if isinstance(action, Degradation):
+                ordered_action_list.append(action)
+            else:
+                ordered_action_list.insert(0, action)
+        return ordered_action_list
+
+    def apply(self, cps):
+        cpss = [deepcopy(cps)]  # list of list of CPattern instances
+        for action in self.action_list:
+            cpsss = []
+            for cpsi in cpss:
+                cpsss.append(action.apply(cpsi))  # 3-D list
+            cpss = [j for i in cpsss for j in i]
+        return cpss
+
+    def __len__(self):
+        return len(self.action_list)
+
+    def __getitem__(self, item):
+        if isinstance(item, (int, slice)):
+            return self.action_list[item]
+        else:
+            raise TypeError
+
+    def __str__(self):
+        return "MultiAction(\n\t%s\n)" % '\n\t'.join([str(action) for action in self.action_list])
 
 
 def is_number(n):
