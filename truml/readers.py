@@ -380,11 +380,16 @@ class KappaReader(Reader):
         # variables
         variable = pp.QuotedString("'")
 
-        mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ pp.CharsNotIn(")(")) + rpar)
-
+        bondvalue = pp.Word(pp.nums) | pp.Literal("_")
+        kbond = pp.Literal("?") | pp.Combine(pp.Literal("!") + bondvalue)
+        kstate = pp.Word("~", pp.alphanums)
+        site = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + pp.Optional(kbond) + pp.Optional(kstate))
+        siteList = pp.delimitedList(site, delim=',', combine=True)
+        mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ siteList) + rpar)
+        molList = pp.delimitedList(mol, delim=',', combine=True)
         # patterns
         pattern = pp.Combine(
-            pp.Literal("|") + mol + pp.Optional(pp.Literal(",") + pp.ZeroOrMore(mol)) + pp.Literal("|"))
+            pp.Literal("|") + molList + pp.Literal("|"))
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")

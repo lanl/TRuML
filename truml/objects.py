@@ -1673,9 +1673,10 @@ class Synthesis(Action):
         return str(self)
 
 
-class MultiAction(object):
+class MultiAction(Action):
     """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
     def __init__(self, ls):
+        super(MultiAction, self).__init__()
         self.action_list = self._order_actions(ls)
 
     @staticmethod

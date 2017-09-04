@@ -30,12 +30,10 @@ class TestConvert:
         assert len(self.bm1.rules) == 19
 
     def test_bmodel0_convert(self):
-        mdefs = self.bm0.molecules
         krules = [r for rule in self.bm0.rules for r in rule.convert()]
         assert len(krules) == 1
 
     def test_bmodel1_convert(self):
-        mdefs = self.bm1.molecules
         krules = [r for rule in self.bm1.rules for r in rule.convert()]
         print '\n'.join([x.write_as_kappa() for x in krules])
         assert len(krules) == 29
