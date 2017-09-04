@@ -50,7 +50,7 @@ class TestAction:
         cls.rule1 = objects.Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
         cls.rule2 = objects.Rule([cls.p4, cls.p2, cls.p3], [cls.p3, cls.p4], cls.rate0)
         cls.rule3 = objects.Rule([cls.p3, cls.p5, cls.p6], [cls.p7, cls.p4], cls.rate0)
-        cls.rule4 = objects.Rule([cls.p7], [cls.p6], cls.rate0)
+        cls.rule4 = objects.Rule([cls.p7], [cls.p6], cls.rate0, delmol=True)
 
     @classmethod
     def teardown_class(cls):
@@ -59,10 +59,10 @@ class TestAction:
     def test_interface_map(self):
         assert self.p2[0].interface_diff_map(self.p3[0]) == dict()
         idm0 = self.m7.interface_diff_map(self.m9)
-        print idm0, self.m7, self.m9
         assert len(idm0) == 1
-        assert 1 in idm0.keys()
-        assert idm0[1] == (None, ('a', None, objects.Bond(1), True))
+        s0 = objects.Site('a', 1)
+        assert s0 in idm0.keys()
+        assert idm0[s0] == (None, objects.Bond(1))
 
     def test_build_mol_map(self):
         r0_lhs_mols = [x for cp in self.rule0.lhs for x in cp.molecule_list]
@@ -96,13 +96,13 @@ class TestAction:
 
         a1 = readers.BNGLReader()._build_actions(self.rule1.lhs, self.rule1.rhs)
         assert len(a1) == 2
-        assert isinstance(a1[0], objects.Binding)
-        assert isinstance(a1[1], objects.Binding)
+        assert isinstance(a1[0], objects.BondChange)
+        assert isinstance(a1[1], objects.BondChange)
 
         a2 = readers.BNGLReader()._build_actions(self.rule1.rhs, self.rule1.lhs)
         assert len(a2) == 2
-        assert isinstance(a2[0], objects.Unbinding)
-        assert isinstance(a2[1], objects.Unbinding)
+        assert isinstance(a2[0], objects.BondChange)
+        assert isinstance(a2[1], objects.BondChange)
 
         a3 = readers.BNGLReader()._build_actions(self.rule3.lhs, self.rule3.rhs)
         assert len(a3) == 4
@@ -117,13 +117,12 @@ class TestAction:
         conv_lhs = []
         for l in lhs:
             conv_lhs.append(l.convert())
-        print conv_lhs
         sc = objects.StateChange(0, self.s4, 'state2', self.m1.mdef)
         rhss = [sc.apply(c) for c in conv_lhs]
         assert len(rhss) == len(conv_lhs)
         for rhs in rhss:
             assert len(rhs) == 1
-        assert rhss[0][0][0][0].sites[0].state == 'state2'
+            assert rhs[0][0][0].sites[0].state == 'state2'
 
     def test_degradation_action_apply(self):
         d = objects.Degradation(0)
@@ -132,40 +131,41 @@ class TestAction:
         assert rhs[0][0].name == 'B'
 
     def test_binding_action_apply(self):
-        b0 = objects.Binding(0, 1, ('a', None, objects.Bond(1)))
-        b1 = objects.Binding(1, 0, ('b', None, objects.Bond(1)))
-        rhs0 = b0.apply(b1.apply(self.rule1.lhs))
+        b0 = objects.BondChange(0, objects.Site('a', 1), objects.Bond(1), self.md3)
+        b1 = objects.BondChange(1, objects.Site('b', 0), objects.Bond(1), self.md4)
+        rhs0 = b0.apply(b1.apply(self.rule1.lhs)[0])
         assert len(rhs0) == 1
-        assert rhs0[0][0].sites[1].bond == objects.Bond(1)
-        assert rhs0[0][1].sites[0].bond == objects.Bond(1)
-        rhs1 = b1.apply(b0.apply(self.rule1.lhs))
+        assert rhs0[0][0][0].sites[1].bond == objects.Bond(1)
+        assert rhs0[0][0][1].sites[0].bond == objects.Bond(1)
+        rhs1 = b1.apply(b0.apply(self.rule1.lhs)[0])
         assert len(rhs1) == 1
-        assert rhs1[0][0].sites[1].bond == objects.Bond(1)
-        assert rhs1[0][1].sites[0].bond == objects.Bond(1)
+        assert rhs1[0][0][0].sites[1].bond == objects.Bond(1)
+        assert rhs1[0][0][1].sites[0].bond == objects.Bond(1)
 
     def test_unbinding_action_apply(self):
-        u0 = objects.Unbinding(0, 1, ('a', objects.Bond(1), None))
-        u1 = objects.Unbinding(1, 0, ('b', objects.Bond(1), None))
-        rhs0 = u0.apply(u1.apply(self.rule1.rhs))
-        assert len(rhs0) == 2
-        assert rhs0[0][0].sites[1].bond is None
-        assert rhs0[1][0].sites[0].bond is None
-        rhs1 = u1.apply(u0.apply(self.rule1.rhs))
-        assert len(rhs1) == 2
-        assert rhs1[0][0].sites[1].bond is None
-        assert rhs1[1][0].sites[0].bond is None
+        u0 = objects.BondChange(0, objects.Site('a', 1, b=objects.Bond(1)), None, self.md3)
+        u1 = objects.BondChange(1, objects.Site('b', 0, b=objects.Bond(1)), None, self.md4)
+        rhs0 = u0.apply(u1.apply(self.rule1.rhs)[0])
+        assert len(rhs0) == 1
+        assert len(rhs0[0]) == 2
+        assert rhs0[0][0][0].sites[1].bond is None
+        assert rhs0[0][1][0].sites[0].bond is None
+        rhs1 = u1.apply(u0.apply(self.rule1.rhs)[0])
+        assert len(rhs1) == 1
+        assert len(rhs1[0]) == 2
+        assert rhs1[0][0][0].sites[1].bond is None
+        assert rhs1[0][1][0].sites[0].bond is None
         m = objects.MultiAction([u0, u1])
         rhs2 = m.apply(self.rule1.rhs)
-        assert len(rhs2) == 2
-        assert rhs2[0][0].sites[1].bond is None
-        assert rhs2[1][0].sites[0].bond is None
+        assert len(rhs2) == 1
+        assert len(rhs2[0]) == 2
+        assert rhs2[0][0][0].sites[1].bond is None
+        assert rhs2[0][1][0].sites[0].bond is None
 
     def test_deg_unbinding_parse_apply(self):
         acts = readers.BNGLReader._build_actions(self.rule4.lhs, self.rule4.rhs)
         assert len(acts) == 2
-        rhs = self.rule4.lhs
-        for act in acts:
-            rhs = act.apply(rhs)
+        rhs = acts.apply(self.rule4.lhs)
         assert len(rhs) == 1
         assert len(rhs[0].molecule_list) == 1
         assert rhs[0][0].sites[0].bond is None

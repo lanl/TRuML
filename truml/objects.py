@@ -1643,7 +1643,6 @@ class Degradation(Action):
             return True
 
     def apply(self, cps):
-        print cps
         cps_copy = deepcopy(cps)
         mols = utils.flatten_pattern(cps_copy)
         mols.pop(self.mol_index)
