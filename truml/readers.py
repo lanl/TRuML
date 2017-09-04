@@ -383,7 +383,7 @@ class KappaReader(Reader):
         bondvalue = pp.Word(pp.nums) | pp.Literal("_")
         kbond = pp.Literal("?") | pp.Combine(pp.Literal("!") + bondvalue)
         kstate = pp.Word("~", pp.alphanums)
-        site = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + pp.Optional(kbond) + pp.Optional(kstate))
+        site = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + pp.Optional(kstate) + pp.Optional(kbond))
         siteList = pp.delimitedList(site, delim=',', combine=True)
         mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ siteList) + rpar)
         molList = pp.delimitedList(mol, delim=',', combine=True)
