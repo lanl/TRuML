@@ -61,7 +61,7 @@ class TestAction:
         assert len(idm0) == 1
         s0 = objects.Site('a', 1)
         assert s0 in idm0.keys()
-        assert idm0[s0] == (None, objects.Bond(1))
+        assert idm0[s0] == (-1, objects.Bond(1))
 
     def test_build_mol_map(self):
         r0_lhs_mols = [x for cp in self.rule0.lhs for x in cp.molecule_list]
@@ -92,12 +92,10 @@ class TestAction:
         assert a0[1].mol_index == 0
         assert isinstance(a0[0].cpattern, objects.CPattern)
         assert len(a0[0].cpattern.molecule_list) == 1
-
         a1 = self.rule1._build_actions()
         assert len(a1) == 2
         assert isinstance(a1[0], objects.BondChange)
         assert isinstance(a1[1], objects.BondChange)
-
         a2 = self.rule1._build_actions(True)
         assert len(a2) == 2
         assert isinstance(a2[0], objects.BondChange)

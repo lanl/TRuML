@@ -332,11 +332,11 @@ class Molecule:
 
     @staticmethod
     def _diff_quant(d):
-        if d == (None, None):
+        if d == (-1, -1):
             return 0
-        elif d[0] is None:
+        elif d[0] == -1:
             return 1
-        elif d[1] is None:
+        elif d[1] == -1:
             return 2
         else:
             return 3
@@ -354,9 +354,9 @@ class Molecule:
             for j, t in enumerate(other.sites):
                 diff = s.diff(t)
                 # Check to see if there is any difference between sites s and t
-                if t.name == s.name and j not in used_other_idcs and diff == (None, None):
+                if t.name == s.name and j not in used_other_idcs and diff == (-1, -1):
                     used_other_idcs.append(j)
-                    imap[s] = (None, None)
+                    imap[s] = (-1, -1)
                     possible = []
                     break
                 elif t.name == s.name and j not in used_other_idcs:
@@ -371,7 +371,7 @@ class Molecule:
         if len(used_other_idcs) < len(other.sites):
             return None  # there are unmatched sites in other
         else:
-            return {k: v for k, v in imap.iteritems() if v != (None, None)}
+            return {k: v for k, v in imap.iteritems() if v != (-1, -1)}
 
     def _write(self, bngl=True):
         """
@@ -488,7 +488,7 @@ class Site:
 
     def diff(self, other):
         """
-        Provides a 2-tuple composed of a 3-tuple and a 4-tuple
+        Provides a 2-tuple describing the difference in state and bond.  Not symmetric
 
         Parameters
         ----------
@@ -501,11 +501,11 @@ class Site:
             Contains 2 elements containing information about site state and site bond, respectively.
             The first element is the other site state, and the second element is the other site Bond.
         """
-        diff_tuple = [None, None]
+        diff_tuple = [-1, -1]
         if self.state != other.state:
             diff_tuple[0] = other.state
         if self.bond != other.bond:
-            diff_tuple[1] = other.bond if other.bond is not None else -1
+            diff_tuple[1] = other.bond
         return tuple(diff_tuple)
 
     def __eq__(self, other):
@@ -1099,24 +1099,6 @@ class Rate:
         return "Rate: %s" % self.rate
 
 
-class AltRule:
-    """Defines a rule in terms of a list of CPattern instances (reactants) and a list of Action
-    instances (reactions)"""
-    def __init__(self, lhs, actions, rate, rev=False, rev_rate=None, label=None, delmol=False):
-        self.lhs = lhs
-        self.actions = actions
-        self.rate = rate
-        self.rev = rev
-        self.arrow = '->' if not rev else '<->'
-        self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
-        self.label = label
-        self.delmol = delmol
-
-    def rhs(self):
-        for action in self.actions:
-            action.apply(self.lhs)
-
-
 class Rule:
     """Defines a rule"""
 
@@ -1170,33 +1152,19 @@ class Rule:
         list
             List of Rule instances
         """
-        k_lhs, k_rhs = [], []
+        logging.debug("Attempting to convert rule: %s" % self.write_as_bngl())
+        rs = []
+        k_lhs = []
         for cp in self.lhs:
             k_lhs.append(cp.convert())  # list of lists of CPatterns
-        for cp in self.rhs:
-            k_rhs.append(cp.convert())
-        all_lhs = list(it.product(*k_lhs))  # list of tuples of CPatterns
-        all_rhs = list(it.product(*k_rhs))
 
-        rs = []
-        if len(all_lhs) == len(all_rhs):
-            z = zip(all_lhs, all_rhs)  # order in lhs and rhs conversions are preserved
-            for l, r in z:
-                rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
-        elif len(all_rhs) % len(all_lhs) == 0:
-            rs_per_l = len(all_rhs) / len(all_lhs)
-            for i, l in enumerate(all_lhs):
-                for j in range(rs_per_l * i, rs_per_l * i + rs_per_l):
-                    rs.append(Rule(l, all_rhs[j], self.rate, self.rev, self.rev_rate, self.label, self.delmol))
-
-            assert len(rs) == len(all_rhs)
-        elif len(all_lhs) % len(all_rhs) == 0:
-            ls_per_r = len(all_lhs) / len(all_rhs)
-            for i, r in enumerate(all_rhs):
-                for j in range(ls_per_r * i, ls_per_r * i + ls_per_r):
-                    rs.append(Rule(all_lhs[i], r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
-        else:
-            logging.critical("Rule conversion error.  Please review rule '%s'" % self.write_as_bngl())
+        actions = self._build_actions()
+        for conv_lhs in it.product(*k_lhs):
+            conv_lhs = list(conv_lhs)
+            rhss = actions.apply(conv_lhs)
+            for conv_rhs in rhss:
+                rs.append(Rule(conv_lhs, conv_rhs, self.rate, rev=self.rev, rev_rate=self.rev_rate, label=self.label,
+                               delmol=self.delmol))
 
         un_rules = [rs[0]]
         for rule in rs[1:]:
@@ -1207,6 +1175,8 @@ class Rule:
                     break
             if not is_isomorphic:
                 un_rules.append(rule)
+
+        logging.debug("Converted into %s Kappa rule(s):\n\t%s" % (len(un_rules), '\n\t'.join([x.write_as_kappa() for x in un_rules])))
 
         return un_rules
 
@@ -1247,11 +1217,10 @@ class Rule:
             mdef = lhs_mols[l].mdef
             for k in smap.keys():
                 diff = smap[k]
-                if diff[0] is not None:
+                if diff[0] != -1:
                     action_list.append(StateChange(l, k, diff[0], mdef))
-                if diff[1] is not None:
-                    bond = Bond(diff[1]) if diff[1] >= 0 else None
-                    action_list.append(BondChange(l, k, bond, mdef))
+                if diff[1] != -1:
+                    action_list.append(BondChange(l, k, diff[1], mdef))
 
         mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
         unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
@@ -1273,6 +1242,7 @@ class Rule:
                 if lm.has_same_interface(rm) and j not in used_rhs_mol_idcs:
                     mmap[i] = j
                     used_rhs_mol_idcs.append(j)
+                    break
         return mmap
 
     def write_as_bngl(self, namespace=dict(), dot=False):
@@ -1756,7 +1726,10 @@ class MultiAction(Action):
             raise TypeError
 
     def __str__(self):
-        return "MultiAction(\n\t%s\n)" % '\n\t'.join([str(action) for action in self.action_list])
+        return "MultiAction\n\t%s" % '\n\t'.join([str(action) for action in self.action_list])
+
+    def __repr__(self):
+        return str(self)
 
 
 def is_number(n):

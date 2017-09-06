@@ -61,60 +61,60 @@ begin observables
 end observables
 
 begin reaction rules
-    # Ligand-receptor binding
+    # Ligand-receptor binding (converts to 2 rules)
     R1: Rec(a) + Lig(l,l) <-> Rec(a!1).Lig(l!1,l)  kp1, km1
 
-    # Receptor-aggregation
+    # Receptor-aggregation (converts to 2 rules)
     R2: Rec(a) + Lig(l,l!+) <-> Rec(a!2).Lig(l!2,l!+)  kp2, km2
 
-    # Constitutive Lyn-receptor binding
+    # Constitutive Lyn-receptor binding (converts to 1 rule)
     R3: Rec(b~Y) + Lyn(U,SH2) <-> Rec(b~Y!1).Lyn(U!1,SH2)  kpL, kmL
 
-    # Transphosphorylation of beta by constitutive Lyn
+    # Transphosphorylation of beta by constitutive Lyn (converts to 2 rules)
     R4: Lig(l!1,l!2).Lyn(U!3,SH2).Rec(a!2,b~Y!3).Rec(a!1,b~Y) -> Lig(l!1,l!2).Lyn(U!3,SH2).Rec(a!2,b~Y!3).Rec(a!1,b~pY)  pLb
 
-    # Transphosphorylation of gamma by constitutive Lyn
+    # Transphosphorylation of gamma by constitutive Lyn (converts to 2 rules)
     R5: Lig(l!1,l!2).Lyn(U!3,SH2).Rec(a!2,b~Y!3).Rec(a!1,g~Y) -> Lig(l!1,l!2).Lyn(U!3,SH2).Rec(a!2,b~Y!3).Rec(a!1,g~pY)  pLg
 
-    # Lyn-receptor binding through SH2 domain
+    # Lyn-receptor binding through SH2 domain (converts to 1 rule)
     R6: Rec(b~pY) + Lyn(U,SH2) <-> Rec(b~pY!1).Lyn(U,SH2!1)  kpLs, kmLs
 
-    # Transphosphorylation of beta by SH2-bound Lyn
+    # Transphosphorylation of beta by SH2-bound Lyn (converts to 2 rules)
     R7: Lig(l!1,l!2).Lyn(U,SH2!3).Rec(a!2,b~pY!3).Rec(a!1,b~Y) -> Lig(l!1,l!2).Lyn(U,SH2!3).Rec(a!2,b~pY!3).Rec(a!1,b~pY)  pLbs
 
-    # Transphosphorylation of gamma by SH2-bound Lyn
+    # Transphosphorylation of gamma by SH2-bound Lyn (converts to 2 rules)
     R8: Lig(l!1,l!2).Lyn(U,SH2!3).Rec(a!2,b~pY!3).Rec(a!1,g~Y) -> Lig(l!1,l!2).Lyn(U,SH2!3).Rec(a!2,b~pY!3).Rec(a!1,g~pY)  pLgs
 
-    # Syk-receptor binding through tSH2 domain
+    # Syk-receptor binding through tSH2 domain (converts to 1 rule)
     R9: Rec(g~pY) + Syk(tSH2) <-> Rec(g~pY!1).Syk(tSH2!1)  kpS, kmS
 
-    # Transphosphorylation of Syk by constitutive Lyn
+    # Transphosphorylation of Syk by constitutive Lyn (converts to 2 rules)
     R10: Lig(l!1,l!2).Lyn(U!3,SH2).Rec(a!2,b~Y!3).Rec(a!1,g~pY!4).Syk(tSH2!4,l~Y) -> \
          Lig(l!1,l!2).Lyn(U!3,SH2).Rec(a!2,b~Y!3).Rec(a!1,g~pY!4).Syk(tSH2!4,l~pY)  pLS
 
-    # Transphosphorylation of Syk by SH2-bound Lyn
+    # Transphosphorylation of Syk by SH2-bound Lyn (converts to 2 rules)
     R11: Lig(l!1,l!2).Lyn(U,SH2!3).Rec(a!2,b~pY!3).Rec(a!1,g~pY!4).Syk(tSH2!4,l~Y) -> \
          Lig(l!1,l!2).Lyn(U,SH2!3).Rec(a!2,b~pY!3).Rec(a!1,g~pY!4).Syk(tSH2!4,l~pY)  pLSs
 
-    # Transphosphorylation of Syk by Syk not phosphorylated on aloop
+    # Transphosphorylation of Syk by Syk not phosphorylated on aloop (converts to 2 rules)
     R12: Lig(l!1,l!2).Syk(tSH2!3,a~Y).Rec(a!2,g~pY!3).Rec(a!1,g~pY!4).Syk(tSH2!4,a~Y) -> \
          Lig(l!1,l!2).Syk(tSH2!3,a~Y).Rec(a!2,g~pY!3).Rec(a!1,g~pY!4).Syk(tSH2!4,a~pY)  pSS
 
-    # Transphosphorylation of Syk by Syk phosphorylated on aloop
+    # Transphosphorylation of Syk by Syk phosphorylated on aloop (converts to 2 rules)
     R13: Lig(l!1,l!2).Syk(tSH2!3,a~pY).Rec(a!2,g~pY!3).Rec(a!1,g~pY!4).Syk(tSH2!4,a~Y) -> \
          Lig(l!1,l!2).Syk(tSH2!3,a~pY).Rec(a!2,g~pY!3).Rec(a!1,g~pY!4).Syk(tSH2!4,a~pY)  pSSs
 
-    # Dephosphorylation of Rec beta
+    # Dephosphorylation of Rec beta (converts to 1 rule)
     R14: Rec(b~pY) -> Rec(b~Y)  dm
 
-    # Dephosphorylation of Rec gamma
+    # Dephosphorylation of Rec gamma (converts to 1 rule)
     R15: Rec(g~pY) -> Rec(g~Y)  dm
 
-    # Dephosphorylation of Syk at membrane
+    # Dephosphorylation of Syk at membrane (converts to 1 rule each)
     R16: Syk(tSH2!+,l~pY) -> Syk(tSH2!+,l~Y)  dm
     R17: Syk(tSH2!+,a~pY) -> Syk(tSH2!+,a~Y)  dm
 
-    # Dephosphorylation of Syk in cytosol
+    # Dephosphorylation of Syk in cytosol (converts to 1 rule each)
     R18: Syk(tSH2,l~pY) -> Syk(tSH2,l~Y)  dc
     R19: Syk(tSH2,a~pY) -> Syk(tSH2,a~Y)  dc
 end reaction rules
