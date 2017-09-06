@@ -857,6 +857,25 @@ class CPattern:
         return "CPattern(" + '--'.join([str(x) for x in self.molecule_list]) + ")"
 
 
+class CPatternList:
+    """List of CPatterns"""
+
+    def __init__(self, cps):
+        self.cpatterns = cps
+
+    def __getitem__(self, item):
+        return self.cpatterns[item]
+
+    def append(self, cp):
+        self.cpatterns.append(cp)
+
+    def write_as_bngl(self):
+        return '+'.join(self.cpatterns)
+
+    def write_as_kappa(self):
+        return ','.join(self.cpatterns)
+
+
 class InitialCondition:
     """Initial conditions for seeding simulation"""
 
