@@ -254,21 +254,21 @@ class Molecule:
         for i in range(len(self.sites)):
             s = self.sites[i]
             if s not in un_configs_per_site[s.name]:
-                un_configs_per_site[s.name][s] = 0
-            un_configs_per_site[s.name][s] += 1
+                un_configs_per_site[s.name][s] = []
+            un_configs_per_site[s.name][s].append(s.index)
 
-        def rename_site(name, site):
-            return Site(name, site.index, s=site.state, b=site.bond)
+        def rename_site(name, site, index):
+            return Site(name, index, s=site.state, b=site.bond)
 
-        def rename_sites(names, site):
-            return tuple([rename_site(name, site) for name in names])
+        def rename_sites(names, site, idcs):
+            return tuple([rename_site(name, site, index) for name, index in zip(names, idcs)])
 
         # Check for the possibility of overlapping patterns
         possible_overlap = {k: False for k in un_configs_per_site.keys()}
         for k in un_configs_per_site.keys():
             num_identical_sites = len(self.mdef.inv_site_name_map[k])
             if num_identical_sites > 1 and k in un_configs_per_site.keys():
-                num_present_sites = sum(un_configs_per_site[k].values())
+                num_present_sites = sum([len(idcs) for idcs in un_configs_per_site[k].values()])
                 if num_identical_sites > num_present_sites >= 1:
                     possible_overlap[k] = True
                     break
@@ -279,28 +279,29 @@ class Molecule:
             k_sn_names = set(self.mdef.inv_site_name_map[sn])
             cur_combs = []
 
-            for s, n in un_configs_per_site[sn].iteritems():
+            for s, idcs in un_configs_per_site[sn].iteritems():
                 if len(cur_combs) == 0:
-                    cur_combs = [rename_sites(names, s) for names in it.combinations(k_sn_names, n)]
+                    cur_combs = [rename_sites(names, s, idcs) for names in it.combinations(k_sn_names, len(idcs))]
                 else:
                     tmp_combs = []
                     for cc in cur_combs:
                         rem_names = k_sn_names - set(map(lambda l: l.name, cc))
-                        new_combs = [rename_sites(names, s) for names in it.combinations(rem_names, n)]
+                        new_combs = [rename_sites(names, s, idcs) for names in it.combinations(rem_names, len(idcs))]
                         for nc in new_combs:
                             tmp_combs.append(cc + nc)
                     cur_combs = tmp_combs
 
             if possible_overlap[sn]:
                 need_state = self._site_state_present(un_configs_per_site[sn])
-                indices = range(sum(un_configs_per_site[sn].values()), len(self.mdef.inv_site_name_map[k]))
+                num_rem_sites = len(self.mdef.inv_site_name_map[k]) - sum([len(idcs) for idcs in un_configs_per_site[sn].values()])
+                indices = range(len(self.sites), len(self.sites) + num_rem_sites)
 
                 for idx in indices:
                     possible_sites = self._enumerate_site(sn, idx, need_state)
                     tmp_combs = []
                     for cc in cur_combs:
                         rem_names = k_sn_names - set(map(lambda l: l.name, cc))
-                        new_combs = [rename_site(x, y) for x, y in it.product(rem_names, possible_sites)]
+                        new_combs = [rename_site(x, y, idx) for x, y in it.product(rem_names, possible_sites)]
                         for nc in new_combs:
                             tmp_combs.append(cc + (nc,))
                     cur_combs = tmp_combs

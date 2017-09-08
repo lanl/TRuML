@@ -1,3 +1,4 @@
+import re
 from .context import objects
 from .context import rbexceptions
 from nose.tools import raises
@@ -39,20 +40,23 @@ class TestPrint:
         cls.m2 = objects.Molecule('Test2', [objects.Site('a', 0)], cls.md2)
         cls.m3 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1)], cls.md2)
         cls.m4 = objects.Molecule('Test2',
-                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)], cls.md2)
+                                  [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('c', 2)],
+                                  cls.md2)
         cls.m5 = objects.Molecule('Test2',
                                   [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)), objects.Site('a', 2),
                                    objects.Site('b', 3)], cls.md2)
         cls.m6 = objects.Molecule('Test2', [objects.Site('a', 0), objects.Site('a', 1, b=objects.Bond(1)),
                                             objects.Site('a', 2, objects.Bond(2)), objects.Site('b', 3)], cls.md2)
-        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)], cls.md3)
+        cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)), objects.Site('a', 1)],
+                                  cls.md3)
         cls.m8 = objects.Molecule('B', [objects.Site('b', 0)], cls.md4)
         cls.m9 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
                                         objects.Site('a', 1, b=objects.Bond(1))], cls.md3)
         cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))], cls.md4)
 
         cls.p0 = objects.CPattern([cls.m0, objects.Molecule('Test0', [cls.s0], cls.md0)])
-        cls.p1 = objects.CPattern([objects.Molecule('Test0', [cls.s3, cls.s2], cls.md0), objects.Molecule('Test0', [cls.s3], cls.md0)])
+        cls.p1 = objects.CPattern(
+            [objects.Molecule('Test0', [cls.s3, cls.s2], cls.md0), objects.Molecule('Test0', [cls.s3], cls.md0)])
         cls.p2 = objects.CPattern([objects.Molecule('A', [], cls.md3)])
         cls.p3 = objects.CPattern([objects.Molecule('B', [], cls.md4)])
         cls.p4 = objects.CPattern([cls.m2, cls.m0])
@@ -75,8 +79,10 @@ class TestPrint:
         cls.rate3 = objects.Rate(5, intra=True)
 
         cls.rule0 = objects.Rule(objects.CPatternList([cls.p2]), objects.CPatternList([cls.p3]), cls.rate0)
-        cls.rule1 = objects.Rule(objects.CPatternList([cls.p2]), objects.CPatternList([cls.p3]), cls.rate1, False, cls.rate2)
-        cls.rule2 = objects.Rule(objects.CPatternList([cls.p2]), objects.CPatternList([cls.p3]), cls.rate0, True, cls.rate2)
+        cls.rule1 = objects.Rule(objects.CPatternList([cls.p2]), objects.CPatternList([cls.p3]), cls.rate1, False,
+                                 cls.rate2)
+        cls.rule2 = objects.Rule(objects.CPatternList([cls.p2]), objects.CPatternList([cls.p3]), cls.rate0, True,
+                                 cls.rate2)
         cls.rule3 = objects.Rule(objects.CPatternList([cls.p5, cls.p6]), objects.CPatternList([cls.p7]), cls.rate0)
         cls.rule4 = objects.Rule(objects.CPatternList([]), objects.CPatternList([cls.p2]), cls.rate0)
         cls.rule5 = objects.Rule(objects.CPatternList([cls.p2]), objects.CPatternList([]), cls.rate0)
@@ -138,6 +144,9 @@ class TestPrint:
         assert len(km4) == 192  # km3 * 2 * 2^1
         assert len(km5) == 24  # (4 choose 2) * (2 choose 1) * 2
         assert len(km6) == 144  # (4 choose 1) * (3 choose 1) * (2 choose 1) * 3 * 2
+        conv_site_indices = set([s.index for s in km5[0].sites])
+        orig_site_indices = set([s.index for s in self.m5.sites])
+        assert conv_site_indices >= orig_site_indices
 
     def test_patterns(self):
         assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
@@ -222,25 +231,22 @@ class TestPrint:
                  "|Test2(a2,a0!_,a1!_,a3)|+"
                  "|Test2(a3,a0!_,a1!_,a2!_)|"
                  )
-        print self.obs2.write_as_kappa()
         assert self.obs2.write_as_kappa() == ostr0
-        ostr1 = ("%obs: 'Obs3' "
-                 "|Test2(a0,a1,a2!_,a3!_)|+"
-                 "|Test2(a0,a1,a2!_,a3)|+"
-                 "|Test2(a0,a1,a2,a3!_)|+"
-                 "|Test2(a0,a1,a2,a3)|+"
-                 "|Test2(a0,a2,a1!_,a3!_)|+"
-                 "|Test2(a0,a2,a1!_,a3)|+"
-                 "|Test2(a0,a3,a1!_,a2!_)|+"
-                 "|Test2(a1,a2,a0!_,a3!_)|+"
-                 "|Test2(a1,a2,a0!_,a3)|+"
-                 "|Test2(a1,a3,a0!_,a2!_)|+"
-                 "|Test2(a2,a3,a0!_,a1!_)|"
-                 )
-        assert self.obs3.write_as_kappa() == ostr1
+        assert re.search(r"|Test2(a0,a1,a2!_,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a0,a1,a2!_,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a0,a1,a2,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a0,a1,a2,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a0,a2,a1!_,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a0,a2,a1!_,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a0,a3,a1!_,a2!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a1,a2,a0!_,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a1,a2,a0!_,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a1,a3,a0!_,a2!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"|Test2(a2,a3,a0!_,a1!_)|", self.obs3.write_as_kappa())
         assert self.obs4.write_as_bngl({"Obs+": "Obs_"}) == "Molecules Obs_ Test2(a,a)"
         assert self.obs5.write_as_bngl({"Obs-": "Obs__"}) == r'Molecules Obs__ B()'
 
-    @raises(Exception)
-    def test_invalid_obs(self):
-        objects.Observable("InvalidType", [self.p2], 'f')
+
+@raises(Exception)
+def test_invalid_obs(self):
+    objects.Observable("InvalidType", [self.p2], 'f')
