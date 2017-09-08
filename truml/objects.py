@@ -869,6 +869,12 @@ class CPatternList:
     def append(self, cp):
         self.cpatterns.append(cp)
 
+    def convert(self):
+        c_cps = []
+        for cp in self.cpatterns:
+            c_cps.append(cp.convert())
+        return list(it.imap(list, it.product(*c_cps)))
+
     def write_as_bngl(self):
         return '+'.join(self.cpatterns)
 
