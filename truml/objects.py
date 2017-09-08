@@ -866,6 +866,9 @@ class CPatternList:
     def __getitem__(self, item):
         return self.cpatterns[item]
 
+    def __len__(self):
+        return len(self.cpatterns)
+
     def append(self, cp):
         self.cpatterns.append(cp)
 
@@ -876,10 +879,16 @@ class CPatternList:
         return list(it.imap(list, it.product(*c_cps)))
 
     def write_as_bngl(self):
-        return '+'.join(self.cpatterns)
+        return '+'.join([cp.write_as_bngl() for cp in self.cpatterns])
 
     def write_as_kappa(self):
-        return ','.join(self.cpatterns)
+        return ','.join([cp.write_as_kappa() for cp in self.cpatterns])
+
+    def __str__(self):
+        return "[%s]" % ','.join([str(cp) for cp in self.cpatterns])
+
+    def __repr__(self):
+        return str(self)
 
 
 class InitialCondition:
@@ -1135,10 +1144,10 @@ class Rule:
 
         Parameters
         ----------
-        lhs : list
-            List of CPatterns
-        rhs : list
-            List of CPatterns
+        lhs : CPatternList
+            The reactants
+        rhs : CPatternList
+            The products
         rate : Rate
             Rate for the lhs -> rhs reaction
         rev : bool
@@ -1179,15 +1188,12 @@ class Rule:
         """
         logging.debug("Attempting to convert rule: %s" % self.write_as_bngl())
         rs = []
-        k_lhs = []
-        for cp in self.lhs:
-            k_lhs.append(cp.convert())  # list of lists of CPatterns
+        converted_lhss = self.lhs.convert()
 
-        actions = self._build_actions()
-        for conv_lhs in it.product(*k_lhs):
+        for conv_lhs in converted_lhss:
             conv_lhs = list(conv_lhs)
-            rhss = actions.apply(conv_lhs)
-            for conv_rhs in rhss:
+            converted_rhss = self._build_actions().apply(conv_lhs)
+            for conv_rhs in converted_rhss:
                 rs.append(Rule(conv_lhs, conv_rhs, self.rate, rev=self.rev, rev_rate=self.rev_rate, label=self.label,
                                delmol=self.delmol))
 
@@ -1327,8 +1333,7 @@ class Observable:
         ----------
         n : str
             Observable name
-        ps : list
-            List of CPatterns
+        ps : CPatternList
         t : str
             Must be 'm' or 's'. Only 'm' is compatible with Kappa
         """
@@ -1596,8 +1601,8 @@ class Model:
 # site names
 class Action(object):
     """
-    Abstract class that defines an action that when applied to a CPattern or list of CPattern instances,
-    results in a distinct CPattern or list of CPatterns
+    Abstract class that defines an action that when applied to a CPatternList,
+    results in a list of CPatternList instances
     """
     def __init__(self):
         pass
@@ -1628,7 +1633,7 @@ class BondChange(Action):
             if tmp_site == self.site:
                 mols_copy = deepcopy(mols)
                 mols_copy[self.mol_index].sites[s.index].bond = self.new_bond
-                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                new_cps = CPatternList([CPattern(x) for x in utils.get_connected_components(mols_copy)])
                 applications.append(new_cps)
         return applications
 
@@ -1658,7 +1663,7 @@ class StateChange(Action):
             if tmp_site == self.site:
                 mols_copy = deepcopy(mols)
                 mols_copy[self.mol_index].sites[s.index].state = self.new_state
-                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                new_cps = CPatternList([CPattern(x) for x in utils.get_connected_components(mols_copy)])
                 applications.append(new_cps)
 
         return applications
@@ -1689,7 +1694,7 @@ class Degradation(Action):
         cps_copy = deepcopy(cps)
         mols = utils.flatten_pattern(cps_copy)
         mols.pop(self.mol_index)
-        return [CPattern(x) for x in utils.get_connected_components(mols)]
+        return CPatternList([CPattern(x) for x in utils.get_connected_components(mols)])
 
     def __str__(self):
         return "Degradation(%s)" % self.mol_index
@@ -1707,7 +1712,7 @@ class Synthesis(Action):
     def apply(self, cps):
         cps_copy = deepcopy(cps)
         cps_copy.append(self.cpattern)
-        return cps_copy
+        return CPatternList(cps_copy)
 
     def __str__(self):
         return "Synthesis(%s)" % self.cpattern
@@ -1733,7 +1738,7 @@ class MultiAction(Action):
         return ordered_action_list
 
     def apply(self, cps):
-        cpss = [deepcopy(cps)]  # list of list of CPattern instances
+        cpss = [deepcopy(cps)]  # list of CPatternList instances
         for action in self.action_list:
             cpsss = []
             for cpsi in cpss:

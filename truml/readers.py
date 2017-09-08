@@ -264,7 +264,7 @@ class KappaReader(Reader):
             cur_mol += c
         mol_list.append(KappaReader.parse_molecule(cur_mol, mdefs))
         conn_cmps = utils.get_connected_components(mol_list)
-        return [CPattern(c) for c in conn_cmps]
+        return CPatternList([CPattern(c) for c in conn_cmps])
 
     @staticmethod
     def parse_rule(line, mdefs):
@@ -712,7 +712,7 @@ class BNGLReader(Reader):
         osplit = re.split('\s+', line.strip())
         otype = osplit[0][0]
         oname = osplit[1]
-        oCPattern = [cls.parse_cpattern(p, mdefs) for p in osplit[2:]]
+        oCPattern = CPatternList([cls.parse_cpattern(p, mdefs) for p in osplit[2:]])
         return Observable(oname, oCPattern, otype)
 
     @staticmethod
@@ -810,9 +810,9 @@ class BNGLReader(Reader):
 
         lhs = re.split('(?<!!)\+', parts[0].rstrip('<'))
         if len(lhs) == 1 and lhs[0].strip() == '0':
-            lhs_cpatterns = []
+            lhs_cpatterns = CPatternList([])
         else:
-            lhs_cpatterns = [cls.parse_cpattern(x, mdefs) for x in lhs]
+            lhs_cpatterns = CPatternList([cls.parse_cpattern(x, mdefs) for x in lhs])
         rem = [x.strip() for x in re.split('(?<!!)\+', parts[1].strip())]
 
         def del_mol_warning(s):
@@ -863,12 +863,12 @@ class BNGLReader(Reader):
             rem_parts = re.split('(?<!!)\s+', parts[1].strip())
 
             if re.match('0', rem_parts[0]):
-                rhs_cpatterns = []
+                rhs_cpatterns = CPatternList([])
                 del_mol_warning(rem_parts[-1])
                 rem_parts[-1] = re.sub('\s*DeleteMolecules', '', rem_parts[-1])
                 delmol = True
             else:
-                rhs_cpatterns = [cls.parse_cpattern(rem_parts[0], mdefs)]
+                rhs_cpatterns = CPatternList([cls.parse_cpattern(rem_parts[0], mdefs)])
                 n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols
