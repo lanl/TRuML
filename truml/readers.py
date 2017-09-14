@@ -834,12 +834,12 @@ class BNGLReader(Reader):
             mol, first_rate_part = last_split[0], ' '.join(last_split[1:])
 
             if re.match('0', rem[0]):
-                rhs_cpatterns = []
+                rhs_cpatterns = CPatternList([])
                 del_mol_warning(rem[-1])
                 rem[-1] = re.sub('\s*DeleteMolecules', '', rem[-1])
                 delmol = True
             else:
-                rhs_cpatterns = [cls.parse_cpattern(x, mdefs) for x in (rem[:one_past_final_mol_index] + [mol])]
+                rhs_cpatterns = CPatternList([cls.parse_cpattern(x, mdefs) for x in (rem[:one_past_final_mol_index] + [mol])])
                 n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols

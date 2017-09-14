@@ -650,6 +650,9 @@ class CPattern:
     def __getitem__(self, item):
         return self.molecule_list[item]
 
+    def __len__(self):
+        return len(self.molecule_list)
+
     def num_molecules(self):
         """Determines the number of molecules in the pattern"""
         return len(self.molecule_list)
@@ -877,7 +880,7 @@ class CPatternList:
         c_cps = []
         for cp in self.cpatterns:
             c_cps.append(cp.convert())
-        return list(it.imap(list, it.product(*c_cps)))
+        return list(it.imap(lambda p: CPatternList(list(p)), it.product(*c_cps)))
 
     def write_as_bngl(self):
         return '+'.join([cp.write_as_bngl() for cp in self.cpatterns])
@@ -1192,7 +1195,6 @@ class Rule:
         converted_lhss = self.lhs.convert()
 
         for conv_lhs in converted_lhss:
-            conv_lhs = list(conv_lhs)
             converted_rhss = self._build_actions().apply(conv_lhs)
             for conv_rhs in converted_rhss:
                 rs.append(Rule(conv_lhs, conv_rhs, self.rate, rev=self.rev, rev_rate=self.rev_rate, label=self.label,
