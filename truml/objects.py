@@ -1697,7 +1697,7 @@ class Degradation(Action):
         cps_copy = deepcopy(cps)
         mols = utils.flatten_pattern(cps_copy)
         mols.pop(self.mol_index)
-        return CPatternList([CPattern(x) for x in utils.get_connected_components(mols)])
+        return [CPatternList([CPattern(x) for x in utils.get_connected_components(mols)])]
 
     def __str__(self):
         return "Degradation(%s)" % self.mol_index
@@ -1715,7 +1715,7 @@ class Synthesis(Action):
     def apply(self, cps):
         cps_copy = deepcopy(cps)
         cps_copy.append(self.cpattern)
-        return CPatternList(cps_copy)
+        return [CPatternList(cps_copy)]
 
     def __str__(self):
         return "Synthesis(%s)" % self.cpattern
