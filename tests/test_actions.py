@@ -23,11 +23,16 @@ class TestAction:
                                       hss=True)
         cls.md3 = objects.MoleculeDef('A', [cls.sd3, cls.sd3, cls.sd3], {'a0': 'a', 'a1': 'a', 'a2': 'a'})
         cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
-        cls.md5 = objects.MoleculeDef('C', [cls.sd0], {'site0': 'site'})
+        cls.md5 = objects.MoleculeDef('C', [cls.sd0], {'site0': 'site0'})
         cls.md6 = objects.MoleculeDef('D', [cls.sd1, cls.sd1], {'site0': 'site', 'site1': 'site'})
 
         cls.m0 = objects.Molecule('C', [objects.Site('site0', 0, s='state')], cls.md5)
         cls.m1 = objects.Molecule('D', [cls.s4], cls.md6)
+        cls.m2 = objects.Molecule('C', [objects.Site('site0', 0, s='state2', b=objects.Bond(1))], cls.md5)
+        cls.m3 = objects.Molecule('D', [objects.Site('site', 0, s='state', b=objects.Bond(1))], cls.md6)
+        cls.p0 = objects.CPattern([cls.m0])
+        cls.p1 = objects.CPattern([cls.m1])
+        cls.p8 = objects.CPattern([cls.m2, cls.m3])
 
         cls.m7 = objects.Molecule('A', [objects.Site('a', 0, b=objects.Bond(-1, w=True)),
                                         objects.Site('a', 1)], cls.md3)
@@ -50,6 +55,7 @@ class TestAction:
         cls.rule2 = objects.Rule([cls.p4, cls.p2, cls.p3], [cls.p3, cls.p4], cls.rate0)
         cls.rule3 = objects.Rule([cls.p3, cls.p5, cls.p6], [cls.p7, cls.p4], cls.rate0)
         cls.rule4 = objects.Rule([cls.p7], [cls.p6], cls.rate0, delmol=True)
+        cls.rule5 = objects.Rule(objects.CPatternList([cls.p0, cls.p1]), objects.CPatternList([cls.p8]), cls.rate0)
 
     @classmethod
     def teardown_class(cls):
@@ -107,7 +113,8 @@ class TestAction:
     def test_synth_action_apply(self):
         synth = objects.Synthesis(self.p3)
         rhs = synth.apply(self.rule0.lhs)
-        assert len(rhs) == 2
+        assert len(rhs) == 1
+        assert len(rhs[0]) == 2
 
     def test_statechange_action_apply(self):
         lhs = [objects.CPattern([self.m1])]
@@ -125,7 +132,7 @@ class TestAction:
         d = objects.Degradation(0)
         rhs = d.apply(self.rule4.lhs)
         assert len(rhs) == 1
-        assert rhs[0][0].name == 'B'
+        assert rhs[0][0][0].name == 'B'
 
     def test_binding_action_apply(self):
         b0 = objects.BondChange(0, objects.Site('a', 1), objects.Bond(1), self.md3)
@@ -159,18 +166,21 @@ class TestAction:
         assert rhs2[0][0][0].sites[1].bond is None
         assert rhs2[0][1][0].sites[0].bond is None
 
+    def test_simultaneous_bond_state_apply(self):
+        bs0 = objects.BondAndStateChange(0, objects.Site('site0', 0, s='state'), 'state2', objects.Bond(1), self.md5)
+        bs1 = objects.BondChange(1, self.s4, objects.Bond(1), self.md6)
+        acts = objects.MultiAction([bs0, bs1])
+        rhs = acts.apply(self.rule5.lhs)
+        print rhs
+        assert len(rhs) == 1
+        assert len(rhs[0]) == 1
+        assert rhs[0][0][0].sites[0].state == 'state2'
+        assert rhs[0][0][0].sites[0].bond == objects.Bond(1)
+
     def test_deg_unbinding_parse_apply(self):
         acts = self.rule4._build_actions()
         assert len(acts) == 2
         rhs = acts.apply(self.rule4.lhs)
         assert len(rhs) == 1
-        assert len(rhs[0].molecule_list) == 1
-        assert rhs[0][0].sites[0].bond is None
-
-    def test_full_application(self):
-        acts = self.rule4._build_actions()
-        assert len(acts) == 2
-        rhs = acts.apply(self.rule4.lhs)
-        assert len(rhs) == 1
-        assert rhs[0][0].name == 'B'
-        assert rhs[0][0].sites[0].bond is None
+        assert len(rhs[0]) == 1
+        assert rhs[0][0][0].sites[0].bond is None
