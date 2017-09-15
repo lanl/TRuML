@@ -1251,10 +1251,13 @@ class Rule:
             mdef = lhs_mols[l].mdef
             for k in smap.keys():
                 diff = smap[k]
-                if diff[0] != -1:
-                    action_list.append(StateChange(l, k, diff[0], mdef))
-                if diff[1] != -1:
-                    action_list.append(BondChange(l, k, diff[1], mdef))
+                if diff[0] != -1 and diff[1] != -1:
+                    action_list.append(BondAndStateChange(l, k, diff[0], diff[1], mdef))
+                else:
+                    if diff[0] != -1:
+                        action_list.append(StateChange(l, k, diff[0], mdef))
+                    if diff[1] != -1:
+                        action_list.append(BondChange(l, k, diff[1], mdef))
 
         mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
         unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
@@ -1661,7 +1664,10 @@ class StateChange(Action):
         mols = utils.flatten_pattern(cps_copy)
         applications = []
         for s in mols[self.mol_index].sites:
-            bname = self.molecule_def.site_name_map[s.name]
+            try:
+                bname = self.molecule_def.site_name_map[s.name]
+            except KeyError:
+                bname = s.name
             tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
             if tmp_site == self.site:
                 mols_copy = deepcopy(mols)
@@ -1723,6 +1729,40 @@ class Synthesis(Action):
     def __repr__(self):
         return str(self)
 
+
+class BondAndStateChange(Action):
+    def __init__(self, i, s, ns, nb, md):
+        super(BondAndStateChange, self).__init__()
+        self.mol_index = i
+        self.site = s
+        self.new_state = ns
+        self.new_bond = nb
+        self.molecule_def = md
+
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
+        applications = []
+        for s in mols[self.mol_index].sites:
+            try:
+                bname = self.molecule_def.site_name_map[s.name]
+            except KeyError:
+                bname = s.name
+            tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
+            if tmp_site == self.site:
+                mols_copy = deepcopy(mols)
+                mols_copy[self.mol_index].sites[s.index].state = self.new_state
+                mols_copy[self.mol_index].sites[s.index].bond = self.new_bond
+                new_cps = CPatternList([CPattern(x) for x in utils.get_connected_components(mols_copy)])
+                applications.append(new_cps)
+
+        return applications
+
+    def __str__(self):
+        return "BondAndStateChange(%s, %s, %s, %s)" % (self.mol_index, self.site, self.new_state, self.new_bond)
+
+    def __repr__(self):
+        return str(self)
 
 class MultiAction(Action):
     """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
