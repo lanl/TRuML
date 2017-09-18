@@ -10,7 +10,7 @@ import rbexceptions
 import utils
 
 from copy import deepcopy
-
+from math import factorial
 
 class SiteDef:
     """A site definition composed of a name and a finite set of states"""
@@ -1352,6 +1352,31 @@ class Observable:
             raise Exception("not a valid observable type: %s" % t)
         self.cpatterns = ps  # a list of CPatterns
 
+    @staticmethod
+    def _calc_factor(cp):
+        # assumes conversion to Kappa-compatible syntax
+        f = 1
+        for mol in cp:
+            un_site_names = set([mol.mdef.site_name_map[s.name] for s in mol.sites])
+            un_configs_per_site = {s: {} for s in un_site_names}
+            for site in mol.sites:
+                bngl_site_name = mol.mdef.site_name_map[site.name]
+                bngl_site = Site(bngl_site_name, site.index, s=site.state, b=site.bond)
+                if bngl_site not in un_configs_per_site[bngl_site_name]:
+                    un_configs_per_site[bngl_site_name][bngl_site] = 1
+                else:
+                    un_configs_per_site[bngl_site_name][bngl_site] += 1
+            m_int_symm = 1
+            for d in un_configs_per_site.values():
+                for n in d.values():
+                    m_int_symm *= factorial(n)
+            f *= m_int_symm
+        return f
+
+    def _ftos(self, cp):
+        f = self._calc_factor(cp)
+        return '' if f == 1 else '%s*' % str(f)
+
     def write_as_bngl(self, namespace=dict()):
         """Writes Observable as BNGL string"""
         bname = namespace[self.name] if self.name in namespace.keys() else self.name
@@ -1377,7 +1402,7 @@ class Observable:
                     un_kps.append(kp)
 
             # sorted for determinism (testing)
-            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in un_kps]))
+            kos = '+'.join(sorted(['%s|%s|' % (self._ftos(x), x.write_as_kappa()) for x in un_kps]))
             obs_strs.append(kos)
 
         obs = '+'.join(obs_strs)
@@ -1518,7 +1543,7 @@ class Model:
                         if r.rev_rate.contains_variable(inv):
                             logging.critical("Rule's reverse rate contains an incompatible variable")
                             raise rbexceptions.NotCompatibleException(
-                                "Reverse rate '%s' contains an  inccompatible variable" % r.rev_rate.write_a_bngl())
+                                "Reverse rate '%s' contains an incompatible variable" % r.rev_rate.write_a_bngl())
                 krs = r.convert()
                 logging.debug("Writing rule %s to file" % r)
                 s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])

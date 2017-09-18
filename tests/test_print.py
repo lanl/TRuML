@@ -215,34 +215,36 @@ class TestPrint:
         assert self.obs1.write_as_kappa() == r"%obs: 'Obs1' |A()|+|B()|"
         assert self.obs2.write_as_bngl({"Obs2": "Obs2"}) == r'Molecules Obs2 Test2(a)'
         ostr0 = ("%obs: 'Obs2' "
-                 "|Test2(a0,a1!_,a2!_,a3!_)|+"
-                 "|Test2(a0,a1!_,a2!_,a3)|+"
-                 "|Test2(a0,a1!_,a2,a3!_)|+"
-                 "|Test2(a0,a1!_,a2,a3)|+"
-                 "|Test2(a0,a1,a2!_,a3!_)|+"
-                 "|Test2(a0,a1,a2!_,a3)|+"
-                 "|Test2(a0,a1,a2,a3!_)|+"
-                 "|Test2(a0,a1,a2,a3)|+"
-                 "|Test2(a1,a0!_,a2!_,a3!_)|+"
-                 "|Test2(a1,a0!_,a2!_,a3)|+"
-                 "|Test2(a1,a0!_,a2,a3!_)|+"
-                 "|Test2(a1,a0!_,a2,a3)|+"
-                 "|Test2(a2,a0!_,a1!_,a3!_)|+"
-                 "|Test2(a2,a0!_,a1!_,a3)|+"
-                 "|Test2(a3,a0!_,a1!_,a2!_)|"
+                 "24*|Test2(a0,a1,a2,a3)|+"
+                 "4*|Test2(a0,a1!_,a2!_,a3)|+"
+                 "4*|Test2(a0,a1!_,a2,a3!_)|+"
+                 "4*|Test2(a0,a1,a2!_,a3!_)|+"
+                 "4*|Test2(a1,a0!_,a2!_,a3)|+"
+                 "4*|Test2(a1,a0!_,a2,a3!_)|+"
+                 "4*|Test2(a2,a0!_,a1!_,a3)|+"
+                 "6*|Test2(a0,a1!_,a2!_,a3!_)|+"
+                 "6*|Test2(a0,a1!_,a2,a3)|+"
+                 "6*|Test2(a0,a1,a2!_,a3)|+"
+                 "6*|Test2(a0,a1,a2,a3!_)|+"
+                 "6*|Test2(a1,a0!_,a2!_,a3!_)|+"
+                 "6*|Test2(a1,a0!_,a2,a3)|+"
+                 "6*|Test2(a2,a0!_,a1!_,a3!_)|+"
+                 "6*|Test2(a3,a0!_,a1!_,a2!_)|"
                  )
+        print self.obs2.write_as_kappa()
+        print self.obs2.write_as_bngl()
         assert self.obs2.write_as_kappa() == ostr0
-        assert re.search(r"|Test2(a0,a1,a2!_,a3!_)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a0,a1,a2!_,a3)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a0,a1,a2,a3!_)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a0,a1,a2,a3)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a0,a2,a1!_,a3!_)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a0,a2,a1!_,a3)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a0,a3,a1!_,a2!_)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a1,a2,a0!_,a3!_)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a1,a2,a0!_,a3)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a1,a3,a0!_,a2!_)|", self.obs3.write_as_kappa())
-        assert re.search(r"|Test2(a2,a3,a0!_,a1!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"4*|Test2(a0,a1,a2!_,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"6*|Test2(a0,a1,a2!_,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"6*|Test2(a0,a1,a2,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"24*|Test2(a0,a1,a2,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"4*|Test2(a0,a2,a1!_,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"6*|Test2(a0,a2,a1!_,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"4*|Test2(a0,a3,a1!_,a2!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"4*|Test2(a1,a2,a0!_,a3!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"6*|Test2(a1,a2,a0!_,a3)|", self.obs3.write_as_kappa())
+        assert re.search(r"4*|Test2(a1,a3,a0!_,a2!_)|", self.obs3.write_as_kappa())
+        assert re.search(r"4*|Test2(a2,a3,a0!_,a1!_)|", self.obs3.write_as_kappa())
         assert self.obs4.write_as_bngl({"Obs+": "Obs_"}) == "Molecules Obs_ Test2(a,a)"
         assert self.obs5.write_as_bngl({"Obs-": "Obs__"}) == r'Molecules Obs__ B()'
 
