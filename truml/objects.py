@@ -1016,7 +1016,7 @@ class Expression:
 
     def write_as_kappa(self):
         """Writes Expression as Kappa string"""
-        expr = ''
+        expr = []
 
         i = 0
         while (i < len(self.atom_list)):
@@ -1024,17 +1024,17 @@ class Expression:
             if a in bngl_to_kappa_func_map.keys():
                 trig_func_match = re.compile('sinh|cosh|tanh|asinh|acosh|atanh')
                 if re.match('log', a) or re.match(trig_func_match, a):
-                    expr += bngl_to_kappa_func_map[a](self.atom_list[i + 2])
+                    expr.append(bngl_to_kappa_func_map[a](self.atom_list[i + 2]))
                     i += 4
                 else:
-                    expr += bngl_to_kappa_func_map[a]
+                    expr.append(bngl_to_kappa_func_map[a])
             elif re.match('[A-Za-z]', a):
-                expr += '\'%s\'' % a
+                expr.append('\'%s\'' % a)
             else:
-                expr += a
+                expr.append(a)
             i += 1
 
-        return expr
+        return ' '.join(expr)
 
     def __repr__(self):
         return "Expression(expr: %s)" % ''.join(self.atom_list)
@@ -1078,6 +1078,7 @@ class Function:
         return "Function(name: %s, expr: %s" % (self.name, self.expr)
 
 
+# TODO check to make sure rate doesn't have parentheses
 class Rate:
     """Defines a Rule's Rate"""
 

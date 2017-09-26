@@ -985,8 +985,10 @@ class BNGLReader(Reader):
         upperPi = pp.Literal("PI")
         pi = lowerPi | upperPi
 
+        func = pp.Combine(ident + lpar + rpar)
+
         expr = pp.Forward()
-        atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ ident) ^ (lpar + expr + rpar))
+        atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ func ^ ident) ^ (lpar + expr + rpar))
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
