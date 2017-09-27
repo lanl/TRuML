@@ -85,8 +85,8 @@ class TestParseKappa:
         assert readers.KappaReader.parse_init(self.init0, [pmdef2])[0].write_as_kappa() == "%init: 10 A(x)"
         bdef = objects.MoleculeDef('B', [], {})
         cdef = objects.MoleculeDef('C', [], {})
-        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[0].write_as_kappa() == "%init: 10+'x' B()"
-        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[1].write_as_kappa() == "%init: 10+'x' C()"
+        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[0].write_as_kappa() == "%init: 10 + 'x' B()"
+        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[1].write_as_kappa() == "%init: 10 + 'x' C()"
 
     def test_eq_parse(self):
         assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', 'x']
@@ -217,7 +217,7 @@ class TestParseBNGL:
         prule3 = readers.BNGLReader.parse_rule(self.rule3, mds)
         assert prule3.rate.intra_binding is False
         assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
+        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat' + 1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4, mds)
         assert len(prule4.rhs) == 0
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'

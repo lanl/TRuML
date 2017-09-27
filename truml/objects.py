@@ -1030,11 +1030,13 @@ class Expression:
                     expr.append(bngl_to_kappa_func_map[a])
             elif re.match('[A-Za-z]', a):
                 expr.append('\'%s\'' % a)
+            elif re.match('[+-]', a):
+                expr.append(' %s ' % a)
             else:
                 expr.append(a)
             i += 1
 
-        return ' '.join(expr)
+        return ''.join(expr)
 
     def __repr__(self):
         return "Expression(expr: %s)" % ''.join(self.atom_list)
