@@ -148,6 +148,7 @@ class TestParseBNGL:
         cls.mds = [cls.mdef4, cls.mdef5, cls.mdef6, cls.mdef7, cls.mdef8]
         cls.mol0 = "Mol(sa,sb!+,sc!3,sd~0!?)"
         cls.mol1 = "Mol(a,b~0,b~1)"
+        cls.mol2 = "Mol(a,b~?!+)"
         cls.init0 = cls.mol0 + ' 100'
         cls.init1 = cls.mol0 + '\t(x+3)/k'
         cls.obs0 = "Molecules Mol0 " + cls.mol0
@@ -181,6 +182,8 @@ class TestParseBNGL:
         pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
         mol1 = readers.BNGLReader.parse_molecule(self.mol1, [pmdef3])
         mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
+        mol2 = readers.BNGLReader.parse_molecule(self.mol2, [pmdef3])
+        mol2.write_as_bngl() == "Mol(a,b!+)"
 
     def test_init_parse(self):
         pmd2 = readers.BNGLReader.parse_mtype(self.mdef2)

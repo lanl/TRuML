@@ -640,9 +640,11 @@ class BNGLReader(Reader):
                 if '!' in s:
                     bsplit = re.split('!', tsplit[1])
                     bond = cls.parse_bond(bsplit[1])
-                    site_list.append(Site(name, i, s=bsplit[0], b=bond))
+                    state = None if re.match('\?', bsplit[0]) else bsplit[0]
+                    site_list.append(Site(name, i, s=state, b=bond))
                 else:
-                    site_list.append(Site(name, i, s=tsplit[1]))
+                    state = None if re.match('\?', tsplit[1]) else tsplit[1]
+                    site_list.append(Site(name, i, s=state))
             else:
                 if '!' in s:
                     bsplit = re.split('!', s)
