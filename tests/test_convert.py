@@ -7,8 +7,10 @@ class TestConvert:
 
     @classmethod
     def setup_class(cls):
-        cls.bm0 = readers.BNGLReader("tests/resources/test0.bngl").parse()
-        cls.bm1 = readers.BNGLReader("tests/resources/test1.bngl").parse()
+        test0 = "tests/resources/test0.bngl"
+        test1 = "tests/resources/test1.bngl"
+        cls.bm0 = readers.BNGLReader(test0).parse()
+        cls.bm1 = readers.BNGLReader(test1).parse()
 
     @classmethod
     def teardown_class(cls):
@@ -35,5 +37,5 @@ class TestConvert:
 
     def test_bmodel1_convert(self):
         krules = [r for rule in self.bm1.rules for r in rule.convert()]
-        print '\n'.join([x.write_as_kappa() for x in krules])
+        print '\n'.join([r.write_as_kappa() for r in krules])
         assert len(krules) == 29

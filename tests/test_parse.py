@@ -216,11 +216,11 @@ class TestParseBNGL:
         assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
         assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4, mds)
-        assert prule4.rhs == []
+        assert len(prule4.rhs) == 0
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'
         assert prule4.delmol
         prule5 = readers.BNGLReader.parse_rule(self.rule5, mds)
-        assert prule5.lhs == []
+        assert len(prule5.lhs) == 0
         assert len(prule5.rhs) == 1
         prule6 = readers.BNGLReader.parse_rule(self.rule6, mds)
         assert prule6.label == 'bdeg'

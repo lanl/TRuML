@@ -10,7 +10,7 @@ import rbexceptions
 import utils
 
 from copy import deepcopy
-
+from math import factorial
 
 class SiteDef:
     """A site definition composed of a name and a finite set of states"""
@@ -254,21 +254,21 @@ class Molecule:
         for i in range(len(self.sites)):
             s = self.sites[i]
             if s not in un_configs_per_site[s.name]:
-                un_configs_per_site[s.name][s] = 0
-            un_configs_per_site[s.name][s] += 1
+                un_configs_per_site[s.name][s] = []
+            un_configs_per_site[s.name][s].append(s.index)
 
-        def rename_site(name, site):
-            return Site(name, site.index, s=site.state, b=site.bond)
+        def rename_site(name, site, index):
+            return Site(name, index, s=site.state, b=site.bond)
 
-        def rename_sites(names, site):
-            return tuple([rename_site(name, site) for name in names])
+        def rename_sites(names, site, idcs):
+            return tuple([rename_site(name, site, index) for name, index in zip(names, idcs)])
 
         # Check for the possibility of overlapping patterns
         possible_overlap = {k: False for k in un_configs_per_site.keys()}
         for k in un_configs_per_site.keys():
             num_identical_sites = len(self.mdef.inv_site_name_map[k])
             if num_identical_sites > 1 and k in un_configs_per_site.keys():
-                num_present_sites = sum(un_configs_per_site[k].values())
+                num_present_sites = sum([len(idcs) for idcs in un_configs_per_site[k].values()])
                 if num_identical_sites > num_present_sites >= 1:
                     possible_overlap[k] = True
                     break
@@ -279,28 +279,29 @@ class Molecule:
             k_sn_names = set(self.mdef.inv_site_name_map[sn])
             cur_combs = []
 
-            for s, n in un_configs_per_site[sn].iteritems():
+            for s, idcs in un_configs_per_site[sn].iteritems():
                 if len(cur_combs) == 0:
-                    cur_combs = [rename_sites(names, s) for names in it.combinations(k_sn_names, n)]
+                    cur_combs = [rename_sites(names, s, idcs) for names in it.combinations(k_sn_names, len(idcs))]
                 else:
                     tmp_combs = []
                     for cc in cur_combs:
                         rem_names = k_sn_names - set(map(lambda l: l.name, cc))
-                        new_combs = [rename_sites(names, s) for names in it.combinations(rem_names, n)]
+                        new_combs = [rename_sites(names, s, idcs) for names in it.combinations(rem_names, len(idcs))]
                         for nc in new_combs:
                             tmp_combs.append(cc + nc)
                     cur_combs = tmp_combs
 
             if possible_overlap[sn]:
                 need_state = self._site_state_present(un_configs_per_site[sn])
-                indices = range(sum(un_configs_per_site[sn].values()), len(self.mdef.inv_site_name_map[k]))
+                num_rem_sites = len(self.mdef.inv_site_name_map[k]) - sum([len(idcs) for idcs in un_configs_per_site[sn].values()])
+                indices = range(len(self.sites), len(self.sites) + num_rem_sites)
 
                 for idx in indices:
                     possible_sites = self._enumerate_site(sn, idx, need_state)
                     tmp_combs = []
                     for cc in cur_combs:
                         rem_names = k_sn_names - set(map(lambda l: l.name, cc))
-                        new_combs = [rename_site(x, y) for x, y in it.product(rem_names, possible_sites)]
+                        new_combs = [rename_site(x, y, idx) for x, y in it.product(rem_names, possible_sites)]
                         for nc in new_combs:
                             tmp_combs.append(cc + (nc,))
                     cur_combs = tmp_combs
@@ -332,11 +333,11 @@ class Molecule:
 
     @staticmethod
     def _diff_quant(d):
-        if d == (None, None):
+        if d == (-1, -1):
             return 0
-        elif d[0] is None:
+        elif d[0] == -1:
             return 1
-        elif d[1] is None:
+        elif d[1] == -1:
             return 2
         else:
             return 3
@@ -354,9 +355,9 @@ class Molecule:
             for j, t in enumerate(other.sites):
                 diff = s.diff(t)
                 # Check to see if there is any difference between sites s and t
-                if t.name == s.name and j not in used_other_idcs and diff == (None, None):
+                if t.name == s.name and j not in used_other_idcs and diff == (-1, -1):
                     used_other_idcs.append(j)
-                    imap[s] = (None, None)
+                    imap[s] = (-1, -1)
                     possible = []
                     break
                 elif t.name == s.name and j not in used_other_idcs:
@@ -371,7 +372,7 @@ class Molecule:
         if len(used_other_idcs) < len(other.sites):
             return None  # there are unmatched sites in other
         else:
-            return {k: v for k, v in imap.iteritems() if v != (None, None)}
+            return {k: v for k, v in imap.iteritems() if v != (-1, -1)}
 
     def _write(self, bngl=True):
         """
@@ -488,7 +489,7 @@ class Site:
 
     def diff(self, other):
         """
-        Provides a 2-tuple composed of a 3-tuple and a 4-tuple
+        Provides a 2-tuple describing the difference in state and bond.  Not symmetric
 
         Parameters
         ----------
@@ -501,11 +502,11 @@ class Site:
             Contains 2 elements containing information about site state and site bond, respectively.
             The first element is the other site state, and the second element is the other site Bond.
         """
-        diff_tuple = [None, None]
+        diff_tuple = [-1, -1]
         if self.state != other.state:
             diff_tuple[0] = other.state
         if self.bond != other.bond:
-            diff_tuple[1] = other.bond if other.bond is not None else -1
+            diff_tuple[1] = other.bond
         return tuple(diff_tuple)
 
     def __eq__(self, other):
@@ -648,6 +649,9 @@ class CPattern:
 
     def __getitem__(self, item):
         return self.molecule_list[item]
+
+    def __len__(self):
+        return len(self.molecule_list)
 
     def num_molecules(self):
         """Determines the number of molecules in the pattern"""
@@ -857,6 +861,40 @@ class CPattern:
         return "CPattern(" + '--'.join([str(x) for x in self.molecule_list]) + ")"
 
 
+class CPatternList:
+    """List of CPatterns"""
+
+    def __init__(self, cps):
+        self.cpatterns = cps
+
+    def __getitem__(self, item):
+        return self.cpatterns[item]
+
+    def __len__(self):
+        return len(self.cpatterns)
+
+    def append(self, cp):
+        self.cpatterns.append(cp)
+
+    def convert(self):
+        c_cps = []
+        for cp in self.cpatterns:
+            c_cps.append(cp.convert())
+        return list(it.imap(lambda p: CPatternList(list(p)), it.product(*c_cps)))
+
+    def write_as_bngl(self):
+        return '+'.join([cp.write_as_bngl() for cp in self.cpatterns])
+
+    def write_as_kappa(self):
+        return ','.join([cp.write_as_kappa() for cp in self.cpatterns])
+
+    def __str__(self):
+        return "[%s]" % ','.join([str(cp) for cp in self.cpatterns])
+
+    def __repr__(self):
+        return str(self)
+
+
 class InitialCondition:
     """Initial conditions for seeding simulation"""
 
@@ -978,7 +1016,7 @@ class Expression:
 
     def write_as_kappa(self):
         """Writes Expression as Kappa string"""
-        expr = ''
+        expr = []
 
         i = 0
         while (i < len(self.atom_list)):
@@ -986,17 +1024,17 @@ class Expression:
             if a in bngl_to_kappa_func_map.keys():
                 trig_func_match = re.compile('sinh|cosh|tanh|asinh|acosh|atanh')
                 if re.match('log', a) or re.match(trig_func_match, a):
-                    expr += bngl_to_kappa_func_map[a](self.atom_list[i + 2])
+                    expr.append(bngl_to_kappa_func_map[a](self.atom_list[i + 2]))
                     i += 4
                 else:
-                    expr += bngl_to_kappa_func_map[a]
+                    expr.append(bngl_to_kappa_func_map[a])
             elif re.match('[A-Za-z]', a):
-                expr += '\'%s\'' % a
+                expr.append('\'%s\'' % a)
             else:
-                expr += a
+                expr.append(a)
             i += 1
 
-        return expr
+        return ' '.join(expr)
 
     def __repr__(self):
         return "Expression(expr: %s)" % ''.join(self.atom_list)
@@ -1040,6 +1078,7 @@ class Function:
         return "Function(name: %s, expr: %s" % (self.name, self.expr)
 
 
+# TODO check to make sure rate doesn't have parentheses
 class Rate:
     """Defines a Rule's Rate"""
 
@@ -1099,24 +1138,6 @@ class Rate:
         return "Rate: %s" % self.rate
 
 
-class AltRule:
-    """Defines a rule in terms of a list of CPattern instances (reactants) and a list of Action
-    instances (reactions)"""
-    def __init__(self, lhs, actions, rate, rev=False, rev_rate=None, label=None, delmol=False):
-        self.lhs = lhs
-        self.actions = actions
-        self.rate = rate
-        self.rev = rev
-        self.arrow = '->' if not rev else '<->'
-        self.rev_rate = None if not rev else rev_rate  # rev overrides rev_rate
-        self.label = label
-        self.delmol = delmol
-
-    def rhs(self):
-        for action in self.actions:
-            action.apply(self.lhs)
-
-
 class Rule:
     """Defines a rule"""
 
@@ -1128,10 +1149,10 @@ class Rule:
 
         Parameters
         ----------
-        lhs : list
-            List of CPatterns
-        rhs : list
-            List of CPatterns
+        lhs : CPatternList
+            The reactants
+        rhs : CPatternList
+            The products
         rate : Rate
             Rate for the lhs -> rhs reaction
         rev : bool
@@ -1170,33 +1191,15 @@ class Rule:
         list
             List of Rule instances
         """
-        k_lhs, k_rhs = [], []
-        for cp in self.lhs:
-            k_lhs.append(cp.convert())  # list of lists of CPatterns
-        for cp in self.rhs:
-            k_rhs.append(cp.convert())
-        all_lhs = list(it.product(*k_lhs))  # list of tuples of CPatterns
-        all_rhs = list(it.product(*k_rhs))
-
+        logging.debug("Attempting to convert rule: %s" % self.write_as_bngl())
         rs = []
-        if len(all_lhs) == len(all_rhs):
-            z = zip(all_lhs, all_rhs)  # order in lhs and rhs conversions are preserved
-            for l, r in z:
-                rs.append(Rule(l, r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
-        elif len(all_rhs) % len(all_lhs) == 0:
-            rs_per_l = len(all_rhs) / len(all_lhs)
-            for i, l in enumerate(all_lhs):
-                for j in range(rs_per_l * i, rs_per_l * i + rs_per_l):
-                    rs.append(Rule(l, all_rhs[j], self.rate, self.rev, self.rev_rate, self.label, self.delmol))
+        converted_lhss = self.lhs.convert()
 
-            assert len(rs) == len(all_rhs)
-        elif len(all_lhs) % len(all_rhs) == 0:
-            ls_per_r = len(all_lhs) / len(all_rhs)
-            for i, r in enumerate(all_rhs):
-                for j in range(ls_per_r * i, ls_per_r * i + ls_per_r):
-                    rs.append(Rule(all_lhs[i], r, self.rate, self.rev, self.rev_rate, self.label, self.delmol))
-        else:
-            logging.critical("Rule conversion error.  Please review rule '%s'" % self.write_as_bngl())
+        for conv_lhs in converted_lhss:
+            converted_rhss = self._build_actions().apply(conv_lhs)
+            for conv_rhs in converted_rhss:
+                rs.append(Rule(conv_lhs, conv_rhs, self.rate, rev=self.rev, rev_rate=self.rev_rate, label=self.label,
+                               delmol=self.delmol))
 
         un_rules = [rs[0]]
         for rule in rs[1:]:
@@ -1207,6 +1210,8 @@ class Rule:
                     break
             if not is_isomorphic:
                 un_rules.append(rule)
+
+        logging.debug("Converted into %s Kappa rule(s):\n\t%s" % (len(un_rules), '\n\t'.join([x.write_as_kappa() for x in un_rules])))
 
         return un_rules
 
@@ -1226,6 +1231,57 @@ class Rule:
             return True
         else:
             return False
+
+    def _build_actions(self, rev=False):
+        """Builds a list of Action instances corresponding to the differences between the reactant
+        list of Molecule instances and the product list of Molecule instances"""
+        action_list = []
+        if rev:
+            lhs_mols = utils.flatten_pattern(self.rhs)
+            rhs_mols = utils.flatten_pattern(self.lhs)
+        else:
+            lhs_mols = utils.flatten_pattern(self.lhs)
+            rhs_mols = utils.flatten_pattern(self.rhs)
+        mmap = self._build_mol_map(lhs_mols, rhs_mols)
+        for l, r in mmap.iteritems():
+            if r is None:
+                action_list.append(Degradation(l))
+                continue
+
+            smap = lhs_mols[l].interface_diff_map(rhs_mols[r])
+            mdef = lhs_mols[l].mdef
+            for k in smap.keys():
+                diff = smap[k]
+                if diff[0] != -1 and diff[1] != -1:
+                    action_list.append(BondAndStateChange(l, k, diff[0], diff[1], mdef))
+                else:
+                    if diff[0] != -1:
+                        action_list.append(StateChange(l, k, diff[0], mdef))
+                    if diff[1] != -1:
+                        action_list.append(BondChange(l, k, diff[1], mdef))
+
+        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
+        unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
+        if len(unmapped_rhs_idcs) > 0:
+            conn_cmps = utils.get_connected_components([rhs_mols[i] for i in unmapped_rhs_idcs])
+            for c in conn_cmps:
+                action_list.append(Synthesis(CPattern(c)))
+
+        return MultiAction(action_list)
+
+    @staticmethod
+    def _build_mol_map(lhs, rhs):
+        """Builds a map between Molecule instances on the LHS and RHS of a rule"""
+        mmap = dict()
+        used_rhs_mol_idcs = []
+        for i, lm in enumerate(lhs):
+            mmap[i] = None
+            for j, rm in enumerate(rhs):
+                if lm.has_same_interface(rm) and j not in used_rhs_mol_idcs:
+                    mmap[i] = j
+                    used_rhs_mol_idcs.append(j)
+                    break
+        return mmap
 
     def write_as_bngl(self, namespace=dict(), dot=False):
         """Writes the rule as a BNGL string"""
@@ -1284,8 +1340,7 @@ class Observable:
         ----------
         n : str
             Observable name
-        ps : list
-            List of CPatterns
+        ps : CPatternList
         t : str
             Must be 'm' or 's'. Only 'm' is compatible with Kappa
         """
@@ -1297,6 +1352,31 @@ class Observable:
         else:
             raise Exception("not a valid observable type: %s" % t)
         self.cpatterns = ps  # a list of CPatterns
+
+    @staticmethod
+    def _calc_factor(cp):
+        # assumes conversion to Kappa-compatible syntax
+        f = 1
+        for mol in cp:
+            un_site_names = set([mol.mdef.site_name_map[s.name] for s in mol.sites])
+            un_configs_per_site = {s: {} for s in un_site_names}
+            for site in mol.sites:
+                bngl_site_name = mol.mdef.site_name_map[site.name]
+                bngl_site = Site(bngl_site_name, site.index, s=site.state, b=site.bond)
+                if bngl_site not in un_configs_per_site[bngl_site_name]:
+                    un_configs_per_site[bngl_site_name][bngl_site] = 1
+                else:
+                    un_configs_per_site[bngl_site_name][bngl_site] += 1
+            m_int_symm = 1
+            for d in un_configs_per_site.values():
+                for n in d.values():
+                    m_int_symm *= factorial(n)
+            f *= m_int_symm
+        return f
+
+    def _ftos(self, cp):
+        f = self._calc_factor(cp)
+        return '' if f == 1 else '%s*' % str(f)
 
     def write_as_bngl(self, namespace=dict()):
         """Writes Observable as BNGL string"""
@@ -1323,7 +1403,7 @@ class Observable:
                     un_kps.append(kp)
 
             # sorted for determinism (testing)
-            kos = '+'.join(sorted(['|%s|' % x.write_as_kappa() for x in un_kps]))
+            kos = '+'.join(sorted(['%s|%s|' % (self._ftos(x), x.write_as_kappa()) for x in un_kps]))
             obs_strs.append(kos)
 
         obs = '+'.join(obs_strs)
@@ -1464,7 +1544,7 @@ class Model:
                         if r.rev_rate.contains_variable(inv):
                             logging.critical("Rule's reverse rate contains an incompatible variable")
                             raise rbexceptions.NotCompatibleException(
-                                "Reverse rate '%s' contains an  inccompatible variable" % r.rev_rate.write_a_bngl())
+                                "Reverse rate '%s' contains an incompatible variable" % r.rev_rate.write_a_bngl())
                 krs = r.convert()
                 logging.debug("Writing rule %s to file" % r)
                 s += '%s\n' % '\n'.join([kr.write_as_kappa() for kr in krs])
@@ -1553,8 +1633,8 @@ class Model:
 # site names
 class Action(object):
     """
-    Abstract class that defines an action that when applied to a CPattern or list of CPattern instances,
-    results in a distinct CPattern or list of CPatterns
+    Abstract class that defines an action that when applied to a CPatternList,
+    results in a list of CPatternList instances
     """
     def __init__(self):
         pass
@@ -1585,7 +1665,7 @@ class BondChange(Action):
             if tmp_site == self.site:
                 mols_copy = deepcopy(mols)
                 mols_copy[self.mol_index].sites[s.index].bond = self.new_bond
-                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                new_cps = CPatternList([CPattern(x) for x in utils.get_connected_components(mols_copy)])
                 applications.append(new_cps)
         return applications
 
@@ -1610,12 +1690,15 @@ class StateChange(Action):
         mols = utils.flatten_pattern(cps_copy)
         applications = []
         for s in mols[self.mol_index].sites:
-            bname = self.molecule_def.site_name_map[s.name]
+            try:
+                bname = self.molecule_def.site_name_map[s.name]
+            except KeyError:
+                bname = s.name
             tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
             if tmp_site == self.site:
                 mols_copy = deepcopy(mols)
                 mols_copy[self.mol_index].sites[s.index].state = self.new_state
-                new_cps = [CPattern(x) for x in utils.get_connected_components(mols_copy)]
+                new_cps = CPatternList([CPattern(x) for x in utils.get_connected_components(mols_copy)])
                 applications.append(new_cps)
 
         return applications
@@ -1646,7 +1729,7 @@ class Degradation(Action):
         cps_copy = deepcopy(cps)
         mols = utils.flatten_pattern(cps_copy)
         mols.pop(self.mol_index)
-        return [CPattern(x) for x in utils.get_connected_components(mols)]
+        return [CPatternList([CPattern(x) for x in utils.get_connected_components(mols)])]
 
     def __str__(self):
         return "Degradation(%s)" % self.mol_index
@@ -1664,7 +1747,7 @@ class Synthesis(Action):
     def apply(self, cps):
         cps_copy = deepcopy(cps)
         cps_copy.append(self.cpattern)
-        return cps_copy
+        return [CPatternList(cps_copy)]
 
     def __str__(self):
         return "Synthesis(%s)" % self.cpattern
@@ -1672,6 +1755,40 @@ class Synthesis(Action):
     def __repr__(self):
         return str(self)
 
+
+class BondAndStateChange(Action):
+    def __init__(self, i, s, ns, nb, md):
+        super(BondAndStateChange, self).__init__()
+        self.mol_index = i
+        self.site = s
+        self.new_state = ns
+        self.new_bond = nb
+        self.molecule_def = md
+
+    def apply(self, cps):
+        cps_copy = deepcopy(cps)
+        mols = utils.flatten_pattern(cps_copy)
+        applications = []
+        for s in mols[self.mol_index].sites:
+            try:
+                bname = self.molecule_def.site_name_map[s.name]
+            except KeyError:
+                bname = s.name
+            tmp_site = Site(bname, s.index, s=s.state, b=s.bond)
+            if tmp_site == self.site:
+                mols_copy = deepcopy(mols)
+                mols_copy[self.mol_index].sites[s.index].state = self.new_state
+                mols_copy[self.mol_index].sites[s.index].bond = self.new_bond
+                new_cps = CPatternList([CPattern(x) for x in utils.get_connected_components(mols_copy)])
+                applications.append(new_cps)
+
+        return applications
+
+    def __str__(self):
+        return "BondAndStateChange(%s, %s, %s, %s)" % (self.mol_index, self.site, self.new_state, self.new_bond)
+
+    def __repr__(self):
+        return str(self)
 
 class MultiAction(Action):
     """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
@@ -1690,7 +1807,7 @@ class MultiAction(Action):
         return ordered_action_list
 
     def apply(self, cps):
-        cpss = [deepcopy(cps)]  # list of list of CPattern instances
+        cpss = [deepcopy(cps)]  # list of CPatternList instances
         for action in self.action_list:
             cpsss = []
             for cpsi in cpss:
@@ -1708,7 +1825,10 @@ class MultiAction(Action):
             raise TypeError
 
     def __str__(self):
-        return "MultiAction(\n\t%s\n)" % '\n\t'.join([str(action) for action in self.action_list])
+        return "MultiAction\n\t%s" % '\n\t'.join([str(action) for action in self.action_list])
+
+    def __repr__(self):
+        return str(self)
 
 
 def is_number(n):

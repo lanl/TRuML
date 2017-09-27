@@ -264,7 +264,7 @@ class KappaReader(Reader):
             cur_mol += c
         mol_list.append(KappaReader.parse_molecule(cur_mol, mdefs))
         conn_cmps = utils.get_connected_components(mol_list)
-        return [CPattern(c) for c in conn_cmps]
+        return CPatternList([CPattern(c) for c in conn_cmps])
 
     @staticmethod
     def parse_rule(line, mdefs):
@@ -383,7 +383,7 @@ class KappaReader(Reader):
         bondvalue = pp.Word(pp.nums) | pp.Literal("_")
         kbond = pp.Literal("?") | pp.Combine(pp.Literal("!") + bondvalue)
         kstate = pp.Word("~", pp.alphanums)
-        site = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + pp.Optional(kbond) + pp.Optional(kstate))
+        site = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + pp.Optional(kstate) + pp.Optional(kbond))
         siteList = pp.delimitedList(site, delim=',', combine=True)
         mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ siteList) + rpar)
         molList = pp.delimitedList(mol, delim=',', combine=True)
@@ -712,7 +712,7 @@ class BNGLReader(Reader):
         osplit = re.split('\s+', line.strip())
         otype = osplit[0][0]
         oname = osplit[1]
-        oCPattern = [cls.parse_cpattern(p, mdefs) for p in osplit[2:]]
+        oCPattern = CPatternList([cls.parse_cpattern(p, mdefs) for p in osplit[2:]])
         return Observable(oname, oCPattern, otype)
 
     @staticmethod
@@ -810,9 +810,9 @@ class BNGLReader(Reader):
 
         lhs = re.split('(?<!!)\+', parts[0].rstrip('<'))
         if len(lhs) == 1 and lhs[0].strip() == '0':
-            lhs_cpatterns = []
+            lhs_cpatterns = CPatternList([])
         else:
-            lhs_cpatterns = [cls.parse_cpattern(x, mdefs) for x in lhs]
+            lhs_cpatterns = CPatternList([cls.parse_cpattern(x, mdefs) for x in lhs])
         rem = [x.strip() for x in re.split('(?<!!)\+', parts[1].strip())]
 
         def del_mol_warning(s):
@@ -834,12 +834,12 @@ class BNGLReader(Reader):
             mol, first_rate_part = last_split[0], ' '.join(last_split[1:])
 
             if re.match('0', rem[0]):
-                rhs_cpatterns = []
+                rhs_cpatterns = CPatternList([])
                 del_mol_warning(rem[-1])
                 rem[-1] = re.sub('\s*DeleteMolecules', '', rem[-1])
                 delmol = True
             else:
-                rhs_cpatterns = [cls.parse_cpattern(x, mdefs) for x in (rem[:one_past_final_mol_index] + [mol])]
+                rhs_cpatterns = CPatternList([cls.parse_cpattern(x, mdefs) for x in (rem[:one_past_final_mol_index] + [mol])])
                 n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols
@@ -863,12 +863,12 @@ class BNGLReader(Reader):
             rem_parts = re.split('(?<!!)\s+', parts[1].strip())
 
             if re.match('0', rem_parts[0]):
-                rhs_cpatterns = []
+                rhs_cpatterns = CPatternList([])
                 del_mol_warning(rem_parts[-1])
                 rem_parts[-1] = re.sub('\s*DeleteMolecules', '', rem_parts[-1])
                 delmol = True
             else:
-                rhs_cpatterns = [cls.parse_cpattern(rem_parts[0], mdefs)]
+                rhs_cpatterns = CPatternList([cls.parse_cpattern(rem_parts[0], mdefs)])
                 n_lhs_mols = sum([p.num_molecules() for p in lhs_cpatterns])
                 n_rhs_mols = sum([p.num_molecules() for p in rhs_cpatterns])
                 delmol = n_lhs_mols > n_rhs_mols
@@ -893,51 +893,6 @@ class BNGLReader(Reader):
             else:
                 rate0 = cls.parse_rate(rate_string, is_intra_l_to_r)
                 return Rule(lhs_cpatterns, rhs_cpatterns, rate0, is_reversible, label=label, delmol=delmol)
-
-    @classmethod
-    def _build_actions(cls, lhs, rhs):
-        """Builds a list of Action instances corresponding to the differences between the reactant
-        list of Molecule instances and the product list of Molecule instances"""
-        action_list = []
-        lhs_mols = utils.flatten_pattern(lhs)
-        rhs_mols = utils.flatten_pattern(rhs)
-        mmap = cls._build_mol_map(lhs_mols, rhs_mols)
-        for l, r in mmap.iteritems():
-            if r is None:
-                action_list.append(Degradation(l))
-                continue
-
-            smap = lhs_mols[l].interface_diff_map(rhs_mols[r])
-            mdef = lhs_mols[l].mdef
-            for k in smap.keys():
-                diff = smap[k]
-                if diff[0] is not None:
-                    action_list.append(StateChange(l, k, diff[0], mdef))
-                if diff[1] is not None:
-                    bond = Bond(diff[1]) if diff[1] >= 0 else None
-                    action_list.append(BondChange(l, k, bond, mdef))
-
-        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
-        unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
-        if len(unmapped_rhs_idcs) > 0:
-            conn_cmps = utils.get_connected_components([rhs_mols[i] for i in unmapped_rhs_idcs])
-            for c in conn_cmps:
-                action_list.append(Synthesis(CPattern(c)))
-
-        return MultiAction(action_list)
-
-    @staticmethod
-    def _build_mol_map(lhs, rhs):
-        """Builds a map between Molecule instances on the LHS and RHS of a rule"""
-        mmap = dict()
-        used_rhs_mol_idcs = []
-        for i, lm in enumerate(lhs):
-            mmap[i] = None
-            for j, rm in enumerate(rhs):
-                if lm.has_same_interface(rm) and j not in used_rhs_mol_idcs:
-                    mmap[i] = j
-                    used_rhs_mol_idcs.append(j)
-        return mmap
 
     @classmethod
     def parse_rate(cls, rs, is_intra=False):
@@ -1030,8 +985,10 @@ class BNGLReader(Reader):
         upperPi = pp.Literal("PI")
         pi = lowerPi | upperPi
 
+        func = pp.Combine(ident + lpar + rpar)
+
         expr = pp.Forward()
-        atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ ident) ^ (lpar + expr + rpar))
+        atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ func ^ ident) ^ (lpar + expr + rpar))
 
         # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
         # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
