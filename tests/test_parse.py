@@ -153,6 +153,7 @@ class TestParseBNGL:
         cls.init1 = cls.mol0 + '\t(x+3)/k'
         cls.obs0 = "Molecules Mol0 " + cls.mol0
         cls.obs1 = "Species Mol1 " + cls.mol0
+        cls.obs2 = "Species Mol1T Mol1==3"
         cls.param0 = "kcat 1"
         cls.param1 = "kp=km/kd/(NA*V)"
         cls.rule0 = "A(a) + B(b)<->A(a!1).B(b!1) kp,km"
@@ -196,6 +197,7 @@ class TestParseBNGL:
         pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
         assert readers.BNGLReader.parse_obs(self.obs0, [pmdef2]).write_as_bngl({"Mol0": "Mol0"}) == self.obs0
         assert readers.BNGLReader.parse_obs(self.obs1, [pmdef3]).write_as_bngl({"Mol1": "Mol1"}) == self.obs1
+        assert readers.BNGLReader.parse_obs(self.obs2, [pmdef3]) is None
 
     def test_params_parse(self):
         assert readers.BNGLReader.parse_param(self.param0).write_as_bngl({"kcat": "kcat"}) == self.param0
