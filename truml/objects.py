@@ -458,38 +458,33 @@ class Site:
         self.bond = b
 
     def _site_plus_state(self):
-        """Builds Kappa/BNGL-compatible string composed of site's name state"""
-        state = '' if self.state is None else '~%s' % self.state
-        return self.name + state
+        return self.name if self.state is None else '%s~%s' % (self.name, self.state)
 
-    def _write(self, kappa=False):
+    def write_as_bngl(self):
         """
-        Builds site string
-
-        Parameters
-        ----------
-        kappa : bool
-            If True, then the Site is written in Kappa syntax, BNGL if False
+        Builds site string in BNGL syntax
 
         Returns
         -------
         str
-            Site written as BNGL or Kappa string
+            Site written as BNGL string
         """
-        s = self._site_plus_state()
-        if self.bond is not None and kappa:
-            s += self.bond.write_as_kappa()
-        elif self.bond is not None:
-            s += self.bond.write_as_bngl()
-        return s
-
-    def write_as_bngl(self):
-        """Write Site as BNGL string"""
-        return self._write()
+        state = '' if self.state is None else '~%s' % self.state
+        bond = '' if self.bond is None else self.bond.write_as_bngl()
+        return self.name + state + bond
 
     def write_as_kappa(self):
-        """Write Site as Kappa string"""
-        return self._write(True)
+        """
+        Builds site string in Kappa syntax
+
+        Returns
+        -------
+        str
+            Site written as Kappa string
+        """
+        state = '' if self.state is None else '{%s}' % self.state
+        bond = '[.]' if self.bond is None else self.bond.write_as_kappa()
+        return self.name + state + bond
 
     def diff(self, other):
         """
@@ -572,25 +567,23 @@ class Bond:
 
     def write_as_bngl(self):
         """Write bond as BNGL string"""
-        s = ''
         if self.num >= 0:
-            s = '!%s' % self.num
+            return '!%s' % self.num
         if self.wild:
-            s = '!+'
+            return '!+'
         elif self.any:
-            s = '!?'
-        return s
+            return '!?'
+        return ''
 
     def write_as_kappa(self):
         """Write bond as Kappa string"""
-        s = ''
         if self.wild:
-            s = '!_'
+            return '[_]'
         elif self.any:
-            s = '?'
+            return '[#]'
         else:
-            s = '!%s' % self.num
-        return s
+            return '[%s]' % self.num
+        return '[.]'
 
     def __eq__(self, other):
         """
