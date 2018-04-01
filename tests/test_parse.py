@@ -82,7 +82,7 @@ class TestParseKappa:
 
     def test_init_parse(self):
         pmdef2 = readers.KappaReader.parse_mtype(self.mdef2)
-        assert readers.KappaReader.parse_init(self.init0, [pmdef2])[0].write_as_kappa() == "%init: 10 A(x)"
+        assert readers.KappaReader.parse_init(self.init0, [pmdef2])[0].write_as_kappa() == "%init: 10 A(x[.])"
         bdef = objects.MoleculeDef('B', [], {})
         cdef = objects.MoleculeDef('C', [], {})
         assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[0].write_as_kappa() == "%init: 10 + 'x' B()"
@@ -94,17 +94,17 @@ class TestParseKappa:
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
 
     def test_mdef_parse(self):
-        assert readers.KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z~0~1)"
+        assert readers.KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z{0,1})"
 
     def test_mol_parse(self):
         pmdef0 = readers.KappaReader.parse_mtype(self.mdef0)
-        assert readers.KappaReader.parse_molecule(self.mol0, [pmdef0]).write_as_kappa() == "M(x,y,z~0)"
+        assert readers.KappaReader.parse_molecule(self.mol0, [pmdef0]).write_as_kappa() == "M(x[.],y[.],z{0}[.])"
         pmol1 = readers.KappaReader.parse_molecule(self.mol1, [pmdef0])
-        assert pmol1.write_as_kappa() == "M(x,y,z~0!_)"
+        assert pmol1.write_as_kappa() == "M(x[.],y[.],z{0}[_])"
         assert pmol1.sites[2].bond.wild
         pmdef1 = readers.KappaReader.parse_mtype(self.mdef1)
         pmol2 = readers.KappaReader.parse_molecule(self.mol2, [pmdef1])
-        assert pmol2.write_as_kappa() == "M+_2-985798f(x?,y,z~0)"
+        assert pmol2.write_as_kappa() == "M+_2-985798f(x[#],y[.],z{0}[.])"
         assert pmol2.sites[0].bond.any
         assert pmol2.name == "M+_2-985798f"
 
@@ -123,7 +123,7 @@ class TestParseKappa:
         assert model.parameters[1].name == 'b'
         assert set(model.parameters[1].value.atom_list) == {'3', '+', 'a'}
         assert isinstance(model.parameters[1].value, objects.Expression)
-        assert model.observables[0].write_as_kappa() == "%obs: 'c' |C(x!_,y~state?)|"
+        assert model.observables[0].write_as_kappa() == "%obs: 'c' |C(x[_],y{state}[#])|"
         assert len(model.observables) == 4
         assert model.observables[1].name == "anon_obs0"
         assert model.observables[-2].name == "membrane Ste5"
@@ -212,15 +212,15 @@ class TestParseBNGL:
         assert prule0.write_as_bngl({"kp": "kp", "km": "km"}) == "A(a)+B(b) <-> A(a!1).B(b!1) kp,km"
         prule1 = readers.BNGLReader.parse_rule(self.rule1, mds)
         assert prule1.write_as_bngl({"kp": "kp"}) == "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp/log10(10)"
-        assert prule1.write_as_kappa() == "A(a~r),B(b,c!1),C(c!1) -> A(a~r!2),B(b!2,c!1),C(c!1) @ 'kp'/([log](10)/[log](10))"
+        assert prule1.write_as_kappa() == "A(a{r}[.]),B(b[.],c[1]),C(c[1]) -> A(a{r}[2]),B(b[2],c[1]),C(c[1]) @ 'kp'/([log](10)/[log](10))"
         prule2 = readers.BNGLReader.parse_rule(self.rule2, mds)
         assert prule2.rate.intra_binding is True
         assert prule2.write_as_bngl({"kp": "kp"}) == self.rule2
-        assert prule2.write_as_kappa() == "A(a~s),B(b,c!1),C(c!1) -> A(a~s!2),B(b!2,c!1),C(c!1) @ 0 {'kp'/([log](10)/[log](10))}"
+        assert prule2.write_as_kappa() == "A(a{s}[.]),B(b[.],c[1]),C(c[1]) -> A(a{s}[2]),B(b[2],c[1]),C(c[1]) @ 0 {'kp'/([log](10)/[log](10))}"
         prule3 = readers.BNGLReader.parse_rule(self.rule3, mds)
         assert prule3.rate.intra_binding is False
         assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat' + 1"
+        assert prule3.write_as_kappa() == "K(s[1]),S(k[1],active{0}[#]) -> K(s[1]),S(k[1],active{P}[#]) @ 'kcat' + 1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4, mds)
         assert len(prule4.rhs) == 0
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'
