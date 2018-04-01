@@ -194,9 +194,9 @@ class TestPrint:
         assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10) + 'x' - 356"
         assert self.rule2.write_as_bngl({"rate": "rate"}) == r'A() <-> B() 3,rate'
         assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
-        assert self.rule4.write_as_kappa() == r" -> A() @ 3"
+        assert self.rule4.write_as_kappa() == r". -> A() @ 3"
         assert self.rule4.write_as_bngl() == r"0 -> A() 3"
-        assert self.rule5.write_as_kappa() == r"A() ->  @ 3"
+        assert self.rule5.write_as_kappa() == r"A() -> . @ 3"
         assert self.rule5.write_as_bngl() == r"A() -> 0 3"
         assert self.rule6.write_as_kappa() == r"B(b[.]),B(b[.]) -> B(b[1]),B(b[1]) @ 3"
         assert self.rule6.write_as_bngl() == r"B(b)+B(b) -> B(b!1).B(b!1) 3"

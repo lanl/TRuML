@@ -1313,8 +1313,14 @@ class Rule:
         lhs_string, rhs_string = '', ''
         if self.lhs:
             lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
+        elif not self.lhs:
+            lhs_string = '.'
+
         if self.rhs:
             rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
+        elif not self.rhs:
+            rhs_string = '.'
+
         if self.rev:
             rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
         else:
