@@ -7,8 +7,8 @@ class TestConvert:
 
     @classmethod
     def setup_class(cls):
-        test0 = "tests/resources/test0.bngl"
-        test1 = "tests/resources/test1.bngl"
+        test0 = "resources/test0.bngl"
+        test1 = "resources/test1.bngl"
         cls.bm0 = readers.BNGLReader(test0).parse()
         cls.bm1 = readers.BNGLReader(test1).parse()
 

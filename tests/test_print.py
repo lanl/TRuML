@@ -161,21 +161,21 @@ class TestPrint:
         assert self.i0.write_as_bngl() == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) 10'
         assert self.i0.write_as_kappa() == r'%init: 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)'
         assert self.i1.write_as_bngl({"x": "x"}) == 'Test0(site0~state!3,site2!+).Test0(site0~state!3) x+10'
-        assert self.i1.write_as_kappa() == r"%init: 'x'+10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
+        assert self.i1.write_as_kappa() == r"%init: 'x' + 10 Test0(site0~state!3,site2!_),Test0(site0~state!3)"
 
     # TODO write more to check function map functionality
     def test_pars_and_funcs(self):
         assert self.par0.write_as_bngl({"rate": "rate"}) == r'rate 1000000.0'
         assert self.par0.write_as_kappa() == r"%var: 'rate' 1000000.0"
         assert self.func0.write_as_bngl({"rate_expr()": "rate_expr()", "x": "x"}) == r'rate_expr()=ln(10)+x-356'
-        assert self.func0.write_as_kappa() == r"%obs: 'rate_expr()' [log](10)+'x'-356"
-        assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr()' [log](10)+'x'-356"
+        assert self.func0.write_as_kappa() == r"%obs: 'rate_expr()' [log](10) + 'x' - 356"
+        assert self.func0.write_as_kappa(as_obs=False) == r"%var: 'rate_expr()' [log](10) + 'x' - 356"
 
     def test_rate(self):
         assert self.rate0.write_as_bngl() == r'3'
         assert self.rate0.write_as_kappa() == r'3'
         assert self.rate1.write_as_bngl({"x": "x"}) == r'ln(10)+x-356'
-        assert self.rate1.write_as_kappa() == r"[log](10)+'x'-356"
+        assert self.rate1.write_as_kappa() == r"[log](10) + 'x' - 356"
         assert self.rate2.write_as_bngl({"rate": "rate"}) == r'rate'
         assert self.rate2.write_as_kappa() == r"'rate'"
         assert self.rate3.write_as_bngl() == r'5'
@@ -185,7 +185,7 @@ class TestPrint:
         assert self.rule0.write_as_bngl() == r'A() -> B() 3'
         assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
         assert self.rule1.write_as_bngl({"x": "x"}) == r'A() -> B() ln(10)+x-356'
-        assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10)+'x'-356"
+        assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10) + 'x' - 356"
         assert self.rule2.write_as_bngl({"rate": "rate"}) == r'A() <-> B() 3,rate'
         assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
         assert self.rule4.write_as_kappa() == r" -> A() @ 3"

@@ -518,7 +518,9 @@ class BNGLReader(Reader):
             elif self.is_init_block:
                 model.add_init(self.parse_init(l, model.molecules))
             elif self.is_obs_block:
-                model.add_obs(self.parse_obs(l, model.molecules))
+                obs = self.parse_obs(l, model.molecules)
+                if obs is not None:
+                    model.add_obs(self.parse_obs(l, model.molecules))
             elif self.is_func_block:
                 model.add_func(self.parse_func(l))
             elif self.is_rule_block:
@@ -620,6 +622,7 @@ class BNGLReader(Reader):
         smstr = mstr.strip()
         msplit = re.split('\(', smstr)
         mname = msplit[0]
+        mtype = None
         for mdef in mdefs:
             if mdef.name == mname:
                 mtype = mdef
@@ -640,9 +643,11 @@ class BNGLReader(Reader):
                 if '!' in s:
                     bsplit = re.split('!', tsplit[1])
                     bond = cls.parse_bond(bsplit[1])
-                    site_list.append(Site(name, i, s=bsplit[0], b=bond))
+                    state = None if re.match('\?', bsplit[0]) else bsplit[0]
+                    site_list.append(Site(name, i, s=state, b=bond))
                 else:
-                    site_list.append(Site(name, i, s=tsplit[1]))
+                    state = None if re.match('\?', tsplit[1]) else tsplit[1]
+                    site_list.append(Site(name, i, s=state))
             else:
                 if '!' in s:
                     bsplit = re.split('!', s)
@@ -712,8 +717,11 @@ class BNGLReader(Reader):
         osplit = re.split('\s+', line.strip())
         otype = osplit[0][0]
         oname = osplit[1]
-        oCPattern = CPatternList([cls.parse_cpattern(p, mdefs) for p in osplit[2:]])
-        return Observable(oname, oCPattern, otype)
+        if re.search('==', line) and re.match('[sS]', otype):
+            logging.warning("Observable '%s' cannot be converted to Kappa due to '==' syntax" % line.strip())
+        else:
+            oCPattern = CPatternList([cls.parse_cpattern(p, mdefs) for p in osplit[2:]])
+            return Observable(oname, oCPattern, otype)
 
     @staticmethod
     def parse_param(line):

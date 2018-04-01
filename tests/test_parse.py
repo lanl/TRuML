@@ -85,8 +85,8 @@ class TestParseKappa:
         assert readers.KappaReader.parse_init(self.init0, [pmdef2])[0].write_as_kappa() == "%init: 10 A(x)"
         bdef = objects.MoleculeDef('B', [], {})
         cdef = objects.MoleculeDef('C', [], {})
-        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[0].write_as_kappa() == "%init: 10+'x' B()"
-        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[1].write_as_kappa() == "%init: 10+'x' C()"
+        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[0].write_as_kappa() == "%init: 10 + 'x' B()"
+        assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[1].write_as_kappa() == "%init: 10 + 'x' C()"
 
     def test_eq_parse(self):
         assert readers.KappaReader.parse_alg_expr(self.expr0).asList() == ['10', '+', 'x']
@@ -148,10 +148,12 @@ class TestParseBNGL:
         cls.mds = [cls.mdef4, cls.mdef5, cls.mdef6, cls.mdef7, cls.mdef8]
         cls.mol0 = "Mol(sa,sb!+,sc!3,sd~0!?)"
         cls.mol1 = "Mol(a,b~0,b~1)"
+        cls.mol2 = "Mol(a,b~?!+)"
         cls.init0 = cls.mol0 + ' 100'
         cls.init1 = cls.mol0 + '\t(x+3)/k'
         cls.obs0 = "Molecules Mol0 " + cls.mol0
         cls.obs1 = "Species Mol1 " + cls.mol0
+        cls.obs2 = "Species Mol1T Mol1==3"
         cls.param0 = "kcat 1"
         cls.param1 = "kp=km/kd/(NA*V)"
         cls.rule0 = "A(a) + B(b)<->A(a!1).B(b!1) kp,km"
@@ -181,6 +183,8 @@ class TestParseBNGL:
         pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
         mol1 = readers.BNGLReader.parse_molecule(self.mol1, [pmdef3])
         mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
+        mol2 = readers.BNGLReader.parse_molecule(self.mol2, [pmdef3])
+        mol2.write_as_bngl() == "Mol(a,b!+)"
 
     def test_init_parse(self):
         pmd2 = readers.BNGLReader.parse_mtype(self.mdef2)
@@ -193,6 +197,7 @@ class TestParseBNGL:
         pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
         assert readers.BNGLReader.parse_obs(self.obs0, [pmdef2]).write_as_bngl({"Mol0": "Mol0"}) == self.obs0
         assert readers.BNGLReader.parse_obs(self.obs1, [pmdef3]).write_as_bngl({"Mol1": "Mol1"}) == self.obs1
+        assert readers.BNGLReader.parse_obs(self.obs2, [pmdef3]) is None
 
     def test_params_parse(self):
         assert readers.BNGLReader.parse_param(self.param0).write_as_bngl({"kcat": "kcat"}) == self.param0
@@ -214,7 +219,7 @@ class TestParseBNGL:
         prule3 = readers.BNGLReader.parse_rule(self.rule3, mds)
         assert prule3.rate.intra_binding is False
         assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat'+1"
+        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat' + 1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4, mds)
         assert len(prule4.rhs) == 0
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'
