@@ -26,31 +26,14 @@ class Reader(object):
         if self.file_name is not None:
             try:
                 f = open(file_name)
-                d = f.readlines()
+                self.lines = f.readlines()
                 f.close()
-                self.lines = self.condense_line_continuation(
-                    it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in d]))
                 logging.info("Read file %s" % self.file_name)
             except IOError:
                 logging.error("Cannot find model file %s" % file_name)
                 raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
-
-    @staticmethod
-    def condense_line_continuation(lines):
-        condensed_lines = []
-        cur_line = ''
-        for l in lines:
-            if re.search("\\\\\s*$", l):
-                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
-                cur_line += re.sub('\\\\', '', l.strip())
-                continue
-            else:
-                cur_line += l.strip()
-                condensed_lines.append(cur_line)
-                cur_line = ''
-        return condensed_lines
 
     @staticmethod
     def ignore_line(l):
@@ -70,6 +53,7 @@ class KappaReader(Reader):
         file_name : str
         """
         super(KappaReader, self).__init__(file_name)
+        self.lines = list(it.ifilterfalse(self.ignore_line, [re.sub('//.*$', '', l).strip() for l in self.lines]))
         # var_dict keeps track of read variables and observables and what type they are
         # Variables can be constant values (c), patterns (p), or dynamic expressions (d)
         self.var_dict = {}
@@ -440,12 +424,30 @@ class BNGLReader(Reader):
         file_name : str
         """
         super(BNGLReader, self).__init__(file_name)
+        self.lines = self.condense_line_continuation(
+            it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in self.lines]))
+
         self.is_def_block = False
         self.is_init_block = False
         self.is_param_block = False
         self.is_rule_block = False
         self.is_obs_block = False
         self.is_func_block = False
+
+    @staticmethod
+    def condense_line_continuation(lines):
+        condensed_lines = []
+        cur_line = ''
+        for l in lines:
+            if re.search("\\\\\s*$", l):
+                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
+                cur_line += re.sub('\\\\', '', l.strip())
+                continue
+            else:
+                cur_line += l.strip()
+                condensed_lines.append(cur_line)
+                cur_line = ''
+        return condensed_lines
 
     def get_molecule_types(self):
         m = Model()
