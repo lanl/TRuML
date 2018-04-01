@@ -121,11 +121,17 @@ class TestPrint:
         assert self.s1.write_as_bngl() == r'site1!?'
         assert self.s1.write_as_kappa() == r'site1?'
 
+    def test_site_def(self):
+        assert self.sd0.write_as_kappa() == 'site0{state,state2}'
+        assert self.sd0.write_as_bngl() == 'site0~state~state2'
+        assert self.sd3.write_as_kappa() == 'a{0,1,2}'
+        assert self.sd3.write_as_bngl() == 'a~0~1~2'
+
     def test_molec_def(self):
         assert self.md0.write_as_bngl() == r'Test0(site0~state~state2,site1,site2)'
-        assert self.md0.write_as_kappa() == r'%agent: Test0(site0~state~state2,site1,site2)'
+        assert self.md0.write_as_kappa() == r'%agent: Test0(site0{state,state2},site1,site2)'
         assert self.md2.write_as_bngl() == r'Test2(a~0~1~2,a~0~1~2,a~0~1~2,a~0~1~2,b,c,c)'
-        assert self.md2.write_as_kappa() == r'%agent: Test2(a0~0~1~2,a1~0~1~2,a2~0~1~2,a3~0~1~2,b,c0,c1)'
+        assert self.md2.write_as_kappa() == r'%agent: Test2(a0{0,1,2},a1{0,1,2},a2{0,1,2},a3{0,1,2},b,c0,c1)'
 
     def test_molecules(self):
         assert self.m0.write_as_bngl() == r'Test0(site0~state!3,site2!+)'

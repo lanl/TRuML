@@ -12,6 +12,7 @@ import utils
 from copy import deepcopy
 from math import factorial
 
+
 class SiteDef:
     """A site definition composed of a name and a finite set of states"""
 
@@ -19,17 +20,17 @@ class SiteDef:
         self.name = n
         self.state_list = ss
 
-    def _write(self):
+    def write_as_bngl(self):
         if self.state_list:
             return "%s~%s" % (self.name, '~'.join(self.state_list))
         else:
             return self.name
 
-    def write_as_bngl(self):
-        return self._write()
-
     def write_as_kappa(self):
-        return self._write()
+        if self.state_list:
+            return "%s{%s}" % (self.name, ','.join(self.state_list))
+        else:
+            return self.name
 
     def __repr__(self):
         if not self.state_list:
@@ -98,10 +99,13 @@ class MoleculeDef:
         str
             MoleculeDef as BNGL molecule type or Kappa agent signature
         """
-        if is_bngl or not self.has_site_symmetry:
+        if is_bngl:
             ss = [s.write_as_bngl() for s in self.sites]
+        elif not is_bngl and not self.has_site_symmetry:
+            ss = [s.write_as_kappa() for s in self.sites]
         else:
             md = self.convert()
+            print md
             ss = [s.write_as_kappa() for s in md.sites]
         return "%s(%s)" % (self.name, ','.join(ss))
 
