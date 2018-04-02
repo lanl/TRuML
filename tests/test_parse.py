@@ -165,6 +165,7 @@ class TestParseBNGL:
         cls.rule4 = "A() <-> 0 rate, rate"
         cls.rule5 = "0 -> B(x) 4"
         cls.rule6 = "bdeg: B(x!+) -> 0 kdeg DeleteMolecules"
+        cls.rule7 = "K(s!1).S(k!1,active~0!?) -> K(s!1) + S(k!1,active~0!?) k_dissoc()"
 
     @classmethod
     def teardown_class(cls):
@@ -231,6 +232,8 @@ class TestParseBNGL:
         assert prule6.label == 'bdeg'
         assert prule6.rate.rate == 'kdeg'
         assert prule6.delmol
+        prule7 = readers.BNGLReader.parse_rule(self.rule7, mds)
+        assert len(prule7.rhs) == 2
 
     @raises(rbexceptions.NotCompatibleException)
     def test_invalid_rule_rate(self):
