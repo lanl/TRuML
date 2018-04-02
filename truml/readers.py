@@ -172,24 +172,36 @@ class KappaReader(Reader):
         return [InitialCondition(pattern, amount, amount_is_number) for pattern in patterns]
 
     @staticmethod
+    def _get_sitedef(s):
+        return SiteDef(s.name, s.states[:])
+
+    @staticmethod
+    def _get_molecdef(s):
+        site_defs = s.sites[:]
+        site_name_map = {x.name: x.name for x in site_defs}
+        return MoleculeDef(s.name, site_defs, site_name_map)
+
+    @staticmethod
     def parse_mtype(line):
         mol_string = re.sub('\s*%agent:\s*', '', line)
 
-        psplit = re.split('\(', mol_string)
-        name = psplit[0]
+        name = pp.Word(pp.alphas, bodyChars=pp.alphanums+"_+-") | pp.Word("_", bodyChars=pp.alphanums+"_+-")
 
-        site_name_map = {}  # tracks conversion to kappa by mapping BNGL site names to Kappa site namess
+        lpar = pp.Suppress(pp.Literal("("))
+        rpar = pp.Suppress(pp.Literal(")"))
+        lbrace = pp.Suppress(pp.Literal("{"))
+        rbrace = pp.Suppress(pp.Literal("}"))
+        comma = pp.Suppress(pp.Literal(","))
 
-        sites = re.split('\s*,\s*', psplit[1].strip(')'))
-        site_defs = []
+        site = name.setResultsName('name') + \
+               pp.Optional(lbrace + pp.Group(name + pp.ZeroOrMore(pp.Optional(comma) + name)).setResultsName('states') +
+                           rbrace)
+        site.setParseAction(KappaReader._get_sitedef)
+        agent = name.setResultsName('name') + lpar + \
+                pp.Group(pp.Optional(site + pp.ZeroOrMore(pp.Optional(comma) + site))).setResultsName('sites') + rpar
+        agent.setParseAction(KappaReader._get_molecdef)
 
-        for s in sites:
-            site_split = re.split('~', s)
-            site_name = site_split[0]
-            site_defs.append(SiteDef(site_name, [] if len(site_split) == 1 else site_split[1:]))
-            site_name_map[site_name] = site_name
-
-        return MoleculeDef(name, site_defs, site_name_map, False)
+        return agent.parseString(mol_string)[0]
 
     @staticmethod
     def parse_molecule(mstr, mdefs):
