@@ -10,36 +10,36 @@ class TestParseKappa:
 
     @classmethod
     def setup_class(cls):
-        cls.mdef0 = "%agent: M(x,y,z~0~1)"
-        cls.mdef1 = "%agent: M+_2-985798f(x, y, z~0~1)"
+        cls.mdef0 = "%agent: M(x,y,z{a,b})"
+        cls.mdef1 = "%agent: M+_2-985798f(x, y, z{a b})"
 
-        cls.mdef2 = "%agent: A(x,a~0~1)"
-        cls.mdef3 = "%agent: B(x,y,site~state~state2)"
-        cls.mdef4 = "%agent: C(y,z~t~s)"
+        cls.mdef2 = "%agent: A(x,a{b,c})"
+        cls.mdef3 = "%agent: B(x,y,site{state,state2})"
+        cls.mdef4 = "%agent: C(y,z{t s})"
 
         cls.mds = [cls.mdef2, cls.mdef3, cls.mdef4]
 
-        cls.mol0 = "M(x,y,z~0)"
-        cls.mol1 = "M(x,y,z~0!_)"
-        cls.mol2 = "M+_2-985798f(x?,y,z~0)"
+        cls.mol0 = "M(x[.],y[.],z{a}[.])"
+        cls.mol1 = "M(x[.],y[.],z{a}[_])"
+        cls.mol2 = "M+_2-985798f(x,y[.],z{a})"
 
-        cls.cp0 = "A(),B(x!1),C(y!1,z~s?)"
+        cls.cp0 = "A(),B(x[1]),C(y[1],z{s}[#])"
 
-        cls.init0 = "%init: 10 A(x)"
+        cls.init0 = "%init: 10 A(x[.])"
         cls.init1 = "%init: 10 + 'x' B(),C()"
 
         cls.expr0 = "10 + 'x'"
         cls.expr1 = "[log] 100 / [max] 10 100 - [int] 7.342"
 
-        cls.rule0 = 'A(x),B(x) -> A(x!1),B(x!1) @ 1'
+        cls.rule0 = 'A(x[.]),B(x[.]) -> A(x[1]),B(x[1]) @ 1'
         cls.rule1 = "'rule' %s" % cls.rule0
-        cls.rule2 = "A(a~0),B(y) <-> A(a~1),B(y) @ %s {1}, 0.1 {10}" % cls.expr0
-        cls.rule3 = "'label with space' A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
-        cls.rule4 = "A(x),B(x) <-> A(x!1),B(x!1) @ 1, 0.1"
-        cls.rule5 = " <-> A(x) @ 'rate', 'rate'"
-        cls.rule6 = "B(site~state!_) -> @ [log] 3"
+        cls.rule2 = "A(a{b}[.]),B(y[.]) <-> A(a{b}[.]),B(y[.]) @ %s {1}, 0.1 {10}" % cls.expr0
+        cls.rule3 = "'label with space' A(x[.]),B(x[.]) <-> A(x[1]),B(x[1]) @ %s {0}, 0.01" % cls.expr1
+        cls.rule4 = "A(x[.]),B(x[.]) <-> A(x[1]),B(x[1]) @ 1, 0.1"
+        cls.rule5 = ". <-> A(x[.]) @ 'rate', 'rate'"
+        cls.rule6 = "B(site{state}[_]) -> . @ [log] 3"
 
-        cls.obs0 = "%obs: 'ste5 dimerized' |Ste5(ste5!1),Ste5(ste5!1)|"
+        cls.obs0 = "%obs: 'ste5 dimerized' |Ste5(ste5[1]),Ste5(ste5[1])|"
 
     def test_rule_parse(self):
         mds = [readers.KappaReader.parse_mtype(x) for x in self.mds]
@@ -62,10 +62,14 @@ class TestParseKappa:
         assert len(rule4s) == 1
         assert rule4s[0].rev
         rule5s = readers.KappaReader.parse_rule(self.rule5, mds)
-        assert rule5s[0].lhs == []
+        assert len(rule5s[0].lhs) == 1
+        assert len(rule5s[0].lhs[0]) == 1
+        assert rule5s[0].lhs[0][0] == objects.PlaceHolderMolecule()
         assert rule5s[0].rev
         rule6s = readers.KappaReader.parse_rule(self.rule6, mds)
-        assert rule6s[0].rhs == []
+        assert len(rule6s[0].rhs) == 1
+        assert len(rule6s[0].rhs[0]) == 1
+        assert rule6s[0].rhs[0][0] == objects.PlaceHolderMolecule()
         assert rule6s[0].delmol
 
     def test_cpattern_parse(self):
@@ -94,28 +98,27 @@ class TestParseKappa:
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
 
     def test_mdef_parse(self):
-        assert readers.KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z{0,1})"
+        assert readers.KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z{a,b})"
 
     def test_mol_parse(self):
         pmdef0 = readers.KappaReader.parse_mtype(self.mdef0)
-        assert readers.KappaReader.parse_molecule(self.mol0, [pmdef0]).write_as_kappa() == "M(x[.],y[.],z{0}[.])"
+        assert readers.KappaReader.parse_molecule(self.mol0, [pmdef0]).write_as_kappa() == "M(x[.],y[.],z{a}[.])"
         pmol1 = readers.KappaReader.parse_molecule(self.mol1, [pmdef0])
-        assert pmol1.write_as_kappa() == "M(x[.],y[.],z{0}[_])"
+        assert pmol1.write_as_kappa() == "M(x[.],y[.],z{a}[_])"
         assert pmol1.sites[2].bond.wild
         pmdef1 = readers.KappaReader.parse_mtype(self.mdef1)
         pmol2 = readers.KappaReader.parse_molecule(self.mol2, [pmdef1])
-        assert pmol2.write_as_kappa() == "M+_2-985798f(x[#],y[.],z{0}[.])"
+        assert pmol2.write_as_kappa() == "M+_2-985798f(x[#],y[.],z{a}[#])"
         assert pmol2.sites[0].bond.any
         assert pmol2.name == "M+_2-985798f"
 
     def test_vars_parse(self):
         kr = readers.KappaReader()
-        kr.lines = ["%agent: C(x, y~state~state2)", "%agent: A()", "%agent: Ste5(ste5, ste4)", "%agent: Ste4(ste5)",
-                    "%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'",
-                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|", "%var: 'combo' 'membrane Ste5' / 'a'", self.obs0]
+        kr.lines = ["%agent: C(x, y{state state2})", "%agent: A()", "%agent: Ste5(ste5, ste4)", "%agent: Ste4(ste5)",
+                    "%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x[_],y{state})|", "%var: 'd' |A()| + 'b'",
+                    "%obs: 'membrane Ste5' |Ste5(ste4[1]),Ste4(ste5[1])|", "%var: 'combo' 'membrane Ste5' / 'a'", self.obs0]
         model = kr.parse()
         assert model.molecules[0].name == 'C'
-        print model.molecules[0].site_name_map
         assert model.molecules[0].site_name_map == {'x': 'x', 'y': 'y'}
         assert len(model.functions) == 2
         assert model.functions[1].name == 'combo'

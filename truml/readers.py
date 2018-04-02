@@ -2,6 +2,7 @@
 
 from deepdiff import DeepDiff
 from objects import *
+from parsers import KappaParser
 
 import itertools as it
 import logging
@@ -43,6 +44,8 @@ class Reader(object):
 # ignores perturbation and action commands
 class KappaReader(Reader):
     """Reader for Kappa model files"""
+
+    parser = KappaParser()
 
     def __init__(self, file_name=None):
         """
@@ -181,33 +184,52 @@ class KappaReader(Reader):
         site_name_map = {x.name: x.name for x in site_defs}
         return MoleculeDef(s.name, site_defs, site_name_map)
 
-    @staticmethod
-    def parse_mtype(line):
+    @classmethod
+    def parse_mtype(cls, line):
         mol_string = re.sub('\s*%agent:\s*', '', line)
 
-        name = pp.Word(pp.alphas, bodyChars=pp.alphanums+"_+-") | pp.Word("_", bodyChars=pp.alphanums+"_+-")
+        cls.parser.site_def.setParseAction(cls._get_sitedef)
+        cls.parser.agent_def.setParseAction(cls._get_molecdef)
 
-        lpar = pp.Suppress(pp.Literal("("))
-        rpar = pp.Suppress(pp.Literal(")"))
-        lbrace = pp.Suppress(pp.Literal("{"))
-        rbrace = pp.Suppress(pp.Literal("}"))
-        comma = pp.Suppress(pp.Literal(","))
-
-        site = name.setResultsName('name') + \
-               pp.Optional(lbrace + pp.Group(name + pp.ZeroOrMore(pp.Optional(comma) + name)).setResultsName('states') +
-                           rbrace)
-        site.setParseAction(KappaReader._get_sitedef)
-        agent = name.setResultsName('name') + lpar + \
-                pp.Group(pp.Optional(site + pp.ZeroOrMore(pp.Optional(comma) + site))).setResultsName('sites') + rpar
-        agent.setParseAction(KappaReader._get_molecdef)
-
-        return agent.parseString(mol_string)[0]
+        return cls.parser.agent_def.parseString(mol_string)[0]
 
     @staticmethod
-    def parse_molecule(mstr, mdefs):
+    def _declare_bond(b):
+        if b == '':
+            return Bond(-1, a=True)
+        elif re.match("#$", b[0]):
+            return Bond(-1, a=True)
+        elif re.match("_$", b[0]):
+            return Bond(-1, w=True)
+        elif re.match("\.$", b[0]):
+            return None
+        elif re.match("\d+$", b[0]):
+            return Bond(int(b[0]))
+        raise rbexceptions.NotCompatibleException
+
+    @classmethod
+    def _get_site(cls, s):
+        return s.name, None if s.state == '' else s.state[0], cls._declare_bond(s.bond)
+
+    @staticmethod
+    def _get_molec(s):
+        return s.name, s.sites
+
+    @classmethod
+    def parse_molecule(cls, mstr, mdefs):
         smstr = mstr.strip()
-        msplit = re.split('\(', smstr)
-        mname = msplit[0]
+
+        cls.parser.site.setParseAction(cls._get_site)
+        cls.parser.agent.setParseAction(cls._get_molec)
+
+        res = cls.parser.agent.parseString(smstr)
+
+        if res[0][0] == '.':
+            return PlaceHolderMolecule()
+
+        mname = res[0][0]
+        site_tuples = res[0][1]
+
         mtype = None
         for mdef in mdefs:
             if mdef.name == mname:
@@ -215,38 +237,13 @@ class KappaReader(Reader):
         if mtype is None:
             raise rbexceptions.UnknownMoleculeTypeException(mname)
 
-        if not re.match('[A-Za-z][-+\w]*\(.*\)\s*$', smstr):
-            raise rbexceptions.NotAMoleculeException(smstr)
-        sites = re.split(',', msplit[1].strip(')'))
-        if not sites[0]:
+        if len(site_tuples) == 0:
             return Molecule(mname, [], mtype)
-        site_list = []
-        for i in range(len(sites)):
-            s = sites[i]
-            if '~' in s:
-                tsplit = re.split('~', s)
-                name = tsplit[0]
-                if '!' in s:
-                    bsplit = re.split('!', tsplit[1])
-                    bond = Bond(-1, w=True) if re.match('_', bsplit[1]) else Bond(int(bsplit[1]))
-                    site_list.append(Site(name, i, s=bsplit[0], b=bond))
-                elif re.search('\?$', s):
-                    bond = Bond(-1, a=True)
-                    site_list.append(Site(name, i, s=tsplit[1].strip('?'), b=bond))
-                else:
-                    site_list.append(Site(name, i, s=tsplit[1]))
-            else:
-                if '!' in s:
-                    bsplit = re.split('!', s)
-                    name = bsplit[0]
-                    bond = Bond(-1, w=True) if re.match('_', bsplit[1]) else Bond(int(bsplit[1]))
-                    site_list.append(Site(name, i, b=bond))
-                elif re.search('\?$', s):
-                    bond = Bond(-1, a=True)
-                    site_list.append(Site(s.strip('?'), i, b=bond))
-                else:
-                    site_list.append(Site(s, i))
-        return Molecule(mname, site_list, mtype)
+        else:
+            site_list = []
+            for i, s in enumerate(site_tuples):
+                site_list.append(Site(s[0], i, s[1], s[2]))
+            return Molecule(mname, site_list, mtype)
 
     @staticmethod
     def parse_cpatterns(s, mdefs):
@@ -296,9 +293,16 @@ class KappaReader(Reader):
         else:
             rhs_patts = KappaReader.parse_cpatterns(rhs_cps[0].strip(), mdefs)
 
-        n_lhs_mols = sum([p.num_molecules() for p in lhs_patts])
-        n_rhs_mols = sum([p.num_molecules() for p in rhs_patts])
-        delmol = n_lhs_mols > n_rhs_mols
+        # Check for placeholder molecules
+        delmol = False
+        for p in rhs_patts:
+            if delmol:
+                break
+            for m in p:
+                if m.is_placeholder():
+                    delmol = True
+                    break
+
         if delmol:
             logging.debug("Rule '%s' is a degradation rule" % line)
 
@@ -344,8 +348,8 @@ class KappaReader(Reader):
             rate = Rate(Expression(KappaReader.parse_alg_expr(rhs_cps[1].strip())))
             return [Rule(lhs_patts, rhs_patts, rate, label=label, delmol=delmol)]
 
-    @staticmethod
-    def parse_alg_expr(estr):
+    @classmethod
+    def parse_alg_expr(cls, estr):
         point = pp.Literal(".")
         e = pp.CaselessLiteral("E")
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
@@ -381,16 +385,9 @@ class KappaReader(Reader):
         # variables
         variable = pp.QuotedString("'")
 
-        bondvalue = pp.Word(pp.nums) | pp.Literal("_")
-        kbond = pp.Literal("?") | pp.Combine(pp.Literal("!") + bondvalue)
-        kstate = pp.Word("~", pp.alphanums)
-        site = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + pp.Optional(kstate) + pp.Optional(kbond))
-        siteList = pp.delimitedList(site, delim=',', combine=True)
-        mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ siteList) + rpar)
-        molList = pp.delimitedList(mol, delim=',', combine=True)
         # patterns
         pattern = pp.Combine(
-            pp.Literal("|") + molList + pp.Literal("|"))
+            pp.Literal("|") + pp.CharsNotIn("|") + pp.Literal("|"))  # parse what's in between later
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")

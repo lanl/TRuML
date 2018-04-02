@@ -105,7 +105,6 @@ class MoleculeDef:
             ss = [s.write_as_kappa() for s in self.sites]
         else:
             md = self.convert()
-            print md
             ss = [s.write_as_kappa() for s in md.sites]
         return "%s(%s)" % (self.name, ','.join(ss))
 
@@ -119,6 +118,26 @@ class MoleculeDef:
 
     def __repr__(self):
         return "MoleculeDef(name: %s, sites: %s)" % (self.name, self.sites)
+
+
+class PlaceHolderMolecule:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def write_as_kappa():
+        return '.'
+
+    @staticmethod
+    def write_as_bngl():
+        return ''
+
+    def __eq__(self, other):
+        return isinstance(other, PlaceHolderMolecule)
+
+    @staticmethod
+    def is_placeholder():
+        return True
 
 
 class Molecule:
@@ -429,6 +448,10 @@ class Molecule:
 
     def __repr__(self):
         return 'Molecule(name: %s, sites: %s)' % (self.name, ', '.join([str(x) for x in self.sites]))
+
+    @staticmethod
+    def is_placeholder():
+        return False
 
 
 class Site:
