@@ -7,3 +7,4 @@ import truml.objects as objects
 import truml.rbexceptions as rbexceptions
 import truml.readers as readers
 import truml.utils as utils
+import truml.parsers as parsers

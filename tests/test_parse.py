@@ -151,6 +151,7 @@ class TestParseBNGL:
         cls.mds = [cls.mdef4, cls.mdef5, cls.mdef6, cls.mdef7, cls.mdef8]
         cls.mol0 = "Mol(sa,sb!+,sc!3,sd~0!?)"
         cls.mol1 = "Mol(a,b~0,b~1)"
+        cls.mol1b = "Mol(a,b~0,b~1) thing"
         cls.mol2 = "Mol(a,b~?!+)"
         cls.init0 = cls.mol0 + ' 100'
         cls.init1 = cls.mol0 + '\t(x+3)/k'
@@ -189,6 +190,11 @@ class TestParseBNGL:
         mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
         mol2 = readers.BNGLReader.parse_molecule(self.mol2, [pmdef3])
         mol2.write_as_bngl() == "Mol(a,b!+)"
+
+    @raises(rbexceptions.NotAMoleculeException)
+    def test_bmol_parse(self):
+        pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
+        readers.BNGLReader.parse_molecule(self.mol1b, [pmdef3])
 
     def test_init_parse(self):
         pmd2 = readers.BNGLReader.parse_mtype(self.mdef2)
