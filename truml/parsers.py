@@ -30,3 +30,29 @@ class KappaParser:
 
     def __init__(self):
         pass
+
+
+class BNGLParser:
+
+    name = pp.Word(pp.alphas, bodyChars=pp.alphanums + "_")
+
+    lpar = pp.Suppress(pp.Literal("("))
+    rpar = pp.Suppress(pp.Literal(")"))
+    comma = pp.Suppress(pp.Literal(","))
+
+    state_name = pp.Word(pp.alphanums, bodyChars=pp.alphanums + "_")
+    state = pp.Suppress(pp.Literal("~")) + (state_name ^ pp.Literal("?"))
+    bond_name = pp.Word(pp.nums + "+" + "?")
+    bond = pp.Suppress(pp.Literal("!")) + bond_name
+
+    site_def = name.setResultsName('name') + pp.ZeroOrMore(state).setResultsName('states')
+    molecule_def = name.setResultsName('name') + lpar + pp.Optional(pp.delimitedList(site_def)).setResultsName('sites') + rpar
+
+    site = name.setResultsName('name') + pp.Optional(state).setResultsName('state') + pp.Optional(bond).setResultsName('bond')
+    molecule = name.setResultsName('name') + lpar + pp.Optional(pp.delimitedList(site)).setResultsName('sites') + rpar
+
+    last_complex = molecule + pp.ZeroOrMore("." + molecule) + pp.White()
+    last_complex.leaveWhitespace()
+
+    def __init__(self):
+        pass
