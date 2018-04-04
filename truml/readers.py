@@ -588,6 +588,11 @@ class BNGLReader(Reader):
         site_name_counter = {}
         has_site_symmetry = False
         for sd in site_defs:
+            for state in sd.state_list:
+                if re.match('\d', state):
+                    raise rbexceptions.NotCompatibleException("Kappa does not allow states to start with digits.  "
+                                                              "Please rename states in BNGL file")
+
             if sd.name in site_name_counter.keys():
                 site_name_counter[sd.name] += 1
                 if not has_site_symmetry:
