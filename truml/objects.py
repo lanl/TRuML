@@ -1553,7 +1553,7 @@ class Model:
         func_as_obs : bool
             If True, writes functions as observables, otherwise as variables
         """
-        logging.debug("Writing model to BNGL file: '%s'" % file_name)
+        logging.debug("Writing model to Kappa file: '%s'" % file_name)
 
         s = ''
         for m in self.molecules:

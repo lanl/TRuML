@@ -596,6 +596,7 @@ class BNGLReader(Reader):
             if sd.name in site_name_counter.keys():
                 site_name_counter[sd.name] += 1
                 if not has_site_symmetry:
+                    logging.info('SiteDef %s has site symmetry' % sd.name)
                     has_site_symmetry = True
             else:
                 site_name_counter[sd.name] = 1
@@ -605,10 +606,10 @@ class BNGLReader(Reader):
                 site_name_counter.pop(sn)
                 site_name_map[sn] = sn
 
-            for sn in site_name_counter.keys():
-                while site_name_counter[sn] > 0:
-                    site_name_map[sn + str(site_name_counter[sn] - 1)] = sn
-                    site_name_counter[sn] -= 1
+        for sn in site_name_counter.keys():
+            while site_name_counter[sn] > 0:
+                site_name_map[sn + str(site_name_counter[sn] - 1)] = sn
+                site_name_counter[sn] -= 1
 
         return MoleculeDef(m.name, site_defs, site_name_map)
 
