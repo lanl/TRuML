@@ -18,16 +18,16 @@ end parameters
 
 begin molecule types
   E(s)
-  S(Y~0~P)
+  S(Y~U~P)
 end molecule types
 
 begin seed species
   E(s) E0
-  S(Y~0) S0
+  S(Y~U) S0
 end seed species
 
 begin observables
-  Molecules Su S(Y~0)
+  Molecules Su S(Y~U)
   Molecules Sp S(Y~P)
   Molecules ES E(s!1).S(Y!1)
 end observables
@@ -38,5 +38,5 @@ end functions
 
 begin reaction rules
 ES_MM:\
-  E(s) + S(Y~0) -> E(s) + S(Y~P) kcat/(Km + Su) #MMrate()
+  E(s) + S(Y~U) -> E(s) + S(Y~P) kcat/(Km + Su) #MMrate()
 end reaction rules

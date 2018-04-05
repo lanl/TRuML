@@ -139,19 +139,19 @@ class TestParseBNGL:
 
     @classmethod
     def setup_class(cls):
-        cls.mdef0 = "Molecule(site0,site1~0~P~PP)"
-        cls.mdef1 = "Mol(a,b~0~1,c~a~b,b~0~1,c~a~b)"
-        cls.mdef2 = "Mol(sa,sb,sc,sd~0~1)"
-        cls.mdef3 = "Mol(a,b~0~1,sb~0~1)"
+        cls.mdef0 = "Molecule(site0,site1~U~P~PP)"
+        cls.mdef1 = "Mol(a,b~U~P,c~a~b,b~U~P,c~a~b)"
+        cls.mdef2 = "Mol(sa,sb,sc,sd~U~P)"
+        cls.mdef3 = "Mol(a,b~U~P,sb~U~P)"
         cls.mdef4 = "A(a~r~s)"
         cls.mdef5 = "B(b,c)"
         cls.mdef6 = "C(c)"
         cls.mdef7 = "K(s)"
-        cls.mdef8 = "S(k, active~0~P)"
+        cls.mdef8 = "S(k, active~U~P)"
         cls.mds = [cls.mdef4, cls.mdef5, cls.mdef6, cls.mdef7, cls.mdef8]
-        cls.mol0 = "Mol(sa,sb!+,sc!3,sd~0!?)"
-        cls.mol1 = "Mol(a,b~0,b~1)"
-        cls.mol1b = "Mol(a,b~0,b~1) thing"
+        cls.mol0 = "Mol(sa,sb!+,sc!3,sd~U!?)"
+        cls.mol1 = "Mol(a,b~U,b~P)"
+        cls.mol1b = "Mol(a,b~U,b~P) thing"
         cls.mol2 = "Mol(a,b~?!+)"
         cls.init0 = cls.mol0 + ' 100'
         cls.init1 = cls.mol0 + '\t(x+3)/k'
@@ -165,11 +165,11 @@ class TestParseBNGL:
         cls.rule1 = "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp / log10(10)"
         # intramolecular rule
         cls.rule2 = "A(a~s).B(b,c!1).C(c!1) -> A(a~s!2).B(b!2,c!1).C(c!1) kp/log10(10)"
-        cls.rule3 = "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
+        cls.rule3 = "K(s!1).S(k!1,active~U!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
         cls.rule4 = "A() <-> 0 rate, rate"
         cls.rule5 = "0 -> B(x) 4"
         cls.rule6 = "bdeg: B(x!+) -> 0 kdeg DeleteMolecules"
-        cls.rule7 = "K(s!1).S(k!1,active~0!?) -> K(s!1) + S(k!1,active~0!?) k_dissoc()"
+        cls.rule7 = "K(s!1).S(k!1,active~U!?) -> K(s!1) + S(k!1,active~U!?) k_dissoc()"
 
     @classmethod
     def teardown_class(cls):
@@ -180,14 +180,14 @@ class TestParseBNGL:
         md1 = readers.BNGLReader.parse_mtype(self.mdef1)
         md1.site_name_map['b0'] = 'b'
         md1.site_name_map['b1'] = 'b'
-        assert md1.write_as_bngl() == "Mol(a,b~0~1,c~a~b,b~0~1,c~a~b)"
+        assert md1.write_as_bngl() == "Mol(a,b~U~P,c~a~b,b~U~P,c~a~b)"
 
     def test_mol_parse(self):
         pmdef2 = readers.BNGLReader.parse_mtype(self.mdef2)
         assert readers.BNGLReader.parse_molecule(self.mol0, [pmdef2]).write_as_bngl() == self.mol0
         pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
         mol1 = readers.BNGLReader.parse_molecule(self.mol1, [pmdef3])
-        mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
+        mol1.write_as_bngl() == "Mol(a,b~U,b~P)"
         mol2 = readers.BNGLReader.parse_molecule(self.mol2, [pmdef3])
         mol2.write_as_bngl() == "Mol(a,b!+)"
 
@@ -228,8 +228,9 @@ class TestParseBNGL:
         assert prule2.write_as_kappa() == "A(a{s}[.]),B(b[.],c[1]),C(c[1]) -> A(a{s}[2]),B(b[2],c[1]),C(c[1]) @ 0 {'kp'/([log](10)/[log](10))}"
         prule3 = readers.BNGLReader.parse_rule(self.rule3, mds)
         assert prule3.rate.intra_binding is False
-        assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        assert prule3.write_as_kappa() == "K(s[1]),S(k[1],active{0}[#]) -> K(s[1]),S(k[1],active{P}[#]) @ 'kcat' + 1"
+        assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~U!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
+        print prule3.write_as_kappa()
+        assert prule3.write_as_kappa() == "K(s[1]),S(k[1],active{U}[#]) -> K(s[1]),S(k[1],active{P}[#]) @ 'kcat' + 1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4, mds)
         assert len(prule4.rhs) == 0
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'

@@ -87,6 +87,8 @@ class TestPrint:
         cls.rule4 = objects.Rule(objects.CPatternList([]), objects.CPatternList([cls.p2]), cls.rate0)
         cls.rule5 = objects.Rule(objects.CPatternList([cls.p2]), objects.CPatternList([]), cls.rate0)
         cls.rule6 = objects.Rule(objects.CPatternList([cls.p6, cls.p6]), objects.CPatternList([cls.p8]), cls.rate0)
+        cls.rule7 = objects.Rule(objects.CPatternList([cls.p8]), objects.CPatternList([cls.p6]), cls.rate0)
+        cls.rule8 = objects.Rule(objects.CPatternList([cls.p6]), objects.CPatternList([cls.p6, cls.p6]), cls.rate0)
 
         cls.obs0 = objects.Observable("Obs0", [cls.p3], 'm')
         cls.obs1 = objects.Observable("Obs1", [cls.p2, cls.p3], 's')
@@ -189,11 +191,11 @@ class TestPrint:
 
     def test_rule(self):
         assert self.rule0.write_as_bngl() == r'A() -> B() 3'
-        assert self.rule0.write_as_kappa() == r'A() -> B() @ 3'
+        assert self.rule0.write_as_kappa() == r'A(),. -> .,B() @ 3'
         assert self.rule1.write_as_bngl({"x": "x"}) == r'A() -> B() ln(10)+x-356'
-        assert self.rule1.write_as_kappa() == r"A() -> B() @ [log](10) + 'x' - 356"
+        assert self.rule1.write_as_kappa() == r"A(),. -> .,B() @ [log](10) + 'x' - 356"
         assert self.rule2.write_as_bngl({"rate": "rate"}) == r'A() <-> B() 3,rate'
-        assert self.rule2.write_as_kappa() == r"A() <-> B() @ 3,'rate'"
+        assert self.rule2.write_as_kappa() == r"A(),. <-> .,B() @ 3,'rate'"
         assert self.rule4.write_as_kappa() == r". -> A() @ 3"
         assert self.rule4.write_as_bngl() == r"0 -> A() 3"
         assert self.rule5.write_as_kappa() == r"A() -> . @ 3"
@@ -201,6 +203,10 @@ class TestPrint:
         assert self.rule6.write_as_kappa() == r"B(b[.]),B(b[.]) -> B(b[1]),B(b[1]) @ 3"
         assert self.rule6.write_as_bngl() == r"B(b)+B(b) -> B(b!1).B(b!1) 3"
         assert self.rule6.write_as_bngl(dot=True) == r"B(b).B(b) -> B(b!1).B(b!1) 3"
+        assert self.rule7.write_as_kappa() == r"B(b[1]),B(b[1]) -> B(b[.]),. @ 3"
+        assert self.rule7.write_as_bngl() == r"B(b!1).B(b!1) -> B(b) 3"
+        assert self.rule8.write_as_bngl() == r"B(b) -> B(b)+B(b) 3"
+        assert self.rule8.write_as_kappa() == r"B(b[.]),. -> B(b[.]),B(b[.]) @ 3"
 
     def test_molecule_conversion_determinism(self):
         x = self.m7.convert()
