@@ -120,7 +120,25 @@ class MoleculeDef:
         return "MoleculeDef(name: %s, sites: %s)" % (self.name, self.sites)
 
 
-class PlaceHolderMolecule:
+class MoleculeTemplate:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def is_placeholder():
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def write_as_bngl(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def write_as_kappa(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def has_same_interface(self, other):
+        return NotImplementedError("Function must be implemented in subclass")
+
+
+class PlaceHolderMolecule(MoleculeTemplate):
     def __init__(self):
         pass
 
@@ -139,8 +157,11 @@ class PlaceHolderMolecule:
     def is_placeholder():
         return True
 
+    def has_same_interface(self, other):
+        return isinstance(other, PlaceHolderMolecule)
 
-class Molecule:
+
+class Molecule(MoleculeTemplate):
     """
     An individual molecule/agent inside a pattern.
         Note that it may not contain all sites listed in the associated
@@ -164,6 +185,10 @@ class Molecule:
         self.name = name
         self.sites = sorted(sites, key=lambda s: s.index)  # list of Sites
         self.mdef = md
+
+    @staticmethod
+    def is_placeholder():
+        return False
 
     def _node_name(self):
         """
@@ -1196,6 +1221,8 @@ class Rule:
         self.label = label
         self.delmol = delmol
 
+        self.mol_map = self._build_mol_map(utils.flatten_pattern(self.lhs), utils.flatten_pattern(self.rhs))
+
     def convert(self):
         """
         Converts a Rule to a Kappa-compatible naming scheme
@@ -1264,8 +1291,8 @@ class Rule:
         else:
             lhs_mols = utils.flatten_pattern(self.lhs)
             rhs_mols = utils.flatten_pattern(self.rhs)
-        mmap = self._build_mol_map(lhs_mols, rhs_mols)
-        for l, r in mmap.iteritems():
+        self.mol_map = self._build_mol_map(lhs_mols, rhs_mols)
+        for l, r in self.mol_map.iteritems():
             if r is None:
                 action_list.append(Degradation(l))
                 continue
@@ -1282,7 +1309,7 @@ class Rule:
                     if diff[1] != -1:
                         action_list.append(BondChange(l, k, diff[1], mdef))
 
-        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
+        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, self.mol_map.values()))
         unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
         if len(unmapped_rhs_idcs) > 0:
             conn_cmps = utils.get_connected_components([rhs_mols[i] for i in unmapped_rhs_idcs])
@@ -1333,16 +1360,27 @@ class Rule:
         #  - iterable_item_added/removed (binding, unbinding)
         #  - type_changes (binding, unbinding)
         #  - value_changes (state change)
-        lhs_string, rhs_string = '', ''
-        if self.lhs:
-            lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
-        elif not self.lhs:
-            lhs_string = '.'
 
-        if self.rhs:
-            rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
-        elif not self.rhs:
-            rhs_string = '.'
+        lhs_mols = utils.flatten_pattern(self.lhs)
+        rhs_mols = utils.flatten_pattern(self.rhs)
+
+        lhs_list, rhs_list = [], []
+        for l in sorted(self.mol_map.keys()):
+            lhs_list.append(lhs_mols[l].write_as_kappa())
+            if self.mol_map[l] is not None:
+                rhs_list.append(rhs_mols[self.mol_map[l]].write_as_kappa())
+            else:
+                rhs_list.append('.')
+
+        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, self.mol_map.values()))
+        unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
+
+        for r in unmapped_rhs_idcs:
+            lhs_list.append('.')
+            rhs_list.append(rhs_mols[r].write_as_kappa())
+
+        lhs_string = ','.join(lhs_list)
+        rhs_string = ','.join(rhs_list)
 
         if self.rev:
             rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
@@ -1817,6 +1855,7 @@ class BondAndStateChange(Action):
 
     def __repr__(self):
         return str(self)
+
 
 class MultiAction(Action):
     """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""
