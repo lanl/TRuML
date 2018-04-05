@@ -38,6 +38,7 @@ class TestParseKappa:
         cls.rule4 = "A(x[.]),B(x[.]) <-> A(x[1]),B(x[1]) @ 1, 0.1"
         cls.rule5 = ". <-> A(x[.]) @ 'rate', 'rate'"
         cls.rule6 = "B(site{state}[_]) -> . @ [log] 3"
+        cls.rule7 = "A(x[1]),B(x[1]) -> A(x[.]),. @ 1"
 
         cls.obs0 = "%obs: 'ste5 dimerized' |Ste5(ste5[1]),Ste5(ste5[1])|"
 
@@ -71,6 +72,10 @@ class TestParseKappa:
         assert len(rule6s[0].rhs[0]) == 1
         assert rule6s[0].rhs[0][0] == objects.PlaceHolderMolecule()
         assert rule6s[0].delmol
+        rule7s = readers.KappaReader.parse_rule(self.rule7, mds)
+        assert len(rule7s[0].rhs) == 2
+        print rule7s[0].rhs
+        assert isinstance(rule7s[0].rhs[1][0], objects.PlaceHolderMolecule)
 
     def test_cpattern_parse(self):
         pmdef2 = readers.KappaReader.parse_mtype(self.mdef2)

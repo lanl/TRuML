@@ -64,6 +64,7 @@ class TestPrint:
         cls.p6 = objects.CPattern([cls.m8])
         cls.p7 = objects.CPattern([cls.m9, cls.m10])
         cls.p8 = objects.CPattern([cls.m10, cls.m10])
+        cls.p9 = objects.CPattern([cls.m8, objects.PlaceHolderMolecule])
 
         cls.i0 = objects.InitialCondition(cls.p0, 10)
         cls.i1 = objects.InitialCondition(cls.p0, objects.Expression(['x', '+', '10']), False)
@@ -156,10 +157,12 @@ class TestPrint:
         orig_site_indices = set([s.index for s in self.m5.sites])
         assert conv_site_indices >= orig_site_indices
 
-    def test_patterns(self):
+    def test_cpattern(self):
         assert self.p0.write_as_bngl() == r'Test0(site0~state!3,site2!+).Test0(site0~state!3)'
         assert self.p0.write_as_kappa() == r'Test0(site0{state}[3],site2[_]),Test0(site0{state}[3])'
         assert self.p4.write_as_bngl() == r'Test2(a).Test0(site0~state!3,site2!+)'
+        assert self.p9.write_as_kappa() == r'B(b[.]),.'
+        assert self.p9.write_as_bngl() == r'B(b)'
 
     @raises(rbexceptions.NotCompatibleException)
     def test_patterns(self):

@@ -137,6 +137,9 @@ class MoleculeTemplate:
     def has_same_interface(self, other):
         return NotImplementedError("Function must be implemented in subclass")
 
+    def bound_to(self, other):
+        return NotImplementedError("Function must be implemented in subclass")
+
 
 class PlaceHolderMolecule(MoleculeTemplate):
     def __init__(self):
@@ -148,7 +151,7 @@ class PlaceHolderMolecule(MoleculeTemplate):
 
     @staticmethod
     def write_as_bngl():
-        return ''
+        return None
 
     def __eq__(self, other):
         return isinstance(other, PlaceHolderMolecule)
@@ -159,6 +162,12 @@ class PlaceHolderMolecule(MoleculeTemplate):
 
     def has_same_interface(self, other):
         return isinstance(other, PlaceHolderMolecule)
+
+    def bound_to(self, other):
+        return False
+
+    def __repr__(self):
+        return "PlaceHolderMolecule"
 
 
 class Molecule(MoleculeTemplate):
@@ -888,6 +897,8 @@ class CPattern:
         cps = []
         for m in self.molecule_list:
             if bngl:
+                if m.is_placeholder():
+                    continue
                 cps.append(m.write_as_bngl())
             else:
                 cps.append(m.write_as_kappa())
