@@ -63,11 +63,13 @@ class TestParseKappa:
         assert len(rule4s) == 1
         assert rule4s[0].rev
         rule5s = readers.KappaReader.parse_rule(self.rule5, mds)
+        print rule5s[0]
         assert len(rule5s[0].lhs) == 1
         assert len(rule5s[0].lhs[0]) == 1
         assert rule5s[0].lhs[0][0] == objects.PlaceHolderMolecule()
         assert rule5s[0].rev
         rule6s = readers.KappaReader.parse_rule(self.rule6, mds)
+        print rule6s
         assert len(rule6s[0].rhs) == 1
         assert len(rule6s[0].rhs[0]) == 1
         assert rule6s[0].rhs[0][0] == objects.PlaceHolderMolecule()
@@ -175,6 +177,9 @@ class TestParseBNGL:
         cls.rule5 = "0 -> B(x) 4"
         cls.rule6 = "bdeg: B(x!+) -> 0 kdeg DeleteMolecules"
         cls.rule7 = "K(s!1).S(k!1,active~U!?) -> K(s!1) + S(k!1,active~U!?) k_dissoc()"
+        cls.rule8 = "A() + A() -> 0 rate"
+        cls.rule9 = "A().A().A() -> 0 rate"
+        cls.rule10 = "0 -> A().B() rate"
 
     @classmethod
     def teardown_class(cls):
@@ -234,14 +239,13 @@ class TestParseBNGL:
         prule3 = readers.BNGLReader.parse_rule(self.rule3, mds)
         assert prule3.rate.intra_binding is False
         assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~U!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        print prule3.write_as_kappa()
         assert prule3.write_as_kappa() == "K(s[1]),S(k[1],active{U}[#]) -> K(s[1]),S(k[1],active{P}[#]) @ 'kcat' + 1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4, mds)
-        assert len(prule4.rhs) == 0
+        assert len(prule4.rhs) == 1
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'
         assert prule4.delmol
         prule5 = readers.BNGLReader.parse_rule(self.rule5, mds)
-        assert len(prule5.lhs) == 0
+        assert isinstance(prule5.lhs[0].molecule_list[0], objects.PlaceHolderMolecule)
         assert len(prule5.rhs) == 1
         prule6 = readers.BNGLReader.parse_rule(self.rule6, mds)
         assert prule6.label == 'bdeg'
@@ -249,6 +253,17 @@ class TestParseBNGL:
         assert prule6.delmol
         prule7 = readers.BNGLReader.parse_rule(self.rule7, mds)
         assert len(prule7.rhs) == 2
+        prule8 = readers.BNGLReader.parse_rule(self.rule8, mds)
+        assert len(prule8.rhs[0].molecule_list) == 1
+        assert isinstance(prule8.rhs[0].molecule_list[0], objects.PlaceHolderMolecule)
+        prule9 = readers.BNGLReader.parse_rule(self.rule9, mds)
+        assert len(prule9.rhs) == 3
+        assert isinstance(prule9.rhs[0].molecule_list[0], objects.PlaceHolderMolecule)
+        prule10 = readers.BNGLReader.parse_rule(self.rule10, mds)
+        assert len(prule10.rhs) == 1
+        assert len(prule10.rhs[0].molecule_list) == 2
+        assert isinstance(prule10.lhs[0].molecule_list[0], objects.PlaceHolderMolecule)
+        assert isinstance(prule10.lhs[1].molecule_list[0], objects.PlaceHolderMolecule)
 
     @raises(rbexceptions.NotCompatibleException)
     def test_invalid_rule_rate(self):
