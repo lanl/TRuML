@@ -1,0 +1,48 @@
+%agent: A(r,d)
+%agent: R(a)
+%agent: pA(a)
+%agent: pR(a)
+%agent: mRNA_A()
+%agent: mRNA_R()
+
+%var: 'alpha_A' 50
+%var: 'alpha_Ap' 500
+%var: 'alpha_R' 0.01
+%var: 'alpha_Rp' 50
+%var: 'beta_A' 50
+%var: 'beta_R' 5
+%var: 'delta_MA' 10
+%var: 'delta_MR' 0.5
+%var: 'delta_A' 1
+%var: 'delta_R' 0.2
+%var: 'gamma_A' 1
+%var: 'gamma_R' 1
+%var: 'gamma_C' 2
+%var: 'theta_A' 50
+%var: 'theta_R' 100
+
+%obs: 'Afree' |A(r[.],d[.])|
+%obs: 'Rfree' |R(a[.])|
+%obs: 'Atot' |A()|
+%obs: 'Rtot' |R()|
+
+%init: 0.0 A(r[.],d[.])
+%init: 0.0 R(a[.])
+%init: 1.0 pA(a[.])
+%init: 1.0 pR(a[.])
+
+pA(a[.]),.,. -> pA(a[.]),.,mRNA_A() @ 'alpha_A'
+pA(a[_]),.,. -> pA(a[_]),.,mRNA_A() @ 'alpha_Ap'
+pR(a[.]),.,. -> pR(a[.]),.,mRNA_R() @ 'alpha_R'
+pR(a[_]),.,. -> pR(a[_]),.,mRNA_R() @ 'alpha_Rp'
+mRNA_A(),.,. -> mRNA_A(),.,A(r[.],d[.]) @ 'beta_A'
+mRNA_R(),.,. -> mRNA_R(),.,R(a[.]) @ 'beta_R'
+A(r[.],d[.]),pA(a[.]) <-> A(r[.],d[1]),pA(a[1]) @ 'gamma_A','theta_A'
+A(r[.],d[.]),pR(a[.]) <-> A(r[.],d[1]),pR(a[1]) @ 'gamma_R','theta_R'
+A(r[.],d[.]),R(a[.]) -> A(r[1],d[.]),R(a[1]) @ 'gamma_C'
+mRNA_A() -> . @ 'delta_MA'
+mRNA_R() -> . @ 'delta_MR'
+A(d[.],r[.]) -> . @ 'delta_A'
+A(d[.],r[1]),R(a[1]) -> .,R(a[.]) @ 'delta_A'
+R(a[.]) -> . @ 'delta_R'
+
