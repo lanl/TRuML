@@ -1,0 +1,23 @@
+%agent: E(s)
+%agent: S(Y{U,P})
+
+%var: 'V' 1
+%var: 'NaV' 602*'V'
+%var: 'kf' 1.0/('NaV')
+%var: 'kr' 1.0E-1
+%var: 'kcat' 1.0E-2
+%var: 'Km' ('kcat' + 'kr')/'kf'
+%var: 'E0' 0.01*'NaV'
+%var: 'S0' 1.0*'NaV'
+
+%obs: 'Su' |S(Y{U}[.])|
+%obs: 'Sp' |S(Y{P}[.])|
+%obs: 'ES' |E(s[1]),S(Y[1])|
+
+%obs: 'MMrate()' 'kcat'*'E0'*'Su'/('Km' + 'Su')
+
+%init: 'E0' E(s[.])
+%init: 'S0' S(Y{U}[.])
+
+E(s[.]),S(Y{U}[.]) -> E(s[.]),S(Y{P}[.]) @ 'MMrate()'
+
