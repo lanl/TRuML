@@ -954,7 +954,11 @@ class CPatternList:
         return list(it.imap(lambda p: CPatternList(list(p)), it.product(*c_cps)))
 
     def write_as_bngl(self, dot):
-        if len(self.cpatterns) == 1 and self.cpatterns[0].placeholder:
+        all_placeholder = True
+        for cp in self.cpatterns:
+            all_placeholder = all_placeholder and cp.placeholder
+
+        if all_placeholder:
             return '0'
 
         valid_cpatterns = [cp for cp in self.cpatterns if not cp.placeholder]
