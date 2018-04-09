@@ -1,0 +1,21 @@
+%agent: K(s) // enzyme that modifies substrate (kinase)
+%agent: S(b active{u p}) // substrate that can occupy two states (unphosphorylated, phosphorylated)
+%agent: P(s) // enzyme that undoes modification (phosphatase)
+
+%var: 'on' 1e-5 // binding rate
+%var: 'off' 0.01 // 
+%var: 'cat' 1
+
+%var: 'E_copies' 1000
+%var: 'S_copies' 10000
+
+%init: 'E_copies' K(s[.])
+%init: 'E_copies' P(s[.])
+%init: 'S_copies' S(b[.] active{u}[.])
+
+K(s[.]),S(b[.] active{u}) <-> K(s[1]),S(b[1] active{u}) @ 'on', 'off'
+S(b[_] active{u}) -> S(b[.] active{p}) @ 'cat'
+P(s[.]),S(b[.] active{p}) <-> P(s[1]),S(b[1] active{p}) @ 'on', 'off'
+S(b[_] active{p}) -> S(b[.] active{u}) @ 'cat'
+
+%obs: 'activeS' |S(active{p})|

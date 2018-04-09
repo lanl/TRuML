@@ -1,0 +1,47 @@
+begin parameters
+  # Cell volume
+  V 1 # um^3 = fL
+  # Avogadro's number- scaled for uM concentration and volume units of um^3
+  NaV 602*V
+  # Rate constants
+  kf   1.0/(NaV) # 1/uM 1/s-> 1/molec 1/s
+  kr   1.0e-1 # 1/s
+  kcat 1.0e-2 # 1/s
+  Km   (kcat + kr)/kf 
+  
+  # Initial concentrations
+  E0 0.01*NaV # uM -> molec / cell
+  S0 1.0*NaV # uM -> molec / cell
+end parameters
+
+begin molecule types
+  E(s)
+  S(Y~U~P)
+end molecule types
+
+begin seed species
+  E(s) E0
+  S(Y~U) S0
+end seed species
+
+begin observables
+  Molecules Su S(Y~U)
+  Molecules Sp S(Y~P)
+  Molecules ES E(s!1).S(Y!1)
+end observables
+
+begin functions
+  MMrate() kcat*E0*Su/(Km + Su)
+end functions
+
+begin reaction rules
+ES_MM:\
+  E(s) + S(Y~U) -> E(s) + S(Y~P) MMrate()
+end reaction rules
+
+begin actions
+
+generate_network({overwrite=>1})
+simulate({method=>"ode", t_start=>0, t_end=>1000, n_steps=>1000, print_functions=>1, gml=>2e8})
+
+end actions
