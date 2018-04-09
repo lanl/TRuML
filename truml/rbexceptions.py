@@ -48,3 +48,13 @@ class UnknownMoleculeTypeException(Exception):
 
     def __str__(self):
         return self.msg
+
+
+class NoMoleculesException(Exception):
+    """Raised when no molecule definitions are found (likely due to incorrect TRuML argument)"""
+
+    def __init__(self, s):
+        self.msg = s
+
+    def __str__(self):
+        return self.msg
