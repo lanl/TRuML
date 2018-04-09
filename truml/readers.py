@@ -88,6 +88,11 @@ class KappaReader(Reader):
         # First get agent definitions
         model = self.get_agents()
 
+        if len(model.molecules) == 0:
+            logging.error("No molecules found")
+            raise rbexceptions.NoMoleculesException("Did not find any molecules.  "
+                                                    "Check file and TRuML command-line arguments")
+
         for i, l in enumerate(self.lines):
             if re.match('%agent', l):
                 continue
@@ -464,6 +469,11 @@ class BNGLReader(Reader):
         This function assumes that the file has the molecule types block before the rules block
         """
         model = self.get_molecule_types()
+
+        if len(model.molecules) == 0:
+            logging.error("No molecules found")
+            raise rbexceptions.NoMoleculesException("Did not find any molecules.  "
+                                                    "Check file and TRuML command-line arguments")
 
         for i, l in enumerate(self.lines):
 
