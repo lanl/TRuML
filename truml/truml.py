@@ -34,9 +34,9 @@ def main():
         ll = logging.INFO
 
     if args.log_file:
-        logging.basicConfig(format=log_format, filename=args.log_file, level=ll)
+        logging.basicConfig(format=log_format, filename=args.log_file, level=ll, filemode='w')
     else:
-        logging.basicConfig(format=log_format, level=ll)
+        logging.basicConfig(format=log_format, level=ll, filemode='w')
 
     logging.info("Running the TRuML translator version %s" % __version__)
 
