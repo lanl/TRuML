@@ -10,36 +10,37 @@ class TestParseKappa:
 
     @classmethod
     def setup_class(cls):
-        cls.mdef0 = "%agent: M(x,y,z~0~1)"
-        cls.mdef1 = "%agent: M+_2-985798f(x, y, z~0~1)"
+        cls.mdef0 = "%agent: M(x,y,z{a,b})"
+        cls.mdef1 = "%agent: M+_2-985798f(x, y, z{a b})"
 
-        cls.mdef2 = "%agent: A(x,a~0~1)"
-        cls.mdef3 = "%agent: B(x,y,site~state~state2)"
-        cls.mdef4 = "%agent: C(y,z~t~s)"
+        cls.mdef2 = "%agent: A(x,a{b,c})"
+        cls.mdef3 = "%agent: B(x,y,site{state,state2})"
+        cls.mdef4 = "%agent: C(y,z{t s})"
 
         cls.mds = [cls.mdef2, cls.mdef3, cls.mdef4]
 
-        cls.mol0 = "M(x,y,z~0)"
-        cls.mol1 = "M(x,y,z~0!_)"
-        cls.mol2 = "M+_2-985798f(x?,y,z~0)"
+        cls.mol0 = "M(x[.],y[.],z{a}[.])"
+        cls.mol1 = "M(x[.],y[.],z{a}[_])"
+        cls.mol2 = "M+_2-985798f(x,y[.],z{a})"
 
-        cls.cp0 = "A(),B(x!1),C(y!1,z~s?)"
+        cls.cp0 = "A(),B(x[1]),C(y[1],z{s}[#])"
 
-        cls.init0 = "%init: 10 A(x)"
+        cls.init0 = "%init: 10 A(x[.])"
         cls.init1 = "%init: 10 + 'x' B(),C()"
 
         cls.expr0 = "10 + 'x'"
         cls.expr1 = "[log] 100 / [max] 10 100 - [int] 7.342"
 
-        cls.rule0 = 'A(x),B(x) -> A(x!1),B(x!1) @ 1'
+        cls.rule0 = 'A(x[.]),B(x[.]) -> A(x[1]),B(x[1]) @ 1'
         cls.rule1 = "'rule' %s" % cls.rule0
-        cls.rule2 = "A(a~0),B(y) <-> A(a~1),B(y) @ %s {1}, 0.1 {10}" % cls.expr0
-        cls.rule3 = "'label with space' A(x),B(x) <-> A(x!1),B(x!1) @ %s {0}, 0.01" % cls.expr1
-        cls.rule4 = "A(x),B(x) <-> A(x!1),B(x!1) @ 1, 0.1"
-        cls.rule5 = " <-> A(x) @ 'rate', 'rate'"
-        cls.rule6 = "B(site~state!_) -> @ [log] 3"
+        cls.rule2 = "A(a{b}[.]),B(y[.]) <-> A(a{b}[.]),B(y[.]) @ %s {1}, 0.1 {10}" % cls.expr0
+        cls.rule3 = "'label with space' A(x[.]),B(x[.]) <-> A(x[1]),B(x[1]) @ %s {0}, 0.01" % cls.expr1
+        cls.rule4 = "A(x[.]),B(x[.]) <-> A(x[1]),B(x[1]) @ 1, 0.1"
+        cls.rule5 = ". <-> A(x[.]) @ 'rate', 'rate'"
+        cls.rule6 = "B(site{state}[_]) -> . @ [log] 3"
+        cls.rule7 = "A(x[1]),B(x[1]) -> A(x[.]),. @ 1"
 
-        cls.obs0 = "%obs: 'ste5 dimerized' |Ste5(ste5!1),Ste5(ste5!1)|"
+        cls.obs0 = "%obs: 'ste5 dimerized' |Ste5(ste5[1]),Ste5(ste5[1])|"
 
     def test_rule_parse(self):
         mds = [readers.KappaReader.parse_mtype(x) for x in self.mds]
@@ -62,11 +63,21 @@ class TestParseKappa:
         assert len(rule4s) == 1
         assert rule4s[0].rev
         rule5s = readers.KappaReader.parse_rule(self.rule5, mds)
-        assert rule5s[0].lhs == []
+        print rule5s[0]
+        assert len(rule5s[0].lhs) == 1
+        assert len(rule5s[0].lhs[0]) == 1
+        assert rule5s[0].lhs[0][0] == objects.PlaceHolderMolecule()
         assert rule5s[0].rev
         rule6s = readers.KappaReader.parse_rule(self.rule6, mds)
-        assert rule6s[0].rhs == []
+        print rule6s
+        assert len(rule6s[0].rhs) == 1
+        assert len(rule6s[0].rhs[0]) == 1
+        assert rule6s[0].rhs[0][0] == objects.PlaceHolderMolecule()
         assert rule6s[0].delmol
+        rule7s = readers.KappaReader.parse_rule(self.rule7, mds)
+        assert len(rule7s[0].rhs) == 2
+        print rule7s[0].rhs
+        assert isinstance(rule7s[0].rhs[1][0], objects.PlaceHolderMolecule)
 
     def test_cpattern_parse(self):
         pmdef2 = readers.KappaReader.parse_mtype(self.mdef2)
@@ -82,7 +93,7 @@ class TestParseKappa:
 
     def test_init_parse(self):
         pmdef2 = readers.KappaReader.parse_mtype(self.mdef2)
-        assert readers.KappaReader.parse_init(self.init0, [pmdef2])[0].write_as_kappa() == "%init: 10 A(x)"
+        assert readers.KappaReader.parse_init(self.init0, [pmdef2])[0].write_as_kappa() == "%init: 10 A(x[.])"
         bdef = objects.MoleculeDef('B', [], {})
         cdef = objects.MoleculeDef('C', [], {})
         assert readers.KappaReader.parse_init(self.init1, [bdef, cdef])[0].write_as_kappa() == "%init: 10 + 'x' B()"
@@ -94,28 +105,27 @@ class TestParseKappa:
                ['[log]', '100', '/', '[max]', '10', '100', '-', '[int]', '7.342']
 
     def test_mdef_parse(self):
-        assert readers.KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z~0~1)"
+        assert readers.KappaReader.parse_mtype(self.mdef0).write_as_kappa() == "%agent: M(x,y,z{a,b})"
 
     def test_mol_parse(self):
         pmdef0 = readers.KappaReader.parse_mtype(self.mdef0)
-        assert readers.KappaReader.parse_molecule(self.mol0, [pmdef0]).write_as_kappa() == "M(x,y,z~0)"
+        assert readers.KappaReader.parse_molecule(self.mol0, [pmdef0]).write_as_kappa() == "M(x[.],y[.],z{a}[.])"
         pmol1 = readers.KappaReader.parse_molecule(self.mol1, [pmdef0])
-        assert pmol1.write_as_kappa() == "M(x,y,z~0!_)"
+        assert pmol1.write_as_kappa() == "M(x[.],y[.],z{a}[_])"
         assert pmol1.sites[2].bond.wild
         pmdef1 = readers.KappaReader.parse_mtype(self.mdef1)
         pmol2 = readers.KappaReader.parse_molecule(self.mol2, [pmdef1])
-        assert pmol2.write_as_kappa() == "M+_2-985798f(x?,y,z~0)"
+        assert pmol2.write_as_kappa() == "M+_2-985798f(x[#],y[.],z{a}[#])"
         assert pmol2.sites[0].bond.any
         assert pmol2.name == "M+_2-985798f"
 
     def test_vars_parse(self):
         kr = readers.KappaReader()
-        kr.lines = ["%agent: C(x, y~state~state2)", "%agent: A()", "%agent: Ste5(ste5, ste4)", "%agent: Ste4(ste5)",
-                    "%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x!_,y~state?)|", "%var: 'd' |A()| + 'b'",
-                    "%obs: 'membrane Ste5' |Ste5(ste4!1),Ste4(ste5!1)|", "%var: 'combo' 'membrane Ste5' / 'a'", self.obs0]
+        kr.lines = ["%agent: C(x, y{state state2})", "%agent: A()", "%agent: Ste5(ste5, ste4)", "%agent: Ste4(ste5)",
+                    "%var: 'a' 3", "%var: 'b' 3 + 'a'", "%var: 'c' |C(x[_],y{state})|", "%var: 'd' |A()| + 'b'",
+                    "%obs: 'membrane Ste5' |Ste5(ste4[1]),Ste4(ste5[1])|", "%var: 'combo' 'membrane Ste5' / 'a'", self.obs0]
         model = kr.parse()
         assert model.molecules[0].name == 'C'
-        print model.molecules[0].site_name_map
         assert model.molecules[0].site_name_map == {'x': 'x', 'y': 'y'}
         assert len(model.functions) == 2
         assert model.functions[1].name == 'combo'
@@ -123,7 +133,7 @@ class TestParseKappa:
         assert model.parameters[1].name == 'b'
         assert set(model.parameters[1].value.atom_list) == {'3', '+', 'a'}
         assert isinstance(model.parameters[1].value, objects.Expression)
-        assert model.observables[0].write_as_kappa() == "%obs: 'c' |C(x!_,y~state?)|"
+        assert model.observables[0].write_as_kappa() == "%obs: 'c' |C(x[_],y{state}[#])|"
         assert len(model.observables) == 4
         assert model.observables[1].name == "anon_obs0"
         assert model.observables[-2].name == "membrane Ste5"
@@ -136,18 +146,19 @@ class TestParseBNGL:
 
     @classmethod
     def setup_class(cls):
-        cls.mdef0 = "Molecule(site0,site1~0~P~PP)"
-        cls.mdef1 = "Mol(a,b~0~1,c~a~b,b~0~1,c~a~b)"
-        cls.mdef2 = "Mol(sa,sb,sc,sd~0~1)"
-        cls.mdef3 = "Mol(a,b~0~1,sb~0~1)"
+        cls.mdef0 = "Molecule(site0,site1~U~P~PP)"
+        cls.mdef1 = "Mol(a,b~U~P,c~a~b,b~U~P,c~a~b)"
+        cls.mdef2 = "Mol(sa,sb,sc,sd~U~P)"
+        cls.mdef3 = "Mol(a,b~U~P,sb~U~P)"
         cls.mdef4 = "A(a~r~s)"
         cls.mdef5 = "B(b,c)"
         cls.mdef6 = "C(c)"
         cls.mdef7 = "K(s)"
-        cls.mdef8 = "S(k, active~0~P)"
+        cls.mdef8 = "S(k, active~U~P)"
         cls.mds = [cls.mdef4, cls.mdef5, cls.mdef6, cls.mdef7, cls.mdef8]
-        cls.mol0 = "Mol(sa,sb!+,sc!3,sd~0!?)"
-        cls.mol1 = "Mol(a,b~0,b~1)"
+        cls.mol0 = "Mol(sa,sb!+,sc!3,sd~U!?)"
+        cls.mol1 = "Mol(a,b~U,b~P)"
+        cls.mol1b = "Mol(a,b~U,b~P) thing"
         cls.mol2 = "Mol(a,b~?!+)"
         cls.init0 = cls.mol0 + ' 100'
         cls.init1 = cls.mol0 + '\t(x+3)/k'
@@ -161,10 +172,14 @@ class TestParseBNGL:
         cls.rule1 = "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp / log10(10)"
         # intramolecular rule
         cls.rule2 = "A(a~s).B(b,c!1).C(c!1) -> A(a~s!2).B(b!2,c!1).C(c!1) kp/log10(10)"
-        cls.rule3 = "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
+        cls.rule3 = "K(s!1).S(k!1,active~U!?) -> K(s!1).S(k!1,active~P!?) kcat + 1"
         cls.rule4 = "A() <-> 0 rate, rate"
         cls.rule5 = "0 -> B(x) 4"
         cls.rule6 = "bdeg: B(x!+) -> 0 kdeg DeleteMolecules"
+        cls.rule7 = "K(s!1).S(k!1,active~U!?) -> K(s!1) + S(k!1,active~U!?) k_dissoc()"
+        cls.rule8 = "A() + A() -> 0 rate"
+        cls.rule9 = "A().A().A() -> 0 rate"
+        cls.rule10 = "0 -> A().B() rate"
 
     @classmethod
     def teardown_class(cls):
@@ -175,16 +190,21 @@ class TestParseBNGL:
         md1 = readers.BNGLReader.parse_mtype(self.mdef1)
         md1.site_name_map['b0'] = 'b'
         md1.site_name_map['b1'] = 'b'
-        assert md1.write_as_bngl() == "Mol(a,b~0~1,c~a~b,b~0~1,c~a~b)"
+        assert md1.write_as_bngl() == "Mol(a,b~U~P,c~a~b,b~U~P,c~a~b)"
 
     def test_mol_parse(self):
         pmdef2 = readers.BNGLReader.parse_mtype(self.mdef2)
         assert readers.BNGLReader.parse_molecule(self.mol0, [pmdef2]).write_as_bngl() == self.mol0
         pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
         mol1 = readers.BNGLReader.parse_molecule(self.mol1, [pmdef3])
-        mol1.write_as_bngl() == "Mol(a,b~0,b~1)"
+        mol1.write_as_bngl() == "Mol(a,b~U,b~P)"
         mol2 = readers.BNGLReader.parse_molecule(self.mol2, [pmdef3])
         mol2.write_as_bngl() == "Mol(a,b!+)"
+
+    @raises(rbexceptions.NotAMoleculeException)
+    def test_bmol_parse(self):
+        pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
+        readers.BNGLReader.parse_molecule(self.mol1b, [pmdef3])
 
     def test_init_parse(self):
         pmd2 = readers.BNGLReader.parse_mtype(self.mdef2)
@@ -211,26 +231,39 @@ class TestParseBNGL:
         assert prule0.write_as_bngl({"kp": "kp", "km": "km"}) == "A(a)+B(b) <-> A(a!1).B(b!1) kp,km"
         prule1 = readers.BNGLReader.parse_rule(self.rule1, mds)
         assert prule1.write_as_bngl({"kp": "kp"}) == "A(a~r)+B(b,c!1).C(c!1) -> A(a~r!2).B(b!2,c!1).C(c!1) kp/log10(10)"
-        assert prule1.write_as_kappa() == "A(a~r),B(b,c!1),C(c!1) -> A(a~r!2),B(b!2,c!1),C(c!1) @ 'kp'/([log](10)/[log](10))"
+        assert prule1.write_as_kappa() == "A(a{r}[.]),B(b[.],c[1]),C(c[1]) -> A(a{r}[2]),B(b[2],c[1]),C(c[1]) @ 'kp'/([log](10)/[log](10))"
         prule2 = readers.BNGLReader.parse_rule(self.rule2, mds)
         assert prule2.rate.intra_binding is True
         assert prule2.write_as_bngl({"kp": "kp"}) == self.rule2
-        assert prule2.write_as_kappa() == "A(a~s),B(b,c!1),C(c!1) -> A(a~s!2),B(b!2,c!1),C(c!1) @ 0 {'kp'/([log](10)/[log](10))}"
+        assert prule2.write_as_kappa() == "A(a{s}[.]),B(b[.],c[1]),C(c[1]) -> A(a{s}[2]),B(b[2],c[1]),C(c[1]) @ 0 {'kp'/([log](10)/[log](10))}"
         prule3 = readers.BNGLReader.parse_rule(self.rule3, mds)
         assert prule3.rate.intra_binding is False
-        assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~0!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
-        assert prule3.write_as_kappa() == "K(s!1),S(k!1,active~0?) -> K(s!1),S(k!1,active~P?) @ 'kcat' + 1"
+        assert prule3.write_as_bngl({"kcat": "kcat"}) == "K(s!1).S(k!1,active~U!?) -> K(s!1).S(k!1,active~P!?) kcat+1"
+        assert prule3.write_as_kappa() == "K(s[1]),S(k[1],active{U}[#]) -> K(s[1]),S(k[1],active{P}[#]) @ 'kcat' + 1"
         prule4 = readers.BNGLReader.parse_rule(self.rule4, mds)
-        assert len(prule4.rhs) == 0
+        assert len(prule4.rhs) == 1
         assert prule4.rate.write_as_bngl({"rate": "rate2"}) == 'rate2'
         assert prule4.delmol
         prule5 = readers.BNGLReader.parse_rule(self.rule5, mds)
-        assert len(prule5.lhs) == 0
+        assert isinstance(prule5.lhs[0].molecule_list[0], objects.PlaceHolderMolecule)
         assert len(prule5.rhs) == 1
         prule6 = readers.BNGLReader.parse_rule(self.rule6, mds)
         assert prule6.label == 'bdeg'
         assert prule6.rate.rate == 'kdeg'
         assert prule6.delmol
+        prule7 = readers.BNGLReader.parse_rule(self.rule7, mds)
+        assert len(prule7.rhs) == 2
+        prule8 = readers.BNGLReader.parse_rule(self.rule8, mds)
+        assert len(prule8.rhs[0].molecule_list) == 1
+        assert isinstance(prule8.rhs[0].molecule_list[0], objects.PlaceHolderMolecule)
+        prule9 = readers.BNGLReader.parse_rule(self.rule9, mds)
+        assert len(prule9.rhs) == 3
+        assert isinstance(prule9.rhs[0].molecule_list[0], objects.PlaceHolderMolecule)
+        prule10 = readers.BNGLReader.parse_rule(self.rule10, mds)
+        assert len(prule10.rhs) == 1
+        assert len(prule10.rhs[0].molecule_list) == 2
+        assert isinstance(prule10.lhs[0].molecule_list[0], objects.PlaceHolderMolecule)
+        assert isinstance(prule10.lhs[1].molecule_list[0], objects.PlaceHolderMolecule)
 
     @raises(rbexceptions.NotCompatibleException)
     def test_invalid_rule_rate(self):

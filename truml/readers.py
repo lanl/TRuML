@@ -2,6 +2,7 @@
 
 from deepdiff import DeepDiff
 from objects import *
+from parsers import KappaParser, BNGLParser
 
 import itertools as it
 import logging
@@ -26,31 +27,14 @@ class Reader(object):
         if self.file_name is not None:
             try:
                 f = open(file_name)
-                d = f.readlines()
+                self.lines = f.readlines()
                 f.close()
-                self.lines = self.condense_line_continuation(
-                    it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in d]))
                 logging.info("Read file %s" % self.file_name)
             except IOError:
                 logging.error("Cannot find model file %s" % file_name)
                 raise rbexceptions.NoModelsException("Cannot find model file %s" % file_name)
         else:
             self.lines = []
-
-    @staticmethod
-    def condense_line_continuation(lines):
-        condensed_lines = []
-        cur_line = ''
-        for l in lines:
-            if re.search("\\\\\s*$", l):
-                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
-                cur_line += re.sub('\\\\', '', l.strip())
-                continue
-            else:
-                cur_line += l.strip()
-                condensed_lines.append(cur_line)
-                cur_line = ''
-        return condensed_lines
 
     @staticmethod
     def ignore_line(l):
@@ -61,6 +45,8 @@ class Reader(object):
 class KappaReader(Reader):
     """Reader for Kappa model files"""
 
+    parser = KappaParser()
+
     def __init__(self, file_name=None):
         """
         Kappa initialization function
@@ -70,6 +56,7 @@ class KappaReader(Reader):
         file_name : str
         """
         super(KappaReader, self).__init__(file_name)
+        self.lines = list(it.ifilterfalse(self.ignore_line, [re.sub('//.*$', '', l).strip() for l in self.lines]))
         # var_dict keeps track of read variables and observables and what type they are
         # Variables can be constant values (c), patterns (p), or dynamic expressions (d)
         self.var_dict = {}
@@ -188,30 +175,61 @@ class KappaReader(Reader):
         return [InitialCondition(pattern, amount, amount_is_number) for pattern in patterns]
 
     @staticmethod
-    def parse_mtype(line):
-        mol_string = re.sub('\s*%agent:\s*', '', line)
-
-        psplit = re.split('\(', mol_string)
-        name = psplit[0]
-
-        site_name_map = {}  # tracks conversion to kappa by mapping BNGL site names to Kappa site namess
-
-        sites = re.split('\s*,\s*', psplit[1].strip(')'))
-        site_defs = []
-
-        for s in sites:
-            site_split = re.split('~', s)
-            site_name = site_split[0]
-            site_defs.append(SiteDef(site_name, [] if len(site_split) == 1 else site_split[1:]))
-            site_name_map[site_name] = site_name
-
-        return MoleculeDef(name, site_defs, site_name_map, False)
+    def _get_sitedef(s):
+        return SiteDef(s.name, s.states[:])
 
     @staticmethod
-    def parse_molecule(mstr, mdefs):
+    def _get_molecdef(s):
+        site_defs = s.sites[:]
+        site_name_map = {x.name: x.name for x in site_defs}
+        return MoleculeDef(s.name, site_defs, site_name_map)
+
+    @classmethod
+    def parse_mtype(cls, line):
+        mol_string = re.sub('\s*%agent:\s*', '', line)
+
+        cls.parser.site_def.setParseAction(cls._get_sitedef)
+        cls.parser.agent_def.setParseAction(cls._get_molecdef)
+
+        return cls.parser.agent_def.parseString(mol_string)[0]
+
+    @staticmethod
+    def _declare_bond(b):
+        if b == '':
+            return Bond(-1, a=True)
+        elif re.match("#$", b[0]):
+            return Bond(-1, a=True)
+        elif re.match("_$", b[0]):
+            return Bond(-1, w=True)
+        elif re.match("\.$", b[0]):
+            return None
+        elif re.match("\d+$", b[0]):
+            return Bond(int(b[0]))
+        raise rbexceptions.NotCompatibleException
+
+    @classmethod
+    def _get_site(cls, s):
+        return s.name, None if s.state == '' else s.state[0], cls._declare_bond(s.bond)
+
+    @staticmethod
+    def _get_molec(s):
+        return s.name, s.sites
+
+    @classmethod
+    def parse_molecule(cls, mstr, mdefs):
         smstr = mstr.strip()
-        msplit = re.split('\(', smstr)
-        mname = msplit[0]
+
+        cls.parser.site.setParseAction(cls._get_site)
+        cls.parser.agent.setParseAction(cls._get_molec)
+
+        res = cls.parser.agent.parseString(smstr)
+
+        if res[0][0] == '.':
+            return PlaceHolderMolecule()
+
+        mname = res[0][0]
+        site_tuples = res[0][1]
+
         mtype = None
         for mdef in mdefs:
             if mdef.name == mname:
@@ -219,37 +237,9 @@ class KappaReader(Reader):
         if mtype is None:
             raise rbexceptions.UnknownMoleculeTypeException(mname)
 
-        if not re.match('[A-Za-z][-+\w]*\(.*\)\s*$', smstr):
-            raise rbexceptions.NotAMoleculeException(smstr)
-        sites = re.split(',', msplit[1].strip(')'))
-        if not sites[0]:
-            return Molecule(mname, [], mtype)
         site_list = []
-        for i in range(len(sites)):
-            s = sites[i]
-            if '~' in s:
-                tsplit = re.split('~', s)
-                name = tsplit[0]
-                if '!' in s:
-                    bsplit = re.split('!', tsplit[1])
-                    bond = Bond(-1, w=True) if re.match('_', bsplit[1]) else Bond(int(bsplit[1]))
-                    site_list.append(Site(name, i, s=bsplit[0], b=bond))
-                elif re.search('\?$', s):
-                    bond = Bond(-1, a=True)
-                    site_list.append(Site(name, i, s=tsplit[1].strip('?'), b=bond))
-                else:
-                    site_list.append(Site(name, i, s=tsplit[1]))
-            else:
-                if '!' in s:
-                    bsplit = re.split('!', s)
-                    name = bsplit[0]
-                    bond = Bond(-1, w=True) if re.match('_', bsplit[1]) else Bond(int(bsplit[1]))
-                    site_list.append(Site(name, i, b=bond))
-                elif re.search('\?$', s):
-                    bond = Bond(-1, a=True)
-                    site_list.append(Site(s.strip('?'), i, b=bond))
-                else:
-                    site_list.append(Site(s, i))
+        for i, s in enumerate(site_tuples):
+            site_list.append(Site(s[0], i, s[1], s[2]))
         return Molecule(mname, site_list, mtype)
 
     @staticmethod
@@ -300,9 +290,16 @@ class KappaReader(Reader):
         else:
             rhs_patts = KappaReader.parse_cpatterns(rhs_cps[0].strip(), mdefs)
 
-        n_lhs_mols = sum([p.num_molecules() for p in lhs_patts])
-        n_rhs_mols = sum([p.num_molecules() for p in rhs_patts])
-        delmol = n_lhs_mols > n_rhs_mols
+        # Check for placeholder molecules
+        delmol = False
+        for p in rhs_patts:
+            if delmol:
+                break
+            for m in p:
+                if m.is_placeholder():
+                    delmol = True
+                    break
+
         if delmol:
             logging.debug("Rule '%s' is a degradation rule" % line)
 
@@ -348,8 +345,8 @@ class KappaReader(Reader):
             rate = Rate(Expression(KappaReader.parse_alg_expr(rhs_cps[1].strip())))
             return [Rule(lhs_patts, rhs_patts, rate, label=label, delmol=delmol)]
 
-    @staticmethod
-    def parse_alg_expr(estr):
+    @classmethod
+    def parse_alg_expr(cls, estr):
         point = pp.Literal(".")
         e = pp.CaselessLiteral("E")
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
@@ -385,16 +382,9 @@ class KappaReader(Reader):
         # variables
         variable = pp.QuotedString("'")
 
-        bondvalue = pp.Word(pp.nums) | pp.Literal("_")
-        kbond = pp.Literal("?") | pp.Combine(pp.Literal("!") + bondvalue)
-        kstate = pp.Word("~", pp.alphanums)
-        site = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + pp.Optional(kstate) + pp.Optional(kbond))
-        siteList = pp.delimitedList(site, delim=',', combine=True)
-        mol = pp.Combine(pp.Word(pp.alphas, pp.alphanums + "_") + lpar + (pp.Empty() ^ siteList) + rpar)
-        molList = pp.delimitedList(mol, delim=',', combine=True)
         # patterns
         pattern = pp.Combine(
-            pp.Literal("|") + molList + pp.Literal("|"))
+            pp.Literal("|") + pp.CharsNotIn("|") + pp.Literal("|"))  # parse what's in between later
 
         # unary functions (one arg)
         logfunc = pp.Literal("[log]")
@@ -431,6 +421,8 @@ class KappaReader(Reader):
 class BNGLReader(Reader):
     """Reader for BNGL model files"""
 
+    parser = BNGLParser()
+
     def __init__(self, file_name=None):
         """
         BNGLReader initialization function
@@ -440,12 +432,30 @@ class BNGLReader(Reader):
         file_name : str
         """
         super(BNGLReader, self).__init__(file_name)
+        self.lines = self.condense_line_continuation(
+            it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in self.lines]))
+
         self.is_def_block = False
         self.is_init_block = False
         self.is_param_block = False
         self.is_rule_block = False
         self.is_obs_block = False
         self.is_func_block = False
+
+    @staticmethod
+    def condense_line_continuation(lines):
+        condensed_lines = []
+        cur_line = ''
+        for l in lines:
+            if re.search("\\\\\s*$", l):
+                # Saves current line, stripping trailing and leading whitespace, continues to subsequent line
+                cur_line += re.sub('\\\\', '', l.strip())
+                continue
+            else:
+                cur_line += l.strip()
+                condensed_lines.append(cur_line)
+                cur_line = ''
+        return condensed_lines
 
     def get_molecule_types(self):
         m = Model()
@@ -567,7 +577,44 @@ class BNGLReader(Reader):
             raise ValueError("Illegal bond: %s" % b)
 
     @staticmethod
-    def parse_mtype(line):
+    def _get_sitedef(s):
+        return SiteDef(s.name, s.states[:])
+
+    @staticmethod
+    def _get_molecdef(m):
+        site_defs = m.sites[:]
+
+        site_name_map = {}
+        site_name_counter = {}
+        has_site_symmetry = False
+        for sd in site_defs:
+            for state in sd.state_list:
+                if re.match('\d', state):
+                    raise rbexceptions.NotCompatibleException("Kappa does not allow states to start with digits.  "
+                                                              "Please rename states in BNGL file")
+
+            if sd.name in site_name_counter.keys():
+                site_name_counter[sd.name] += 1
+                if not has_site_symmetry:
+                    logging.info('SiteDef %s has site symmetry' % sd.name)
+                    has_site_symmetry = True
+            else:
+                site_name_counter[sd.name] = 1
+
+        for sn in site_name_counter.keys():
+            if site_name_counter[sn] == 1:
+                site_name_counter.pop(sn)
+                site_name_map[sn] = sn
+
+        for sn in site_name_counter.keys():
+            while site_name_counter[sn] > 0:
+                site_name_map[sn + str(site_name_counter[sn] - 1)] = sn
+                site_name_counter[sn] -= 1
+
+        return MoleculeDef(m.name, site_defs, site_name_map)
+
+    @classmethod
+    def parse_mtype(cls, line):
         """
         Function that parses molecule type definitions
 
@@ -581,37 +628,30 @@ class BNGLReader(Reader):
         MoleculeDef
             Builds MoleculeDef
         """
-        psplit = re.split('\(', line.strip())
-        name = psplit[0]
+        cls.parser.site_def.setParseAction(cls._get_sitedef)
+        cls.parser.molecule_def.setParseAction(cls._get_molecdef)
 
-        site_name_map = {}  # tracks conversion to kappa by mapping BNGL site names to Kappa site namess
+        return cls.parser.molecule_def.parseString(line.strip())[0]
 
-        sites = re.split(',', psplit[1].strip(')'))
-        site_defs = []
-        site_name_counter = {}
-        has_site_symmetry = False
-        for s in sites:
-            site_split = re.split('~', s)
-            site_name = site_split[0]
-            site_defs.append(SiteDef(site_name, [] if len(site_split) == 1 else site_split[1:]))
-            if site_name in site_name_counter.keys():
-                site_name_counter[site_name] += 1
-                if not has_site_symmetry:
-                    has_site_symmetry = True
-            else:
-                site_name_counter[site_name] = 1
+    @staticmethod
+    def _declare_bond(b):
+        if b == '':
+            return None
+        elif re.match("\?$", b[0]):
+            return Bond(-1, a=True)
+        elif re.match("\+$", b[0]):
+            return Bond(-1, w=True)
+        elif re.match("\d+$", b[0]):
+            return Bond(int(b[0]))
+        raise rbexceptions.NotCompatibleException
 
-        for sn in site_name_counter.keys():
-            if site_name_counter[sn] == 1:
-                site_name_counter.pop(sn)
-                site_name_map[sn] = sn
+    @classmethod
+    def _get_site(cls, s):
+        return s.name, None if s.state == '' else s.state[0], cls._declare_bond(s.bond)
 
-        for sn in site_name_counter.keys():
-            while site_name_counter[sn] > 0:
-                site_name_map[sn + str(site_name_counter[sn] - 1)] = sn
-                site_name_counter[sn] -= 1
-
-        return MoleculeDef(name, site_defs, site_name_map, has_site_symmetry)
+    @staticmethod
+    def _get_molec(s):
+        return s.name, s.sites
 
     @classmethod
     def parse_molecule(cls, mstr, mdefs):
@@ -630,8 +670,17 @@ class BNGLReader(Reader):
             Builds a Molecule or raises a NotAMoleculeException
         """
         smstr = mstr.strip()
-        msplit = re.split('\(', smstr)
-        mname = msplit[0]
+
+        if smstr[-1] != ')':
+            raise rbexceptions.NotAMoleculeException(smstr)
+
+        cls.parser.site.setParseAction(cls._get_site)
+        cls.parser.molecule.setParseAction(cls._get_molec)
+
+        res = cls.parser.molecule.parseString(smstr)
+        mname = res[0][0]
+        site_tuples = res[0][1]
+
         mtype = None
         for mdef in mdefs:
             if mdef.name == mname:
@@ -639,33 +688,10 @@ class BNGLReader(Reader):
         if mtype is None:
             raise rbexceptions.UnknownMoleculeTypeException(mname)
 
-        if not re.match('[A-Za-z]\w*\(.*\)\s*$', smstr):
-            raise rbexceptions.NotAMoleculeException(smstr)
-        sites = re.split(',', msplit[1].strip(')'))
-        if not sites[0]:
-            return Molecule(mname, [], mtype)
         site_list = []
-        for i in range(len(sites)):
-            s = sites[i]
-            if '~' in s:
-                tsplit = re.split('~', s)
-                name = tsplit[0]
-                if '!' in s:
-                    bsplit = re.split('!', tsplit[1])
-                    bond = cls.parse_bond(bsplit[1])
-                    state = None if re.match('\?', bsplit[0]) else bsplit[0]
-                    site_list.append(Site(name, i, s=state, b=bond))
-                else:
-                    state = None if re.match('\?', tsplit[1]) else tsplit[1]
-                    site_list.append(Site(name, i, s=state))
-            else:
-                if '!' in s:
-                    bsplit = re.split('!', s)
-                    name = bsplit[0]
-                    bond = cls.parse_bond(bsplit[1])
-                    site_list.append(Site(name, i, b=bond))
-                else:
-                    site_list.append(Site(s, i))
+        for i, s in enumerate(site_tuples):
+            site_list.append(Site(s[0], i, s[1], s[2]))
+
         return Molecule(mname, site_list, mtype)
 
     @classmethod
@@ -841,13 +867,16 @@ class BNGLReader(Reader):
                     "Writing this rule in Kappa will only remove the matched pattern and could result in side effects")
 
         if len(rem) > 1:
-            one_past_final_mol_index = 0
+            one_past_final_mol_index = -1
             for i, t in enumerate(rem):
                 try:
-                    cls.parse_cpattern(t, mdefs)
-                except rbexceptions.NotAMoleculeException:
+                    cls.parser.last_complex.parseString(t)
                     one_past_final_mol_index = i
                     break
+                except pp.ParseException:
+                    continue
+            if one_past_final_mol_index == -1:
+                raise rbexceptions.NotCompatibleException("Cannot determine RHS molecules in pattern: %s" % t)
             last_split = re.split('\s+', rem[one_past_final_mol_index])
             mol, first_rate_part = last_split[0], ' '.join(last_split[1:])
 

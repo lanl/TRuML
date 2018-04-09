@@ -40,6 +40,7 @@ class NoModelsException(Exception):
     def __str__(self):
         return self.msg
 
+
 class UnknownMoleculeTypeException(Exception):
     """Raised when a Molecule instance has no known corresponding MoleculeDef"""
 

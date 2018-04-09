@@ -1,4 +1,5 @@
 from .context import objects
+from .context import utils
 
 
 class TestAction:
@@ -52,9 +53,9 @@ class TestAction:
 
         cls.rule0 = objects.Rule([cls.p2], [cls.p3], cls.rate0)
         cls.rule1 = objects.Rule([cls.p5, cls.p6], [cls.p7], cls.rate0)
-        cls.rule2 = objects.Rule([cls.p4, cls.p2, cls.p3], [cls.p3, cls.p4], cls.rate0)
-        cls.rule3 = objects.Rule([cls.p3, cls.p5, cls.p6], [cls.p7, cls.p4], cls.rate0)
-        cls.rule4 = objects.Rule([cls.p7], [cls.p6], cls.rate0, delmol=True)
+        cls.rule2 = objects.Rule([cls.p4, cls.p2, cls.p3], [cls.p4, cls.p3], cls.rate0)
+        cls.rule3 = objects.Rule(objects.CPatternList([cls.p3, cls.p5, cls.p6]), objects.CPatternList([cls.p7, cls.p4]), cls.rate0)
+        cls.rule4 = objects.Rule(objects.CPatternList([cls.p7]), objects.CPatternList([cls.p6]), cls.rate0, delmol=True)
         cls.rule5 = objects.Rule(objects.CPatternList([cls.p0, cls.p1]), objects.CPatternList([cls.p8]), cls.rate0)
 
     @classmethod
@@ -70,25 +71,25 @@ class TestAction:
         assert idm0[s0] == (-1, objects.Bond(1))
 
     def test_build_mol_map(self):
-        r0_lhs_mols = [x for cp in self.rule0.lhs for x in cp.molecule_list]
-        r0_rhs_mols = [x for cp in self.rule0.rhs for x in cp.molecule_list]
+        r0_lhs_mols = utils.flatten_pattern([self.p2])
+        r0_rhs_mols = utils.flatten_pattern([self.p3])
         mmap0 = objects.Rule._build_mol_map(r0_lhs_mols, r0_rhs_mols)
         assert mmap0[0] is None
         assert len(mmap0.keys()) == 1
 
-        r1_lhs_mols = [x for cp in self.rule1.lhs for x in cp.molecule_list]
-        r1_rhs_mols = [x for cp in self.rule1.rhs for x in cp.molecule_list]
+        r1_lhs_mols = utils.flatten_pattern([self.p5, self.p6])
+        r1_rhs_mols = utils.flatten_pattern([self.p7])
         mmap1 = objects.Rule._build_mol_map(r1_lhs_mols, r1_rhs_mols)
         assert mmap1[0] == 0
         assert mmap1[1] == 1
         assert len(mmap1.keys()) == 2
 
-        r2_lhs_mols = [x for cp in self.rule2.lhs for x in cp.molecule_list]
-        r2_rhs_mols = [x for cp in self.rule2.rhs for x in cp.molecule_list]
+        r2_lhs_mols = utils.flatten_pattern([self.p4, self.p2, self.p3])
+        r2_rhs_mols = utils.flatten_pattern([self.p4, self.p3])
         mmap2 = objects.Rule._build_mol_map(r2_lhs_mols, r2_rhs_mols)
-        assert mmap2[0] == 1
+        assert mmap2[0] == 0
         assert mmap2[1] is None
-        assert mmap2[2] == 0
+        assert mmap2[2] == 1
 
     def test_action_parse(self):
         a0 = self.rule0._build_actions()
@@ -114,7 +115,7 @@ class TestAction:
         synth = objects.Synthesis(self.p3)
         rhs = synth.apply(self.rule0.lhs)
         assert len(rhs) == 1
-        assert len(rhs[0]) == 2
+        assert len(rhs[0]) == 3
 
     def test_statechange_action_apply(self):
         lhs = [objects.CPattern([self.m1])]
@@ -171,7 +172,6 @@ class TestAction:
         bs1 = objects.BondChange(1, self.s4, objects.Bond(1), self.md6)
         acts = objects.MultiAction([bs0, bs1])
         rhs = acts.apply(self.rule5.lhs)
-        print rhs
         assert len(rhs) == 1
         assert len(rhs[0]) == 1
         assert rhs[0][0][0].sites[0].state == 'state2'

@@ -12,6 +12,7 @@ import utils
 from copy import deepcopy
 from math import factorial
 
+
 class SiteDef:
     """A site definition composed of a name and a finite set of states"""
 
@@ -19,17 +20,17 @@ class SiteDef:
         self.name = n
         self.state_list = ss
 
-    def _write(self):
+    def write_as_bngl(self):
         if self.state_list:
             return "%s~%s" % (self.name, '~'.join(self.state_list))
         else:
             return self.name
 
-    def write_as_bngl(self):
-        return self._write()
-
     def write_as_kappa(self):
-        return self._write()
+        if self.state_list:
+            return "%s{%s}" % (self.name, ','.join(self.state_list))
+        else:
+            return self.name
 
     def __repr__(self):
         if not self.state_list:
@@ -98,8 +99,10 @@ class MoleculeDef:
         str
             MoleculeDef as BNGL molecule type or Kappa agent signature
         """
-        if is_bngl or not self.has_site_symmetry:
+        if is_bngl:
             ss = [s.write_as_bngl() for s in self.sites]
+        elif not is_bngl and not self.has_site_symmetry:
+            ss = [s.write_as_kappa() for s in self.sites]
         else:
             md = self.convert()
             ss = [s.write_as_kappa() for s in md.sites]
@@ -117,7 +120,69 @@ class MoleculeDef:
         return "MoleculeDef(name: %s, sites: %s)" % (self.name, self.sites)
 
 
-class Molecule:
+class MoleculeTemplate:
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def is_placeholder():
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def write_as_bngl(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def write_as_kappa(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def has_same_interface(self, other):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def bound_to(self, other):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def _node_name(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def convert(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
+
+class PlaceHolderMolecule(MoleculeTemplate):
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def write_as_kappa():
+        return '.'
+
+    @staticmethod
+    def write_as_bngl():
+        return None
+
+    def __eq__(self, other):
+        return isinstance(other, PlaceHolderMolecule)
+
+    @staticmethod
+    def is_placeholder():
+        return True
+
+    def has_same_interface(self, other):
+        return True
+
+    def bound_to(self, other):
+        return False
+
+    def _node_name(self):
+        return '.'
+
+    def convert(self):
+        return [self]
+
+    def __repr__(self):
+        return "PlaceHolderMolecule"
+
+
+class Molecule(MoleculeTemplate):
     """
     An individual molecule/agent inside a pattern.
         Note that it may not contain all sites listed in the associated
@@ -141,6 +206,10 @@ class Molecule:
         self.name = name
         self.sites = sorted(sites, key=lambda s: s.index)  # list of Sites
         self.mdef = md
+
+    @staticmethod
+    def is_placeholder():
+        return False
 
     def _node_name(self):
         """
@@ -325,7 +394,9 @@ class Molecule:
             return False
 
     def has_same_interface(self, other):
-        if isinstance(other, self.__class__):
+        if isinstance(other, PlaceHolderMolecule):
+            return True
+        elif isinstance(other, self.__class__):
             return self.name == other.name and \
                    sorted([s.name for s in self.sites]) == sorted([s.name for s in other.sites])
         else:
@@ -426,6 +497,10 @@ class Molecule:
     def __repr__(self):
         return 'Molecule(name: %s, sites: %s)' % (self.name, ', '.join([str(x) for x in self.sites]))
 
+    @staticmethod
+    def is_placeholder():
+        return False
+
 
 class Site:
     """
@@ -454,38 +529,33 @@ class Site:
         self.bond = b
 
     def _site_plus_state(self):
-        """Builds Kappa/BNGL-compatible string composed of site's name state"""
-        state = '' if self.state is None else '~%s' % self.state
-        return self.name + state
+        return self.name if self.state is None else '%s~%s' % (self.name, self.state)
 
-    def _write(self, kappa=False):
+    def write_as_bngl(self):
         """
-        Builds site string
-
-        Parameters
-        ----------
-        kappa : bool
-            If True, then the Site is written in Kappa syntax, BNGL if False
+        Builds site string in BNGL syntax
 
         Returns
         -------
         str
-            Site written as BNGL or Kappa string
+            Site written as BNGL string
         """
-        s = self._site_plus_state()
-        if self.bond is not None and kappa:
-            s += self.bond.write_as_kappa()
-        elif self.bond is not None:
-            s += self.bond.write_as_bngl()
-        return s
-
-    def write_as_bngl(self):
-        """Write Site as BNGL string"""
-        return self._write()
+        state = '' if self.state is None else '~%s' % self.state
+        bond = '' if self.bond is None else self.bond.write_as_bngl()
+        return self.name + state + bond
 
     def write_as_kappa(self):
-        """Write Site as Kappa string"""
-        return self._write(True)
+        """
+        Builds site string in Kappa syntax
+
+        Returns
+        -------
+        str
+            Site written as Kappa string
+        """
+        state = '' if self.state is None else '{%s}' % self.state
+        bond = '[.]' if self.bond is None else self.bond.write_as_kappa()
+        return self.name + state + bond
 
     def diff(self, other):
         """
@@ -568,25 +638,23 @@ class Bond:
 
     def write_as_bngl(self):
         """Write bond as BNGL string"""
-        s = ''
         if self.num >= 0:
-            s = '!%s' % self.num
+            return '!%s' % self.num
         if self.wild:
-            s = '!+'
+            return '!+'
         elif self.any:
-            s = '!?'
-        return s
+            return '!?'
+        return ''
 
     def write_as_kappa(self):
         """Write bond as Kappa string"""
-        s = ''
         if self.wild:
-            s = '!_'
+            return '[_]'
         elif self.any:
-            s = '?'
+            return '[#]'
         else:
-            s = '!%s' % self.num
-        return s
+            return '[%s]' % self.num
+        return '[.]'
 
     def __eq__(self, other):
         """
@@ -646,6 +714,7 @@ class CPattern:
             List of Molecules that are a part of the pattern
         """
         self.molecule_list = ml
+        self.placeholder = len(self.molecule_list) == 1 and isinstance(self.molecule_list[0], PlaceHolderMolecule)
 
     def __getitem__(self, item):
         return self.molecule_list[item]
@@ -843,6 +912,8 @@ class CPattern:
         cps = []
         for m in self.molecule_list:
             if bngl:
+                if m.is_placeholder():
+                    continue
                 cps.append(m.write_as_bngl())
             else:
                 cps.append(m.write_as_kappa())
@@ -882,8 +953,17 @@ class CPatternList:
             c_cps.append(cp.convert())
         return list(it.imap(lambda p: CPatternList(list(p)), it.product(*c_cps)))
 
-    def write_as_bngl(self):
-        return '+'.join([cp.write_as_bngl() for cp in self.cpatterns])
+    def write_as_bngl(self, dot):
+        all_placeholder = True
+        for cp in self.cpatterns:
+            all_placeholder = all_placeholder and cp.placeholder
+
+        if all_placeholder:
+            return '0'
+
+        valid_cpatterns = [cp for cp in self.cpatterns if not cp.placeholder]
+        joiner = '.' if dot else '+'
+        return joiner.join([cp.write_as_bngl() for cp in valid_cpatterns])
 
     def write_as_kappa(self):
         return ','.join([cp.write_as_kappa() for cp in self.cpatterns])
@@ -1176,6 +1256,77 @@ class Rule:
         self.label = label
         self.delmol = delmol
 
+        self.lhs_mols = utils.flatten_pattern(self.lhs)
+        self.rhs_mols = utils.flatten_pattern(self.rhs)
+
+        # This is set to None once an appropriate mapping is built
+        self.mol_map = self._build_mol_map(self.lhs_mols, self.rhs_mols)
+
+        if self._placeholder_check():
+            self.insert_placeholders()
+
+    def _placeholder_check(self):
+        if len(self.lhs_mols) != len(self.rhs_mols):
+            return True
+        elif None in self.mol_map.values():
+            return True
+        elif set(range(len(self.rhs_mols))) != set(self.mol_map.values()):
+            return True
+        self.mol_map = None
+        return False
+
+    def insert_placeholders(self):
+        """Inserts PlaceHolderMolecule instances into rules originally written in BNGL for conversion to Kappa"""
+
+        lmol2cp = utils.flatten_pattern_todict(self.lhs)
+        rmol2cp = utils.flatten_pattern_todict(self.rhs)
+
+        lhs_list, rhs_list = [], []
+        for li in sorted(self.mol_map.keys()):
+            lhs_list.append(self.lhs_mols[li])
+            if self.mol_map[li] is not None:
+                rhs_list.append(self.rhs_mols[self.mol_map[li]])
+            else:
+                rhs_list.append(PlaceHolderMolecule())
+                # Update Molecule to CPattern mapping to accommodate new Molecule (and CPattern)
+                if len(rmol2cp.keys()) < li + 1:
+                    rmol2cp[li] = li
+                else:
+                    for ri in reversed(sorted(rmol2cp.keys())):
+                        if ri >= li:
+                            rmol2cp[ri + 1] = rmol2cp[ri] + 1
+                        if li == ri:
+                            rmol2cp[ri] = ri
+                        if ri < li:
+                            break
+
+        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, self.mol_map.values()))
+        unmapped_rhs_idcs = set(range(len(self.rhs_mols))) - mapped_rhs_idcs
+
+        maxi = len(lmol2cp)
+        for ri in unmapped_rhs_idcs:
+            lhs_list.append(PlaceHolderMolecule())
+
+            # Update Molecule to CPattern mapping to accommodate new Molecule (and CPattern)
+            lmol2cp[maxi] = maxi
+            maxi += 1
+
+            rhs_list.append(self.rhs_mols[ri])
+
+        lhs_cps, rhs_cps = {v: [] for v in set(lmol2cp.values())}, {v: [] for v in set(rmol2cp.values())}
+        for i in lmol2cp.keys():
+            lhs_cps[lmol2cp[i]].append(lhs_list[i])
+        for i in rmol2cp.keys():
+            rhs_cps[rmol2cp[i]].append(rhs_list[i])
+
+        self.lhs = CPatternList([CPattern(lhs_cps[k]) for k in sorted(lhs_cps.keys())])
+        self.rhs = CPatternList([CPattern(rhs_cps[k]) for k in sorted(rhs_cps.keys())])
+        self.lhs_mols = utils.flatten_pattern(self.lhs)
+        self.rhs_mols = utils.flatten_pattern(self.rhs)
+        # Sanity check
+        assert len(self.lhs_mols) == len(self.rhs_mols)
+        self.mol_map = None
+
     def convert(self):
         """
         Converts a Rule to a Kappa-compatible naming scheme
@@ -1239,33 +1390,35 @@ class Rule:
         list of Molecule instances and the product list of Molecule instances"""
         action_list = []
         if rev:
-            lhs_mols = utils.flatten_pattern(self.rhs)
-            rhs_mols = utils.flatten_pattern(self.lhs)
+            lhs_mols = self.rhs_mols
+            rhs_mols = self.lhs_mols
         else:
-            lhs_mols = utils.flatten_pattern(self.lhs)
-            rhs_mols = utils.flatten_pattern(self.rhs)
-        mmap = self._build_mol_map(lhs_mols, rhs_mols)
-        for l, r in mmap.iteritems():
-            if r is None:
-                action_list.append(Degradation(l))
+            lhs_mols = self.lhs_mols
+            rhs_mols = self.rhs_mols
+
+        to_synth = []
+        for i in range(len(lhs_mols)):
+            if isinstance(rhs_mols[i], PlaceHolderMolecule):
+                action_list.append(Degradation(i))
+                continue
+            elif isinstance(lhs_mols[i], PlaceHolderMolecule):
+                to_synth.append(i)
                 continue
 
-            smap = lhs_mols[l].interface_diff_map(rhs_mols[r])
-            mdef = lhs_mols[l].mdef
+            smap = lhs_mols[i].interface_diff_map(rhs_mols[i])
+            mdef = lhs_mols[i].mdef
             for k in smap.keys():
                 diff = smap[k]
                 if diff[0] != -1 and diff[1] != -1:
-                    action_list.append(BondAndStateChange(l, k, diff[0], diff[1], mdef))
+                    action_list.append(BondAndStateChange(i, k, diff[0], diff[1], mdef))
                 else:
                     if diff[0] != -1:
-                        action_list.append(StateChange(l, k, diff[0], mdef))
+                        action_list.append(StateChange(i, k, diff[0], mdef))
                     if diff[1] != -1:
-                        action_list.append(BondChange(l, k, diff[1], mdef))
+                        action_list.append(BondChange(i, k, diff[1], mdef))
 
-        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, mmap.values()))
-        unmapped_rhs_idcs = set(range(len(rhs_mols))) - mapped_rhs_idcs
-        if len(unmapped_rhs_idcs) > 0:
-            conn_cmps = utils.get_connected_components([rhs_mols[i] for i in unmapped_rhs_idcs])
+        if len(to_synth) > 0:
+            conn_cmps = utils.get_connected_components([rhs_mols[i] for i in to_synth])
             for c in conn_cmps:
                 action_list.append(Synthesis(CPattern(c)))
 
@@ -1287,18 +1440,8 @@ class Rule:
 
     def write_as_bngl(self, namespace=dict(), dot=False):
         """Writes the rule as a BNGL string"""
-        if not self.lhs:
-            lhs_string = '0'
-        elif dot:
-            lhs_string = '.'.join([p.write_as_bngl() for p in self.lhs])
-        else:
-            lhs_string = '+'.join([p.write_as_bngl() for p in self.lhs])
-        if not self.rhs:
-            rhs_string = '0'
-        elif dot:
-            rhs_string = '.'.join([p.write_as_bngl() for p in self.rhs])
-        else:
-            rhs_string = '+'.join([p.write_as_bngl() for p in self.rhs])
+        lhs_string = self.lhs.write_as_bngl(dot)
+        rhs_string = self.rhs.write_as_bngl(dot)
         if self.rev:
             rate_string = self.rate.write_as_bngl(namespace) + ',' + self.rev_rate.write_as_bngl(namespace)
         else:
@@ -1313,11 +1456,10 @@ class Rule:
         #  - iterable_item_added/removed (binding, unbinding)
         #  - type_changes (binding, unbinding)
         #  - value_changes (state change)
-        lhs_string, rhs_string = '', ''
-        if self.lhs:
-            lhs_string = ','.join([p.write_as_kappa() for p in self.lhs])
-        if self.rhs:
-            rhs_string = ','.join([p.write_as_kappa() for p in self.rhs])
+
+        lhs_string = self.lhs.write_as_kappa()
+        rhs_string = self.rhs.write_as_kappa()
+
         if self.rev:
             rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
         else:
@@ -1489,7 +1631,7 @@ class Model:
         func_as_obs : bool
             If True, writes functions as observables, otherwise as variables
         """
-        logging.debug("Writing model to BNGL file: '%s'" % file_name)
+        logging.debug("Writing model to Kappa file: '%s'" % file_name)
 
         s = ''
         for m in self.molecules:
@@ -1791,6 +1933,7 @@ class BondAndStateChange(Action):
 
     def __repr__(self):
         return str(self)
+
 
 class MultiAction(Action):
     """Class that contains a list of Action instances to be applied to a CPattern or list of CPattern instances"""

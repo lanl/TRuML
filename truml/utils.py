@@ -73,4 +73,19 @@ def get_connected_components(mols):
 
 
 def flatten_pattern(cps):
+    """Flattens a CPatternList into a list of Molecules"""
     return [m for cp in cps for m in cp.molecule_list]
+
+
+def flatten_pattern_todict(cps):
+    """
+    Builds a dict where Molecule indices in a flattened CPatternList
+    map to the CPattern indices in the CPatternList
+    """
+    d = dict()
+    mol_counter = 0
+    for i in range(len(cps)):
+        for m in cps[i].molecule_list:
+            d[mol_counter] = i
+            mol_counter += 1
+    return d

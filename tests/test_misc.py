@@ -17,10 +17,14 @@ class TestMisc:
 
         cls.sd0 = objects.SiteDef('DNP')
         cls.sd1 = objects.SiteDef('Fab')
-        cls.md0 = objects.MoleculeDef('A', [objects.SiteDef('x'), objects.SiteDef('y'), objects.SiteDef('s'), objects.SiteDef('t')], {'x': 'x', 'y': 'y', 's': 's', 't': 't'})
+        cls.md0 = objects.MoleculeDef('A', [objects.SiteDef('x'), objects.SiteDef('y'), objects.SiteDef('s'),
+                                            objects.SiteDef('t')], {'x': 'x', 'y': 'y', 's': 's', 't': 't'})
         cls.md1 = objects.MoleculeDef('B', [objects.SiteDef('y'), objects.SiteDef('s')], {'y': 'y', 's': 's'})
-        cls.md2 = objects.MoleculeDef('BSA', [cls.sd0, cls.sd0, cls.sd0, cls.sd0], {'DNP0': 'DNP', 'DNP1': 'DNP', 'DNP2': 'DNP', 'DNP3': 'DNP'})
+        cls.md2 = objects.MoleculeDef('BSA', [cls.sd0, cls.sd0, cls.sd0, cls.sd0],
+                                      {'DNP0': 'DNP', 'DNP1': 'DNP', 'DNP2': 'DNP', 'DNP3': 'DNP'})
         cls.md3 = objects.MoleculeDef('IgE', [cls.sd1, cls.sd1], {'Fab0': 'Fab', 'Fab2': 'Fab'})
+        cls.md4 = objects.MoleculeDef('C', [], {})
+        cls.md5 = objects.MoleculeDef('D', [], {})
 
         cls.s0 = objects.Site("s", 0, b=objects.Bond(1))
         cls.s1 = objects.Site("t", 1, b=objects.Bond(2))
@@ -32,6 +36,12 @@ class TestMisc:
         cls.m2 = objects.Molecule('A', [cls.s0], cls.md0)
         cls.m3 = objects.Molecule('A', [cls.s0, cls.s1], cls.md0)
         cls.m4 = objects.Molecule('B', [cls.s2], cls.md1)
+        cls.m5 = objects.Molecule('A', [objects.Site('x', 0, b=objects.Bond(1))], cls.md0)
+        cls.m6 = objects.Molecule('B', [objects.Site('y', 0, b=objects.Bond(1))], cls.md1)
+        cls.m7 = objects.Molecule('A', [objects.Site('x', 0)], cls.md0)
+        cls.m8 = objects.Molecule('B', [objects.Site('y', 0)], cls.md1)
+        cls.m9 = objects.Molecule('C', [], cls.md4)
+        cls.m10 = objects.Molecule('D', [], cls.md5)
 
         cls.pattern = 'A(x!1).A(x!1,y!2).B(y!2)'
         cls.pattern2 = 'BSA(DNP!+,DNP!+,DNP!1,DNP).IgE(Fab!1,Fab!2).BSA(DNP!2,DNP!3).IgE(Fab!3,Fab)'
