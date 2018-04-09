@@ -140,6 +140,12 @@ class MoleculeTemplate:
     def bound_to(self, other):
         return NotImplementedError("Function must be implemented in subclass")
 
+    def _node_name(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
+    def convert(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
 
 class PlaceHolderMolecule(MoleculeTemplate):
     def __init__(self):
@@ -165,6 +171,12 @@ class PlaceHolderMolecule(MoleculeTemplate):
 
     def bound_to(self, other):
         return False
+
+    def _node_name(self):
+        return '.'
+
+    def convert(self):
+        return [self]
 
     def __repr__(self):
         return "PlaceHolderMolecule"
@@ -1245,8 +1257,6 @@ class Rule:
 
         # This is set to None once an appropriate mapping is built
         self.mol_map = self._build_mol_map(self.lhs_mols, self.rhs_mols)
-
-        print self.mol_map
 
         if self._placeholder_check():
             self.insert_placeholders()
