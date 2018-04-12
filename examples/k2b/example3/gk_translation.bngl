@@ -1,0 +1,55 @@
+begin model
+
+begin parameters
+
+	on 1E-5
+	off 0.01
+	cat 1
+	E_copies 1000
+	S_copies 10000
+
+end parameters
+
+begin molecule types
+
+	K(s)
+	S(b,active~u~p)
+	P(s)
+
+end molecule types
+
+begin seed species
+
+	K(s) E_copies
+	P(s) E_copies
+	S(b,active~u) S_copies
+
+end seed species
+
+begin observables
+
+	Molecules activeS S(active~p!?)
+
+end observables
+
+begin functions
+
+
+end functions
+
+begin reaction rules
+
+	K(s)+S(b,active~u!?) <-> K(s!1).S(b!1,active~u!?) on,off
+	S(b!+,active~u!?) -> S(b,active~p!?) cat
+	P(s)+S(b,active~p!?) <-> P(s!1).S(b!1,active~p!?) on,off
+	S(b!+,active~p!?) -> S(b,active~u!?) cat
+
+end reaction rules
+
+end model
+
+begin actions
+
+simulate({method=>"nf", t_start=>0, t_end=>1000, n_steps=>1000})
+
+end actions
