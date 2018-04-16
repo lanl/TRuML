@@ -120,9 +120,11 @@ class MoleculeDef:
         return "MoleculeDef(name: %s, sites: %s)" % (self.name, self.sites)
 
 
-class MoleculeTemplate:
+class MoleculeTemplate(object):
     def __init__(self):
-        pass
+        self.name = ''
+        self.sites = []
+        self.mdef = None
 
     @staticmethod
     def is_placeholder():
@@ -152,7 +154,7 @@ class MoleculeTemplate:
 
 class PlaceHolderMolecule(MoleculeTemplate):
     def __init__(self):
-        pass
+        super(PlaceHolderMolecule, self).__init__()
 
     @staticmethod
     def write_as_kappa():
@@ -209,6 +211,7 @@ class Molecule(MoleculeTemplate):
             The corresponding MoleculeDef for this Molecule
 
         """
+        super(Molecule, self).__init__()
         self.name = name
         self.sites = sorted(sites, key=lambda s: s.index)  # list of Sites
         self.mdef = md
@@ -720,7 +723,7 @@ class CPattern:
             List of Molecules that are a part of the pattern
         """
         self.molecule_list = ml
-        self.placeholder = len(self.molecule_list) == 1 and isinstance(self.molecule_list[0], PlaceHolderMolecule)
+        self.placeholder = (len(self.molecule_list) == 1) and isinstance(self.molecule_list[0], PlaceHolderMolecule)
 
     def __getitem__(self, item):
         return self.molecule_list[item]
@@ -832,6 +835,9 @@ class CPattern:
         int
             The number of automorphisms in this CPattern
         """
+        if self.placeholder:
+            return 1
+
         # Check to make sure conversion to Kappa compatible site names has occurred
         for m in self.molecule_list:
             if m.has_identical_sites():
@@ -1445,8 +1451,12 @@ class Rule:
         return mmap
 
     def _unique_reactant_indices(self):
-        unique_reactant_first_idcs = {0: 1}
-        for l1 in range(1, len(self.lhs.cpatterns)):
+        actual_cpattern_idcs = [i for i in range(len(self.lhs.cpatterns)) if not self.lhs.cpatterns[i].placeholder]
+        if len(actual_cpattern_idcs) > 0:
+            unique_reactant_first_idcs = {0: 1}
+        else:
+            return None
+        for l1 in actual_cpattern_idcs[1:]:
             unique = True
             for u in unique_reactant_first_idcs:
                 if self.lhs.cpatterns[l1].is_isomorphic(self.lhs.cpatterns[u]):
@@ -1463,13 +1473,15 @@ class Rule:
             auto_factor *= lhs_patt.automorphisms()
 
         reactant_counts = self._unique_reactant_indices()
-        multiple_reactant_factor = 1
-        for k, v in reactant_counts.iteritems():
-            multiple_reactant_factor *= factorial(v)
+        if reactant_counts:
+            multiple_reactant_factor = 1
+            for k, v in reactant_counts.iteritems():
+                multiple_reactant_factor *= factorial(v)
 
-        factor = auto_factor * multiple_reactant_factor
+            factor = auto_factor * multiple_reactant_factor
 
-        return 1.0 / factor if b2k else factor
+            return 1.0 / factor if b2k else factor
+        return 1.0
 
     def write_as_bngl(self, namespace=dict(), dot=False, from_bngl=False):
         """Writes the rule as a BNGL string"""
