@@ -146,6 +146,9 @@ class MoleculeTemplate:
     def convert(self):
         return NotImplementedError("Function must be implemented in subclass")
 
+    def has_identical_sites(self):
+        return NotImplementedError("Function must be implemented in subclass")
+
 
 class PlaceHolderMolecule(MoleculeTemplate):
     def __init__(self):
@@ -177,6 +180,9 @@ class PlaceHolderMolecule(MoleculeTemplate):
 
     def convert(self):
         return [self]
+
+    def has_identical_sites(self):
+        return False
 
     def __repr__(self):
         return "PlaceHolderMolecule"
@@ -833,7 +839,8 @@ class CPattern:
                 raise rbexceptions.NotConvertedException(m.write_as_bngl())
         # If all molecules are unique, exit with count 1.  Otherwise calculate the
         # number of automorphisms
-        if len([m._node_name() for m in self.molecule_list]) == len(set([m.name for m in self.molecule_list])):
+        if len([m._node_name() for m in self.molecule_list if not m.is_placeholder()]) == \
+                len(set([m.name for m in self.molecule_list if not m.is_placeholder()])):
             return 1
         else:
             g = self._build_graph()
@@ -1344,7 +1351,7 @@ class Rule:
         list
             List of Rule instances
         """
-        logging.debug("Attempting to convert rule: %s" % self.write_as_bngl())
+        logging.debug("Attempting to convert rule: %s" % self.write_as_bngl(from_bngl=True))
         rs = []
         converted_lhss = self.lhs.convert()
 
@@ -1438,18 +1445,51 @@ class Rule:
                     break
         return mmap
 
-    def write_as_bngl(self, namespace=dict(), dot=False):
+    def _unique_reactant_indices(self):
+        unique_reactant_first_idcs = {0: 1}
+        for l1 in range(1, len(self.lhs.cpatterns)):
+            unique = True
+            for u in unique_reactant_first_idcs:
+                if self.lhs.cpatterns[l1].is_isomorphic(self.lhs.cpatterns[u]):
+                    unique = False
+                    unique_reactant_first_idcs[u] += 1
+                    break
+            if unique:
+                unique_reactant_first_idcs[l1] = 1
+        return unique_reactant_first_idcs
+
+    def rate_factor(self, b2k):
+        auto_factor = 1.0
+        for lhs_patt in self.lhs.cpatterns:
+            auto_factor *= lhs_patt.automorphisms()
+
+        reactant_counts = self._unique_reactant_indices()
+        multiple_reactant_factor = 1
+        for k, v in reactant_counts.iteritems():
+            multiple_reactant_factor *= factorial(v)
+
+        factor = auto_factor * multiple_reactant_factor
+
+        return 1.0 / factor if b2k else factor
+
+    def write_as_bngl(self, namespace=dict(), dot=False, from_bngl=False):
         """Writes the rule as a BNGL string"""
         lhs_string = self.lhs.write_as_bngl(dot)
         rhs_string = self.rhs.write_as_bngl(dot)
+        rfactor_string = ''
+        if not from_bngl:
+            rfactor = self.rate_factor(b2k=False)
+            rfactor_string = '' if rfactor == 1.0 else ' * %s' % rfactor
+
         if self.rev:
-            rate_string = self.rate.write_as_bngl(namespace) + ',' + self.rev_rate.write_as_bngl(namespace)
+            rate_string = self.rate.write_as_bngl(namespace) + rfactor_string + ',' + \
+                          self.rev_rate.write_as_bngl(namespace) + rfactor_string
         else:
-            rate_string = self.rate.write_as_bngl(namespace)
+            rate_string = self.rate.write_as_bngl(namespace) + rfactor_string
         delmol_string = '' if not self.delmol else " DeleteMolecules"
         return '%s %s %s %s%s' % (lhs_string, self.arrow, rhs_string, rate_string, delmol_string)
 
-    def write_as_kappa(self):
+    def write_as_kappa(self, from_kappa=False):
         """Writes the rule as a Kappa string"""
 
         # possible actions  (root object is list (rule.lhs and rule.rhs))
@@ -1459,11 +1499,15 @@ class Rule:
 
         lhs_string = self.lhs.write_as_kappa()
         rhs_string = self.rhs.write_as_kappa()
+        rfactor_string = ''
+        if not from_kappa:
+            rfactor = self.rate_factor(b2k=True)
+            rfactor_string = '' if rfactor == 1.0 else ' * %s' % rfactor
 
         if self.rev:
-            rate_string = self.rate.write_as_kappa() + ',' + self.rev_rate.write_as_kappa()
+            rate_string = self.rate.write_as_kappa() + rfactor_string + ',' + self.rev_rate.write_as_kappa() + rfactor_string
         else:
-            rate_string = self.rate.write_as_kappa()
+            rate_string = self.rate.write_as_kappa() + rfactor_string
         return '%s %s %s @ %s' % (lhs_string, self.arrow, rhs_string, rate_string)
 
     def __repr__(self):
@@ -1560,7 +1604,7 @@ class Observable:
 class Model:
     """Object for rule-based model"""
 
-    def __init__(self):
+    def __init__(self, bngl):
         """Model initialization function"""
         self.molecules = []
         self.initial_cond = []
@@ -1568,6 +1612,7 @@ class Model:
         self.functions = []
         self.rules = []
         self.parameters = []
+        self.bngl = bngl  # True if reading BNGL, False if reading Kappa
 
         # Observable, Function, and Parameter instances may need to be renamed when converting from Kappa to BNGL
         self.convert_namespace = dict()  # Tracks names
