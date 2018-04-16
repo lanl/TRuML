@@ -64,7 +64,7 @@ class KappaReader(Reader):
 
     def get_agents(self):
         """Get molecule/agent definitions"""
-        m = Model()
+        m = Model(bngl=False)
         for l in self.lines:
             logging.debug("Parsing: %s" % l.strip())
             if re.match('%agent', l):
@@ -458,7 +458,7 @@ class BNGLReader(Reader):
         return condensed_lines
 
     def get_molecule_types(self):
-        m = Model()
+        m = Model(bngl=True)
         for l in self.lines:
             if re.match('begin molecule types', l):
                 logging.debug("Entering molecule types block")

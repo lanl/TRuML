@@ -53,6 +53,14 @@ class TestMisc:
         cls.rate1 = objects.Rate('rate')
         cls.rate2 = objects.Rate(objects.Expression(['rate', '/', '2']))
 
+        cls.sd4 = objects.SiteDef('b', [])
+        cls.md4 = objects.MoleculeDef('B', [cls.sd4, cls.sd4], {'b0': 'b', 'b1': 'b'})
+        cls.m8 = objects.Molecule('B', [objects.Site('b', 0)], cls.md4)
+        cls.m10 = objects.Molecule('B', [objects.Site('b', 0, b=objects.Bond(1))], cls.md4)
+        cls.p6 = objects.CPattern([cls.m8])
+        cls.p8 = objects.CPattern([cls.m10, cls.m10])
+        cls.rule6 = objects.Rule(objects.CPatternList([cls.p6, cls.p6]), objects.CPatternList([cls.p8]), cls.rate0)
+
     @classmethod
     def teardown_class(cls):
         pass
@@ -118,3 +126,8 @@ class TestMisc:
         assert not self.rate0.contains_variable('rate')
         assert self.rate1.contains_variable('rate')
         assert self.rate2.contains_variable('rate')
+
+    def test_factors(self):
+        assert self.rule6._unique_reactant_indices() == {0: 2}
+        assert self.rule6.rate_factor(True) == 0.5
+        assert self.rule6.rate_factor(False) == 2.0
