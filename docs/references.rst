@@ -9,4 +9,4 @@ Original page describing NFsim:
 Current version of NFsim (forked by BioNetGen developers):
     * `NFsim v1.12.1 <https://github.com/RuleWorld/nfsim>`_
 Main page describing the Kappa language and associated tools:
-    * `Kappa <http://dev.executableknowledge.org/>`_
+    * `Kappa <http://kappalanguage.org/>`_
