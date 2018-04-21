@@ -8,7 +8,7 @@ Welcome to TRuML's documentation!
 
 TRuML is an application designed to convert between systems biology models written in the Kappa or BioNetGen (BNGL)
 languages.  While not all models can be converted between the two languages, most features of these languages are
-mutually compatible.  
+mutually compatible.
 
 .. toctree::
    :maxdepth: 3
@@ -16,6 +16,7 @@ mutually compatible.
 
    installation
    tutorial
+   advanced
    modules/index.rst
    references
 

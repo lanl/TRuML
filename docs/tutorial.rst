@@ -25,4 +25,4 @@ Verbose conversion
 ^^^^^^^^^^^^^^^^^^
 The default settings are to output warnings to the terminal.  To enable a slightly more verbose output, describing the
 various steps in translation, the ``-v`` flag is available.  Output useful for debugging is available by using the ``-d``
-flag.
+flag.  This output can be redirected to a file by specifying a file name after the ``-l`` flag.
