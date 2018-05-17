@@ -167,8 +167,14 @@ class KappaReader(Reader):
     @staticmethod
     def parse_init(line, mdefs):
         sline = re.split('\s+', line)
-        amount = ' '.join(sline[1:-1])
-        patterns = KappaReader.parse_cpatterns(sline[-1], mdefs)
+        for i in range(len(sline)):
+            try:
+                patterns = KappaReader.parse_cpatterns(' '.join(sline[i:]), mdefs)
+                break
+            except pp.ParseException:
+                continue
+
+        amount = ' '.join(sline[1:i])
         amount_is_number = True if is_number(amount) else False
         if not amount_is_number:
             amount = Expression(KappaReader.parse_alg_expr(amount))
