@@ -546,7 +546,7 @@ class Site:
         str
             Site written as BNGL string
         """
-        state = '' if self.state is None else '~%s' % self.state
+        state = '' if self.state is None else '~?' if self.state == 'WILD' else '~%s' % self.state
         bond = '' if self.bond is None else self.bond.write_as_bngl()
         return self.name + state + bond
 
@@ -559,7 +559,7 @@ class Site:
         str
             Site written as Kappa string
         """
-        state = '' if self.state is None else '{%s}' % self.state
+        state = '' if self.state is None else '{#}' if self.state == 'WILD' else '{%s}' % self.state
         bond = '[.]' if self.bond is None else self.bond.write_as_kappa()
         return self.name + state + bond
 

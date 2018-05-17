@@ -647,7 +647,7 @@ class BNGLReader(Reader):
 
     @classmethod
     def _get_site(cls, s):
-        return s.name, None if s.state == '' else s.state[0], cls._declare_bond(s.bond)
+        return s.name, None if s.state == '' else 'WILD' if s.state[0] == '?' else s.state[0], cls._declare_bond(s.bond)
 
     @staticmethod
     def _get_molec(s):
