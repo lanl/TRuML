@@ -193,34 +193,9 @@ class KappaReader(Reader):
 
         return cls.parser.agent_def.parseString(mol_string)[0]
 
-    @staticmethod
-    def _declare_bond(b):
-        if b == '':
-            return Bond(-1, a=True)
-        elif re.match("#$", b[0]):
-            return Bond(-1, a=True)
-        elif re.match("_$", b[0]):
-            return Bond(-1, w=True)
-        elif re.match("\.$", b[0]):
-            return None
-        elif re.match("\d+$", b[0]):
-            return Bond(int(b[0]))
-        raise rbexceptions.NotCompatibleException
-
-    @classmethod
-    def _get_site(cls, s):
-        return s.name, None if s.state == '' else s.state[0], cls._declare_bond(s.bond)
-
-    @staticmethod
-    def _get_molec(s):
-        return s.name, s.sites
-
     @classmethod
     def parse_molecule(cls, mstr, mdefs):
         smstr = mstr.strip()
-
-        cls.parser.site.setParseAction(cls._get_site)
-        cls.parser.agent.setParseAction(cls._get_molec)
 
         res = cls.parser.agent.parseString(smstr)
 
