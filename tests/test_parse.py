@@ -197,9 +197,11 @@ class TestParseBNGL:
         assert readers.BNGLReader.parse_molecule(self.mol0, [pmdef2]).write_as_bngl() == self.mol0
         pmdef3 = readers.BNGLReader.parse_mtype(self.mdef3)
         mol1 = readers.BNGLReader.parse_molecule(self.mol1, [pmdef3])
-        mol1.write_as_bngl() == "Mol(a,b~U,b~P)"
+        assert mol1.write_as_bngl() == "Mol(a,b~U,b~P)"
         mol2 = readers.BNGLReader.parse_molecule(self.mol2, [pmdef3])
-        mol2.write_as_bngl() == "Mol(a,b!+)"
+        assert mol2.write_as_bngl() == "Mol(a,b~?!+)"
+        print mol2.write_as_kappa()
+        assert mol2.write_as_kappa() == "Mol(a[.],b{#}[_])"
 
     @raises(rbexceptions.NotAMoleculeException)
     def test_bmol_parse(self):

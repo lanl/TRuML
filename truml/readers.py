@@ -167,8 +167,14 @@ class KappaReader(Reader):
     @staticmethod
     def parse_init(line, mdefs):
         sline = re.split('\s+', line)
-        amount = ' '.join(sline[1:-1])
-        patterns = KappaReader.parse_cpatterns(sline[-1], mdefs)
+        for i in range(len(sline)):
+            try:
+                patterns = KappaReader.parse_cpatterns(' '.join(sline[i:]), mdefs)
+                break
+            except pp.ParseException:
+                continue
+
+        amount = ' '.join(sline[1:i])
         amount_is_number = True if is_number(amount) else False
         if not amount_is_number:
             amount = Expression(KappaReader.parse_alg_expr(amount))
@@ -193,34 +199,9 @@ class KappaReader(Reader):
 
         return cls.parser.agent_def.parseString(mol_string)[0]
 
-    @staticmethod
-    def _declare_bond(b):
-        if b == '':
-            return Bond(-1, a=True)
-        elif re.match("#$", b[0]):
-            return Bond(-1, a=True)
-        elif re.match("_$", b[0]):
-            return Bond(-1, w=True)
-        elif re.match("\.$", b[0]):
-            return None
-        elif re.match("\d+$", b[0]):
-            return Bond(int(b[0]))
-        raise rbexceptions.NotCompatibleException
-
-    @classmethod
-    def _get_site(cls, s):
-        return s.name, None if s.state == '' else s.state[0], cls._declare_bond(s.bond)
-
-    @staticmethod
-    def _get_molec(s):
-        return s.name, s.sites
-
     @classmethod
     def parse_molecule(cls, mstr, mdefs):
         smstr = mstr.strip()
-
-        cls.parser.site.setParseAction(cls._get_site)
-        cls.parser.agent.setParseAction(cls._get_molec)
 
         res = cls.parser.agent.parseString(smstr)
 
@@ -647,7 +628,7 @@ class BNGLReader(Reader):
 
     @classmethod
     def _get_site(cls, s):
-        return s.name, None if s.state == '' else s.state[0], cls._declare_bond(s.bond)
+        return s.name, None if s.state == '' else 'WILD' if s.state[0] == '?' else s.state[0], cls._declare_bond(s.bond)
 
     @staticmethod
     def _get_molec(s):

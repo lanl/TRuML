@@ -1,4 +1,8 @@
+from objects import Bond
+from rbexceptions import NotCompatibleException
+
 import pyparsing as pp
+import re
 
 
 class KappaParser:
@@ -29,7 +33,33 @@ class KappaParser:
     agent = dot.setResultsName('name') ^ (name.setResultsName('name') + lpar + pp.Group(pp.Optional(site + pp.ZeroOrMore(pp.Optional(comma) + site))).setResultsName('sites') + rpar)
 
     def __init__(self):
-        pass
+        self.site.setParseAction(self._get_site)
+        self.agent.setParseAction(self._get_molec)
+
+    @staticmethod
+    def _declare_bond(b):
+        if b == '':
+            return Bond(-1, a=True)
+        elif re.match("#$", b[0]):
+            return Bond(-1, a=True)
+        elif re.match("_$", b[0]):
+            return Bond(-1, w=True)
+        elif re.match("\.$", b[0]):
+            return None
+        elif re.match("\d+$", b[0]):
+            return Bond(int(b[0]))
+        raise NotCompatibleException
+
+    @classmethod
+    def _get_site(cls, s):
+        return s.name, None if s.state == '' else 'WILD' if s.state[0] == '#' else s.state[0], cls._declare_bond(s.bond)
+
+    @staticmethod
+    def _get_molec(s):
+        return s.name, s.sites
+
+    def parse_agent(self, s):
+        return self.agent.parseString(s)
 
 
 class BNGLParser:
