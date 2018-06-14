@@ -1,4 +1,5 @@
-"""truml.readers: module containing classes for reading BNGL and Kappa model files"""
+"""Contains classes for reading BNGL and Kappa model files"""
+
 
 from deepdiff import DeepDiff
 from objects import *
@@ -38,12 +39,12 @@ class Reader(object):
 
     @staticmethod
     def ignore_line(l):
+        """Finds empty lines"""
         return l == '' or re.match('\s*\n', l)
 
 
-# ignores perturbation and action commands
 class KappaReader(Reader):
-    """Reader for Kappa model files"""
+    """Reader for Kappa model files.  Ignores perturbation language."""
 
     parser = KappaParser()
 
@@ -63,7 +64,8 @@ class KappaReader(Reader):
         self.num_anon_pats = 0
 
     def get_agents(self):
-        """Get molecule/agent definitions"""
+        """Get molecule/agent definitions and return a Model instance
+        containing the corresponding MoleculeDef instances"""
         m = Model(bngl=False)
         for l in self.lines:
             logging.debug("Parsing: %s" % l.strip())
@@ -72,6 +74,8 @@ class KappaReader(Reader):
         return m
 
     def parse(self):
+        """Parses a Kappa model and returns a Model instance"""
+
         # First get agent definitions
         model = self.get_agents()
 
@@ -136,6 +140,20 @@ class KappaReader(Reader):
         return model
 
     def var_is_dynamic_no_pat(self, expr_list):
+        """
+        Determines if a Kappa variable is a dynamically changing quantity even if it doesn't
+        contain a Kappa pattern
+
+        Parameters
+        ----------
+        expr_list : list
+            A list of tokens as parsed by the parse_alg_expr function
+
+        Returns
+        -------
+        bool
+            True if dynamic, False otherwise
+        """
         for atom in expr_list:
             if re.match('\[T', atom):
                 return True
@@ -146,12 +164,27 @@ class KappaReader(Reader):
 
     @staticmethod
     def var_contains_pattern(expr_list):
+        """Determines if a Kappa variable contains a Kappa pattern"""
         for atom in expr_list:
             if re.match('\|', atom):
                 return True
         return False
 
     def get_var_patterns(self, expr_list):
+        """
+        Finds anonymous patterns defined in Kappa variables and observables
+
+        Parameters
+        ----------
+        expr_list : list
+            A list of tokens as parsed by the parse_alg_expr function
+
+        Returns
+        -------
+        dict, list
+            Returns a dictionary that names previously anonymous patterns and an updated token list using the
+            defined pattern names
+        """
         pat_dict = {}
         new_expr_list = []
         for atom in expr_list:
@@ -166,6 +199,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_init(line, mdefs):
+        """
+        Parses a Kappa initial condition
+
+        Parameters
+        ----------
+        line : str
+            Line containing an initial condition
+        mdefs : list
+            List of MoleculeDef instances that encompass the species present in the initial condition
+
+        Returns
+        -------
+        list
+            Returns a list of InitialCondition instances, one per CPattern
+        """
         sline = re.split('\s+', line)
         for i in range(len(sline)):
             try:
@@ -192,6 +240,19 @@ class KappaReader(Reader):
 
     @classmethod
     def parse_mtype(cls, line):
+        """
+        Parses a Kappa agent/molecule definition
+
+        Parameters
+        ----------
+        line : str
+            Line containing an agent declaration
+
+        Returns
+        -------
+        MoleculeDef
+        """
+
         mol_string = re.sub('\s*%agent:\s*', '', line)
 
         cls.parser.site_def.setParseAction(cls._get_sitedef)
@@ -201,6 +262,20 @@ class KappaReader(Reader):
 
     @classmethod
     def parse_molecule(cls, mstr, mdefs):
+        """
+        Parses a string corresponding to an agent/molecule
+
+        Parameters
+        ----------
+        mstr : str
+            String corresponding to an agent/molecule
+        mdefs : list
+            List of MoleculeDef instances containing one corresponding to the agent/molecule in mstr
+
+        Returns
+        -------
+        Molecule
+        """
         smstr = mstr.strip()
 
         res = cls.parser.agent.parseString(smstr)
@@ -225,6 +300,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_cpatterns(s, mdefs):
+        """
+        Parses a string corresponding to a connected pattern
+
+        Parameters
+        ----------
+        s : str
+            String corresponding to a pattern
+        mdefs : list
+            List of MoleculeDef instances encompassing the molecules present in the pattern
+
+        Returns
+        -------
+        list
+            Returns a list of CPattern instances, where each CPattern is a connected component
+        """
         mol_list = []
         in_par = 0
         cur_mol = ''
@@ -244,6 +334,21 @@ class KappaReader(Reader):
 
     @staticmethod
     def parse_rule(line, mdefs):
+        """
+        Parses a Kappa rule
+
+        Parameters
+        ----------
+        line : str
+            Line corresponding to a rule
+        mdefs : list
+            List of MoleculeDef instances encompassing molecules present in line
+
+        Returns
+        -------
+        list
+            Returns a list of Rule instances
+        """
         reversible = False
         rule_str = line
 
@@ -328,6 +433,19 @@ class KappaReader(Reader):
 
     @classmethod
     def parse_alg_expr(cls, estr):
+        """
+        Parses algebraic expressions compatible with Kappa syntax
+
+        Parameters
+        ----------
+        estr : str
+            String corresponding to an algebraic expression
+
+        Returns
+        -------
+        list
+            Returns a list of tokens corresponding to elements in a Kappa algebraic expression
+        """
         point = pp.Literal(".")
         e = pp.CaselessLiteral("E")
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
@@ -400,7 +518,7 @@ class KappaReader(Reader):
 
 # ignores action commands
 class BNGLReader(Reader):
-    """Reader for BNGL model files"""
+    """Reader for BNGL model files.  Ignores action block"""
 
     parser = BNGLParser()
 
@@ -439,6 +557,8 @@ class BNGLReader(Reader):
         return condensed_lines
 
     def get_molecule_types(self):
+        """Parses the molecule types block and returns a Model instance
+         containing the corresponding MoleculeDef instances"""
         m = Model(bngl=True)
         for l in self.lines:
             if re.match('begin molecule types', l):
@@ -454,11 +574,7 @@ class BNGLReader(Reader):
         return m
 
     def parse(self):
-        """
-        Function to parse BNGL model files
-
-        This function assumes that the file has the molecule types block before the rules block
-        """
+        """Function to parse BNGL model files"""
         model = self.get_molecule_types()
 
         if len(model.molecules) == 0:
@@ -564,7 +680,6 @@ class BNGLReader(Reader):
     @staticmethod
     def _get_molecdef(m):
         site_defs = m.sites[:]
-
         site_name_map = {}
         site_name_counter = {}
         has_site_symmetry = False
@@ -648,7 +763,6 @@ class BNGLReader(Reader):
         Returns
         -------
         Molecule
-            Builds a Molecule or raises a NotAMoleculeException
         """
         smstr = mstr.strip()
 
@@ -768,11 +882,6 @@ class BNGLReader(Reader):
             pval = pexpr
         return Parameter(pname, pval)
 
-    # assumes that pattern mapping is left to right and that there is
-    # only 1 component on either side of the rule (doesn't make sense to
-    # have components that aren't operated on).  The change will be from
-    # a Site with bond = None to a Site with a Bond object containing a
-    # link to another Molecule in the same component
     @staticmethod
     def _has_intramolecular_binding(lhs_cp, rhs_cp):
         """
@@ -945,7 +1054,6 @@ class BNGLReader(Reader):
         else:
             return Rate(rs, is_intra)
 
-    # needs to identify other user-defined functions + stuff in parse_math_expr
     @classmethod
     def parse_func(cls, line):
         """
@@ -958,7 +1066,7 @@ class BNGLReader(Reader):
 
         Returns
         -------
-        Expression
+        Function
         """
         sline = line.strip()
         if re.search('=', sline):
@@ -974,13 +1082,16 @@ class BNGLReader(Reader):
         p_func = cls.parse_math_expr(func)
         return Function(name, Expression(p_func.asList()))
 
-    # needs to be able to identify built in functions, numbers, variables, (previously defined functions?)
-    # functions are an alphanumeric string starting with a letter; they are preceded by an operator or parenthesis and encompass something in parentheses
-    # parameters are also alphanumeric strings starting with a letter; they are preceded by operators or parentheses and succeeded by operators
     @staticmethod
     def parse_math_expr(estr):
         """
-        Function to parse algebraic expressions
+        Function to parse algebraic expressions.
+
+            This function identifies built-in functions, numbers, variables and previously defined functions as
+            they occur in algebraic expressions.  Functions are alphanumeric strings starting with a letter.  They
+            are preceded by an arithmetic operator or a parenthesis and encompass something in parentheses.  Parameters
+            are also alphanumeric strings starting with a letter.  They are preceded and succeeded by operators or
+            parentheses
 
         Parameters
         ----------
@@ -998,7 +1109,7 @@ class BNGLReader(Reader):
         fnumber = pp.Combine(pp.Word("+-" + pp.nums, pp.nums) +
                              pp.Optional(point + pp.Optional(pp.Word(pp.nums))) +
                              pp.Optional(e + pp.Word("+-" + pp.nums, pp.nums)))
-        ident = pp.Word(pp.alphas, pp.alphas + pp.nums + "_$")
+        ident = pp.Word(pp.alphas, pp.alphas + pp.nums + "_")
 
         plus = pp.Literal("+")
         minus = pp.Literal("-")
@@ -1018,8 +1129,6 @@ class BNGLReader(Reader):
         expr = pp.Forward()
         atom = (pp.Optional("-") + (pi ^ e ^ fnumber ^ ident + lpar + expr + rpar ^ func ^ ident) ^ (lpar + expr + rpar))
 
-        # by defining exponentiation as "atom [ ^ factor ]..." instead of "atom [ ^ atom ]...", we get right-to-left exponents, instead of left-to-righ
-        # that is, 2^3^2 = 2^(3^2), not (2^3)^2.
         factor = pp.Forward()
         factor << atom + pp.ZeroOrMore((expop + factor))
 

@@ -1,4 +1,4 @@
-"""truml.utils: miscellaneous support functions"""
+"""Miscellaneous support functions"""
 
 
 def build_adj_list(mols):
@@ -35,7 +35,7 @@ def dfs(al, m, v):
 
     Returns
     -------
-
+    None
     """
     m[v] = 1
     for x in al[v]:

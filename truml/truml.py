@@ -1,4 +1,4 @@
-"""truml.truml: defines the entry point for the TRuML translator"""
+"""Defines the entry point for the TRuML translator"""
 
 
 __version__ = "0.1.0"
@@ -12,6 +12,8 @@ import re
 
 
 def main():
+    """Entry point for translation"""
+
     parser = ap.ArgumentParser()
     parser.add_argument('-b', '--bngl_files', nargs='+', metavar='model.bngl', help='BNGL files to convert to Kappa')
     parser.add_argument('-k', '--kappa_files', nargs='+', metavar='model.ka', help='Kappa files to convert to BNGL')
@@ -26,7 +28,6 @@ def main():
 
     log_format = "%(levelname)s\t%(message)s"
 
-    # Assign logging level
     ll = logging.WARNING
     if args.debug:
         ll = logging.DEBUG
