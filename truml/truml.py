@@ -9,6 +9,7 @@ import logging
 import rbexceptions
 import readers
 import re
+import pyparsing as pp
 
 
 def main():
@@ -46,10 +47,20 @@ def main():
     elif args.bngl_files is None:
         for kf in args.kappa_files:
             kr = readers.KappaReader(kf)
-            model = kr.parse()
+            try:
+                model = kr.parse()
+            except pp.ParseException as pe:
+                logging.error("Could not parse line: %s" % pe.line)
+                print "Could not parse line: '%s'.  Exiting" % pe.line
+                exit(1)
             model.write_as_bngl(re.sub('ka', 'bngl', kf), args.dot_and_plus)
     else:
         for bf in args.bngl_files:
             br = readers.BNGLReader(bf)
-            model = br.parse()
+            try:
+                model = br.parse()
+            except pp.ParseException as pe:
+                logging.error("Could not parse line: %s" % pe.line)
+                print "Could not parse line: '%s'.  Exiting" % pe.line
+                exit(1)
             model.write_as_kappa(re.sub('bngl', 'ka', bf), args.no_print_funcs)

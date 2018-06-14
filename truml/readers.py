@@ -68,7 +68,7 @@ class KappaReader(Reader):
         containing the corresponding MoleculeDef instances"""
         m = Model(bngl=False)
         for l in self.lines:
-            logging.debug("Parsing: %s" % l.strip())
+            logging.debug("Checking for agent declaration in line: %s" % l.strip())
             if re.match('%agent', l):
                 m.add_molecule_def(self.parse_mtype(l))
         return m
@@ -278,7 +278,7 @@ class KappaReader(Reader):
         """
         smstr = mstr.strip()
 
-        res = cls.parser.agent.parseString(smstr)
+        res = cls.parser.parse_agent(smstr)
 
         if res[0][0] == '.':
             return PlaceHolderMolecule()
@@ -431,8 +431,8 @@ class KappaReader(Reader):
             rate = Rate(Expression(KappaReader.parse_alg_expr(rhs_cps[1].strip())))
             return [Rule(lhs_patts, rhs_patts, rate, label=label, delmol=delmol)]
 
-    @classmethod
-    def parse_alg_expr(cls, estr):
+    @staticmethod
+    def parse_alg_expr(estr):
         """
         Parses algebraic expressions compatible with Kappa syntax
 

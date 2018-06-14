@@ -1,0 +1,83 @@
+%agent: FcR(alpha,beta{U,P},gamma{U,P})
+%agent: IgE(Fc0,Fc1)
+%agent: Lat(Y136{U,P})
+%agent: Lyn(U,SH2)
+%agent: Syk(tSH2,PTK{U,P})
+
+%var: 'IgE_tot' 200
+%var: 'FcR_tot' 4.0e2
+%var: 'Lyn_tot' 2.8e1
+%var: 'Syk_tot' 4.0e2
+%var: 'Lat_tot' 4.0e2
+%var: 'kp1' 1.7E-6
+%var: 'km1' 0.01
+%var: 'kp2' 4.0E-1
+%var: 'km2' 'km1'
+%var: 'kpL' 5E-2
+%var: 'kmL' 20
+%var: 'kpLs' 5E-2
+%var: 'kmLs' 0.12
+%var: 'kpS' 6E-2
+%var: 'kmS' 0.13
+%var: 'kpSs' 6E-2
+%var: 'kmSs' 0.13
+%var: 'pLb' 30
+%var: 'pLbs' 100
+%var: 'pLg' 1
+%var: 'pLgs' 3
+%var: 'pLS' 30
+%var: 'pLSs' 100
+%var: 'pSS' 100
+%var: 'pSSs' 200
+%var: 'dm' 20
+%var: 'dc' 20
+%var: 'kpMM' 5E-3
+%var: 'kmMM' 20
+%var: 'pMM' 200
+
+%obs: 'pLat' |Lat(Y136{P}[#])|
+%obs: 'LynFree' |Lyn(U[.],SH2[.])|
+%obs: 'FcRMon' |FcR(alpha[.])|+|FcR(alpha[1]),IgE(Fc0[1],Fc1[.])|+|FcR(alpha[1]),IgE(Fc1[1],Fc0[.])|
+%obs: 'FcRPbeta' |FcR(beta{P}[#])|
+%obs: 'FcRPgamma' |FcR(gamma{P}[.])|+|FcR(gamma{P}[_])|
+%obs: 'FcRSyk' |FcR(gamma{P}[1]),Syk(tSH2[1])|
+%obs: 'FcRSykPS' |FcR(gamma{P}[1]),Syk(tSH2[1],PTK{P}[.])|
+%obs: 'SykTest' |Syk()|
+%obs: 'LynTest' |Lyn()|
+%obs: 'FcRTest' |FcR()|
+
+
+%init: 'IgE_tot' IgE(Fc0[.],Fc1[.])
+%init: 'Lyn_tot' Lyn(SH2[.],U[.])
+%init: 'Syk_tot' Syk(PTK{U}[.],tSH2[.])
+%init: 'FcR_tot' FcR(alpha[.],beta{U}[.],gamma{U}[.])
+%init: 'Lat_tot' Lat(Y136{U}[.])
+
+FcR(alpha[.]),IgE(Fc0[.],Fc1[.]) <-> FcR(alpha[1]),IgE(Fc0[1],Fc1[.]) @ 'kp1','km1'
+FcR(alpha[.]),IgE(Fc0[.],Fc1[.]) <-> FcR(alpha[1]),IgE(Fc0[.],Fc1[1]) @ 'kp1','km1'
+FcR(alpha[.]),IgE(Fc0[.],Fc1[_]) <-> FcR(alpha[1]),IgE(Fc0[1],Fc1[_]) @ 'kp2','km2'
+FcR(alpha[.]),IgE(Fc1[.],Fc0[_]) <-> FcR(alpha[1]),IgE(Fc1[1],Fc0[_]) @ 'kp2','km2'
+FcR(beta{U}[.]),Lyn(U[.],SH2[.]) <-> FcR(beta{U}[1]),Lyn(U[1],SH2[.]) @ 'kpL','kmL'
+IgE(Fc0[1],Fc1[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],beta{U}[.]) -> IgE(Fc0[1],Fc1[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],beta{P}[.]) @ 'pLb'
+IgE(Fc1[1],Fc0[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],beta{U}[.]) -> IgE(Fc1[1],Fc0[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],beta{P}[.]) @ 'pLb'
+IgE(Fc0[1],Fc1[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],gamma{U}[.]) -> IgE(Fc0[1],Fc1[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],gamma{P}[.]) @ 'pLg'
+IgE(Fc1[1],Fc0[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],gamma{U}[.]) -> IgE(Fc1[1],Fc0[2]),Lyn(U[3],SH2[.]),FcR(alpha[2],beta{U}[3]),FcR(alpha[1],gamma{P}[.]) @ 'pLg'
+IgE(Fc0[1],Fc1[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],beta{U}[.]) -> IgE(Fc0[1],Fc1[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],beta{P}[.]) @ 'pLbs'
+IgE(Fc1[1],Fc0[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],beta{U}[.]) -> IgE(Fc1[1],Fc0[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],beta{P}[.]) @ 'pLbs'
+IgE(Fc0[1],Fc1[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],gamma{U}[.]) -> IgE(Fc0[1],Fc1[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],gamma{P}[.]) @ 'pLgs'
+IgE(Fc1[1],Fc0[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],gamma{U}[.]) -> IgE(Fc1[1],Fc0[2]),Lyn(U[.],SH2[3]),FcR(alpha[2],beta{P}[3]),FcR(alpha[1],gamma{P}[.]) @ 'pLgs'
+FcR(beta{P}[.]),Lyn(U[.],SH2[.]) <-> FcR(beta{P}[1]),Lyn(U[.],SH2[1]) @ 'kpLs','kmLs'
+FcR(gamma{P}[.]),Syk(tSH2[.]) <-> FcR(gamma{P}[1]),Syk(tSH2[1]) @ 'kpS','kmS'
+IgE(Fc0[1],Fc1[2]),Syk(tSH2[3],PTK{U}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{U}[.]) -> IgE(Fc0[1],Fc1[2]),Syk(tSH2[3],PTK{U}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{P}[.]) @ 'pSS'
+IgE(Fc1[1],Fc0[2]),Syk(tSH2[3],PTK{U}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{U}[.]) -> IgE(Fc1[1],Fc0[2]),Syk(tSH2[3],PTK{U}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{P}[.]) @ 'pSS'
+IgE(Fc0[1],Fc1[2]),Syk(tSH2[3],PTK{P}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{U}[.]) -> IgE(Fc0[1],Fc1[2]),Syk(tSH2[3],PTK{P}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{P}[.]) @ 'pSSs'
+IgE(Fc1[1],Fc0[2]),Syk(tSH2[3],PTK{P}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{U}[.]) -> IgE(Fc1[1],Fc0[2]),Syk(tSH2[3],PTK{P}[.]),FcR(alpha[2],gamma{P}[3]),FcR(alpha[1],gamma{P}[4]),Syk(tSH2[4],PTK{P}[.]) @ 'pSSs'
+Syk(tSH2[_],PTK{P}[.]),Lat(Y136{U}[.]) -> Syk(tSH2[_],PTK{P}[1]),Lat(Y136{U}[1]) @ 'kpMM'
+Syk(PTK{P}[1]),Lat(Y136{U}[1]) -> Syk(PTK{P}[.]),Lat(Y136{U}[.]) @ 'kmMM'
+Syk(PTK{P}[1]),Lat(Y136{U}[1]) -> Syk(PTK{P}[.]),Lat(Y136{P}[.]) @ 'pMM'
+Lat(Y136{P}[.]) -> Lat(Y136{U}[.]) @ 'dm'
+FcR(beta{P}[.]) -> FcR(beta{U}[.]) @ 'dm'
+FcR(gamma{P}[.]) -> FcR(gamma{U}[.]) @ 'dm'
+Syk(tSH2[_],PTK{P}[.]) -> Syk(tSH2[_],PTK{U}[.]) @ 'dm'
+Syk(tSH2[.],PTK{P}[.]) -> Syk(tSH2[.],PTK{U}[.]) @ 'dc'
+

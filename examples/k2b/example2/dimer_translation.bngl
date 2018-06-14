@@ -1,0 +1,40 @@
+begin model
+
+begin parameters
+
+
+end parameters
+
+begin molecule types
+
+	A(x)
+	B(x,y)
+
+end molecule types
+
+begin seed species
+
+	A(x) 10000
+	B(x,y) 1000
+
+end seed species
+
+begin observables
+
+	Molecules b_dimer B(y!1).B(y!1)
+
+end observables
+
+begin functions
+
+
+end functions
+
+begin reaction rules
+
+	A(x)+B(x,y) <-> A(x!1).B(x!1,y) 1E-5,1E-2
+	B(x!+,y)+B(x!+,y) <-> B(x!+,y!1).B(x!+,y!1) 1E-4 * 2.0,1E-2 * 2.0
+
+end reaction rules
+
+end model

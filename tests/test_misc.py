@@ -100,6 +100,7 @@ class TestMisc:
     def test_automorphism_counter(self):
         assert readers.BNGLReader.parse_cpattern(self.pattern, [self.md0, self.md1]).automorphisms() == 1
         assert readers.BNGLReader.parse_cpattern(self.pattern3, [self.md0, self.md1]).automorphisms() == 8
+        assert objects.CPattern([objects.PlaceHolderMolecule()]).automorphisms() == 1
 
     @raises(rbexceptions.NotConvertedException)
     def test_not_converted(self):
@@ -128,6 +129,7 @@ class TestMisc:
         assert self.rate2.contains_variable('rate')
 
     def test_factors(self):
+        print self.rule6._unique_reactant_indices()
         assert self.rule6._unique_reactant_indices() == {0: 2}
         assert self.rule6.rate_factor(True) == 0.5
         assert self.rule6.rate_factor(False) == 2.0
