@@ -5,7 +5,7 @@ Summary
 -------
 TRuML is a Python application designed to translate models written in either Kappa or the BioNetGen language (BNGL)
 into the other language.  Currently TRuML is only compatible with Python 2 and work is being done to adapt TRuML for
-use with Python 3.
+use with Python 3.  Documentation can be found on `Read the Docs <https://truml.readthedocs.io>`_
 
 Usage
 -----
