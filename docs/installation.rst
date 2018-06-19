@@ -7,10 +7,8 @@ both. Take care to install Python 2.
 
 Installing from PyPI
 ^^^^^^^^^^^^^^^^^^^^
-.. note::
-    This option is not yet available
-
-Simply type the following in a terminal to install TRuML from the Python Package Index:
+If you have `pip` installed for the appropriate version of Python, simply type the following in a terminal to install
+TRuML from the Python Package Index:
 
     :command:`pip install truml`
 

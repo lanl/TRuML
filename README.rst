@@ -7,6 +7,12 @@ TRuML is a Python application designed to translate models written in either Kap
 into the other language.  Currently TRuML is only compatible with Python 2 and work is being done to adapt TRuML for
 use with Python 3.  Documentation can be found on `Read the Docs <https://truml.readthedocs.io>`_
 
+Installation
+------------
+From PyPI::
+
+    pip install TRuML
+
 Usage
 -----
 TRuML is invoked on the command line using the command ``truml``.  All options can be seen with the ``-h`` or ``--help``
