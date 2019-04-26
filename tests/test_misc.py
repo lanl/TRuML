@@ -129,7 +129,7 @@ class TestMisc:
         assert self.rate2.contains_variable('rate')
 
     def test_factors(self):
-        print self.rule6._unique_reactant_indices()
+        print(self.rule6._unique_reactant_indices())
         assert self.rule6._unique_reactant_indices() == {0: 2}
         assert self.rule6.rate_factor(True) == 0.5
         assert self.rule6.rate_factor(False) == 2.0

@@ -6,8 +6,8 @@ import itertools as it
 import logging
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
-import rbexceptions
-import utils
+from . import rbexceptions
+from . import utils
 
 from copy import deepcopy
 from math import factorial
@@ -67,9 +67,9 @@ class MoleculeDef:
     def _invert_site_name_map(self):
         """Builds a dictionary of BNGL site names to a list of Kappa site names"""
         self.inv_site_name_map = {}
-        for k in self.site_name_map.keys():
+        for k in list(self.site_name_map.keys()):
             v = self.site_name_map[k]
-            if v not in self.inv_site_name_map.keys():
+            if v not in list(self.inv_site_name_map.keys()):
                 self.inv_site_name_map[v] = [k]
             else:
                 self.inv_site_name_map[v].append(k)
@@ -78,7 +78,7 @@ class MoleculeDef:
         """Converts MoleculeDef to use Kappa-compatible site names if necessary"""
         ss = []
         snm = {}
-        k_track = {s: list(reversed(sorted(self.inv_site_name_map[s]))) for s in self.inv_site_name_map.keys()}
+        k_track = {s: list(reversed(sorted(self.inv_site_name_map[s]))) for s in list(self.inv_site_name_map.keys())}
         for s in self.sites:
             name = k_track[s.name].pop()
             ss.append(SiteDef(name, s.state_list))
@@ -342,28 +342,28 @@ class Molecule(MoleculeTemplate):
             return tuple([rename_site(name, site, index) for name, index in zip(names, idcs)])
 
         # Check for the possibility of overlapping patterns
-        possible_overlap = {k: False for k in un_configs_per_site.keys()}
-        for k in un_configs_per_site.keys():
+        possible_overlap = {k: False for k in list(un_configs_per_site.keys())}
+        for k in list(un_configs_per_site.keys()):
             num_identical_sites = len(self.mdef.inv_site_name_map[k])
-            if num_identical_sites > 1 and k in un_configs_per_site.keys():
-                num_present_sites = sum([len(idcs) for idcs in un_configs_per_site[k].values()])
+            if num_identical_sites > 1 and k in list(un_configs_per_site.keys()):
+                num_present_sites = sum([len(idcs) for idcs in list(un_configs_per_site[k].values())])
                 if num_identical_sites > num_present_sites >= 1:
                     possible_overlap[k] = True
                     break
 
         k_configs = {}
-        for sn in un_configs_per_site.keys():
+        for sn in list(un_configs_per_site.keys()):
             k_configs[sn] = []
             k_sn_names = set(self.mdef.inv_site_name_map[sn])
             cur_combs = []
 
-            for s, idcs in un_configs_per_site[sn].iteritems():
+            for s, idcs in un_configs_per_site[sn].items():
                 if len(cur_combs) == 0:
                     cur_combs = [rename_sites(names, s, idcs) for names in it.combinations(k_sn_names, len(idcs))]
                 else:
                     tmp_combs = []
                     for cc in cur_combs:
-                        rem_names = k_sn_names - set(map(lambda l: l.name, cc))
+                        rem_names = k_sn_names - set([l.name for l in cc])
                         new_combs = [rename_sites(names, s, idcs) for names in it.combinations(rem_names, len(idcs))]
                         for nc in new_combs:
                             tmp_combs.append(cc + nc)
@@ -371,14 +371,14 @@ class Molecule(MoleculeTemplate):
 
             if possible_overlap[sn]:
                 need_state = self._site_state_present(un_configs_per_site[sn])
-                num_rem_sites = len(self.mdef.inv_site_name_map[k]) - sum([len(idcs) for idcs in un_configs_per_site[sn].values()])
-                indices = range(len(self.sites), len(self.sites) + num_rem_sites)
+                num_rem_sites = len(self.mdef.inv_site_name_map[k]) - sum([len(idcs) for idcs in list(un_configs_per_site[sn].values())])
+                indices = list(range(len(self.sites), len(self.sites) + num_rem_sites))
 
                 for idx in indices:
                     possible_sites = self._enumerate_site(sn, idx, need_state)
                     tmp_combs = []
                     for cc in cur_combs:
-                        rem_names = k_sn_names - set(map(lambda l: l.name, cc))
+                        rem_names = k_sn_names - set([l.name for l in cc])
                         new_combs = [rename_site(x, y, idx) for x, y in it.product(rem_names, possible_sites)]
                         for nc in new_combs:
                             tmp_combs.append(cc + (nc,))
@@ -386,7 +386,7 @@ class Molecule(MoleculeTemplate):
 
             k_configs[sn] = cur_combs
 
-        k_prod = it.product(*k_configs.values())
+        k_prod = it.product(*list(k_configs.values()))
 
         return sorted([Molecule(self.name, [e for t in tt for e in sorted(t)], self.mdef) for tt in k_prod])
 
@@ -452,7 +452,7 @@ class Molecule(MoleculeTemplate):
         if len(used_other_idcs) < len(other.sites):
             return None  # there are unmatched sites in other
         else:
-            return {k: v for k, v in imap.iteritems() if v != (-1, -1)}
+            return {k: v for k, v in imap.items() if v != (-1, -1)}
 
     def _write(self, bngl=True):
         """
@@ -787,13 +787,13 @@ class CPattern:
         node_name_dict = {}
         for node in g.nodes():
             name = g.node[node]['name']
-            if name not in node_name_dict.keys():
+            if name not in list(node_name_dict.keys()):
                 node_name_dict[name] = [node]
             else:
                 node_name_dict[name].append(node)
 
         # Remove nodes with unique names
-        for n in node_name_dict.keys():
+        for n in list(node_name_dict.keys()):
             if len(node_name_dict[n]) == 1:
                 node_name_dict.pop(n)
             else:
@@ -801,14 +801,14 @@ class CPattern:
 
         # Find all permutations of all node types (possible node mappings)
         per_node_tuples = []
-        for n in node_name_dict.keys():
+        for n in list(node_name_dict.keys()):
             op = node_name_dict[n]  # Original permutation of node type n
             perms = list(it.permutations(op))  # All permutations of node type n
 
             # Convert each permutation into a list of tuples.  The list is a
             # mapping from the original ordering to a permutation.  Tuples is a
             # list of these lists of tuples for each permutation of node type n
-            tuples = [list(it.izip(op, p)) for p in perms]
+            tuples = [list(zip(op, p)) for p in perms]
             per_node_tuples.append(tuples)
 
         # First take the Cartesian product over the list of lists of
@@ -963,7 +963,7 @@ class CPatternList:
         c_cps = []
         for cp in self.cpatterns:
             c_cps.append(cp.convert())
-        return list(it.imap(lambda p: CPatternList(list(p)), it.product(*c_cps)))
+        return list(map(lambda p: CPatternList(list(p)), it.product(*c_cps)))
 
     def write_as_bngl(self, dot):
         all_placeholder = True
@@ -1067,7 +1067,7 @@ class Parameter:
 
     def write_as_bngl(self, namespace=dict()):
         """Writes Parameter as BNGL string"""
-        bname = namespace[self.name] if self.name in namespace.keys() else self.name
+        bname = namespace[self.name] if self.name in list(namespace.keys()) else self.name
         val = self.value.write_as_bngl(namespace) if isinstance(self.value, Expression) else self.value
         return '%s %s' % (bname, val)
 
@@ -1100,7 +1100,7 @@ class Expression:
         """Writes Expression as BNGL string"""
         conv_atom_list = []
         for atom in self.atom_list:
-            if atom in namespace.keys():
+            if atom in list(namespace.keys()):
                 conv_atom_list.append(namespace[atom])
             else:
                 conv_atom_list.append(atom)
@@ -1113,7 +1113,7 @@ class Expression:
         i = 0
         while (i < len(self.atom_list)):
             a = self.atom_list[i]
-            if a in bngl_to_kappa_func_map.keys():
+            if a in list(bngl_to_kappa_func_map.keys()):
                 trig_func_match = re.compile('sinh|cosh|tanh|asinh|acosh|atanh')
                 if re.match('log', a) or re.match(trig_func_match, a):
                     expr.append(bngl_to_kappa_func_map[a](self.atom_list[i + 2]))
@@ -1153,7 +1153,7 @@ class Function:
 
     def write_as_bngl(self, namespace=dict()):
         """Writes function as BNGL string"""
-        bname = namespace[self.name] if self.name in namespace.keys() else self.name
+        bname = namespace[self.name] if self.name in list(namespace.keys()) else self.name
         return '%s=%s' % (bname, self.expr.write_as_bngl(namespace))
 
     def write_as_kappa(self, as_obs=True):
@@ -1215,7 +1215,7 @@ class Rate:
         try:
             return self.rate.write_as_bngl(namespace)
         except AttributeError:
-            if isinstance(self.rate, str) and self.rate in namespace.keys():
+            if isinstance(self.rate, str) and self.rate in list(namespace.keys()):
                 return namespace[self.rate]
             else:
                 return str(self.rate)
@@ -1280,7 +1280,7 @@ class Rule:
     def _placeholder_check(self):
         if len(self.lhs_mols) != len(self.rhs_mols):
             return True
-        elif None in self.mol_map.values():
+        elif None in list(self.mol_map.values()):
             return True
         elif set(range(len(self.rhs_mols))) != set(self.mol_map.values()):
             return True
@@ -1301,7 +1301,7 @@ class Rule:
             else:
                 rhs_list.append(PlaceHolderMolecule())
                 # Update Molecule to CPattern mapping to accommodate new Molecule (and CPattern)
-                if len(rmol2cp.keys()) < li + 1:
+                if len(list(rmol2cp.keys())) < li + 1:
                     rmol2cp[li] = li
                 else:
                     for ri in reversed(sorted(rmol2cp.keys())):
@@ -1312,7 +1312,7 @@ class Rule:
                         if ri < li:
                             break
 
-        mapped_rhs_idcs = set(it.ifilterfalse(lambda l: l is None, self.mol_map.values()))
+        mapped_rhs_idcs = set(l for l in self.mol_map.values() if l is not None)
         unmapped_rhs_idcs = set(range(len(self.rhs_mols))) - mapped_rhs_idcs
 
         maxi = len(lmol2cp)
@@ -1326,9 +1326,9 @@ class Rule:
             rhs_list.append(self.rhs_mols[ri])
 
         lhs_cps, rhs_cps = {v: [] for v in set(lmol2cp.values())}, {v: [] for v in set(rmol2cp.values())}
-        for i in lmol2cp.keys():
+        for i in list(lmol2cp.keys()):
             lhs_cps[lmol2cp[i]].append(lhs_list[i])
-        for i in rmol2cp.keys():
+        for i in list(rmol2cp.keys()):
             rhs_cps[rmol2cp[i]].append(rhs_list[i])
 
         self.lhs = CPatternList([CPattern(lhs_cps[k]) for k in sorted(lhs_cps.keys())])
@@ -1419,7 +1419,7 @@ class Rule:
 
             smap = lhs_mols[i].interface_diff_map(rhs_mols[i])
             mdef = lhs_mols[i].mdef
-            for k in smap.keys():
+            for k in list(smap.keys()):
                 diff = smap[k]
                 if diff[0] != -1 and diff[1] != -1:
                     action_list.append(BondAndStateChange(i, k, diff[0], diff[1], mdef))
@@ -1475,7 +1475,7 @@ class Rule:
         reactant_counts = self._unique_reactant_indices()
         if reactant_counts:
             multiple_reactant_factor = 1
-            for k, v in reactant_counts.iteritems():
+            for k, v in reactant_counts.items():
                 multiple_reactant_factor *= factorial(v)
 
             factor = auto_factor * multiple_reactant_factor
@@ -1567,8 +1567,8 @@ class Observable:
                 else:
                     un_configs_per_site[bngl_site_name][bngl_site] += 1
             m_int_symm = 1
-            for d in un_configs_per_site.values():
-                for n in d.values():
+            for d in list(un_configs_per_site.values()):
+                for n in list(d.values()):
                     m_int_symm *= factorial(n)
             f *= m_int_symm
         return f
@@ -1579,7 +1579,7 @@ class Observable:
 
     def write_as_bngl(self, namespace=dict()):
         """Writes Observable as BNGL string"""
-        bname = namespace[self.name] if self.name in namespace.keys() else self.name
+        bname = namespace[self.name] if self.name in list(namespace.keys()) else self.name
         return "%s %s %s" % (self.type, bname, ' '.join([p.write_as_bngl() for p in self.cpatterns]))
 
     def write_as_kappa(self):

@@ -67,7 +67,7 @@ class TestAction:
         idm0 = self.m7.interface_diff_map(self.m9)
         assert len(idm0) == 1
         s0 = objects.Site('a', 1)
-        assert s0 in idm0.keys()
+        assert s0 in list(idm0.keys())
         assert idm0[s0] == (-1, objects.Bond(1))
 
     def test_build_mol_map(self):
@@ -75,14 +75,14 @@ class TestAction:
         r0_rhs_mols = utils.flatten_pattern([self.p3])
         mmap0 = objects.Rule._build_mol_map(r0_lhs_mols, r0_rhs_mols)
         assert mmap0[0] is None
-        assert len(mmap0.keys()) == 1
+        assert len(list(mmap0.keys())) == 1
 
         r1_lhs_mols = utils.flatten_pattern([self.p5, self.p6])
         r1_rhs_mols = utils.flatten_pattern([self.p7])
         mmap1 = objects.Rule._build_mol_map(r1_lhs_mols, r1_rhs_mols)
         assert mmap1[0] == 0
         assert mmap1[1] == 1
-        assert len(mmap1.keys()) == 2
+        assert len(list(mmap1.keys())) == 2
 
         r2_lhs_mols = utils.flatten_pattern([self.p4, self.p2, self.p3])
         r2_rhs_mols = utils.flatten_pattern([self.p4, self.p3])

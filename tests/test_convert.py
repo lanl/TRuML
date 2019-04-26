@@ -37,5 +37,5 @@ class TestConvert:
 
     def test_bmodel1_convert(self):
         krules = [r for rule in self.bm1.rules for r in rule.convert()]
-        print '\n'.join([r.write_as_kappa() for r in krules])
+        print('\n'.join([r.write_as_kappa() for r in krules]))
         assert len(krules) == 29

@@ -206,6 +206,7 @@ class TestPrint:
         assert self.rule6.write_as_kappa() == r"B(b[.]),B(b[.]) -> B(b[1]),B(b[1]) @ 3 * 0.5"
         assert self.rule6.write_as_bngl() == r"B(b)+B(b) -> B(b!1).B(b!1) 3 * 2.0"
         assert self.rule6.write_as_bngl(dot=True) == r"B(b).B(b) -> B(b!1).B(b!1) 3 * 2.0"
+        print(self.rule7.write_as_kappa())
         assert self.rule7.write_as_kappa() == r"B(b[1]),B(b[1]) -> B(b[.]),. @ 3 * 0.5"
         assert self.rule7.write_as_bngl() == r"B(b!1).B(b!1) -> B(b) 3 * 2.0"
         assert self.rule8.write_as_bngl() == r"B(b) -> B(b)+B(b) 3"
@@ -218,9 +219,9 @@ class TestPrint:
             assert x[i - 1] < x[i]
 
     def test_rule_expansion(self):
-        print self.rule3.write_as_bngl(from_bngl=True)
+        print(self.rule3.write_as_bngl(from_bngl=True))
         x = self.rule3.convert()
-        print '\n'.join(sorted([y.write_as_kappa() for y in set(x)]))
+        print('\n'.join(sorted([y.write_as_kappa() for y in set(x)])))
         assert len(x) == 36
 
     def test_obs(self):
