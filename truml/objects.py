@@ -344,7 +344,6 @@ class Molecule(MoleculeTemplate):
         # Check for the possibility of overlapping patterns
         possible_overlap = {k: False for k in list(un_configs_per_site.keys())}
         for k in sorted(list(un_configs_per_site.keys())):
-            # This is fixed by sorting un_configs_per_site
             num_identical_sites = len(self.mdef.inv_site_name_map[k])
             if num_identical_sites > 1 and k in list(un_configs_per_site.keys()):
                 num_present_sites = sum([len(idcs) for idcs in list(un_configs_per_site[k].values())])
