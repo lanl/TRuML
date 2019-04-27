@@ -343,7 +343,8 @@ class Molecule(MoleculeTemplate):
 
         # Check for the possibility of overlapping patterns
         possible_overlap = {k: False for k in list(un_configs_per_site.keys())}
-        for k in list(un_configs_per_site.keys()):
+        for k in sorted(list(un_configs_per_site.keys())):
+            # This is fixed by sorting un_configs_per_site
             num_identical_sites = len(self.mdef.inv_site_name_map[k])
             if num_identical_sites > 1 and k in list(un_configs_per_site.keys()):
                 num_present_sites = sum([len(idcs) for idcs in list(un_configs_per_site[k].values())])
@@ -855,7 +856,7 @@ class CPattern:
             em = iso.categorical_edge_match('name', '')
             for gp in self._permute(g):
                 is_iso = iso.is_isomorphic(g, gp, edge_match=em, node_match=nm)
-                equal_edges = set(g.edges()) == set(gp.edges())
+                equal_edges = set([frozenset(x) for x in g.edges]) == set([frozenset(x) for x in gp.edges()])
                 # Automorphisms require that a permutation of a graph's nodes
                 # is both isomorphic to the original graph and that the
                 # permutation's edges are preserved from the original graph

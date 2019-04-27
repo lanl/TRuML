@@ -585,7 +585,7 @@ class BNGLReader(Reader):
 
         for i, l in enumerate(self.lines):
 
-            if re.match('\s*\n', l):
+            if re.match('$|\s*\n', l):
                 continue
 
             logging.debug("Parsing %s" % l.strip())
