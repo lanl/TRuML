@@ -2,14 +2,14 @@
 
 
 from deepdiff import DeepDiff
-from objects import *
-from parsers import KappaParser, BNGLParser
+from .objects import *
+from .parsers import KappaParser, BNGLParser
 
 import itertools as it
 import logging
 import pyparsing as pp
 import re
-import utils
+from . import utils
 
 
 class Reader(object):
@@ -57,7 +57,7 @@ class KappaReader(Reader):
         file_name : str
         """
         super(KappaReader, self).__init__(file_name)
-        self.lines = list(it.ifilterfalse(self.ignore_line, [re.sub('//.*$', '', l).strip() for l in self.lines]))
+        self.lines = [re.sub('//.*$', '', l).strip() for l in self.lines if not self.ignore_line(l)]
         # var_dict keeps track of read variables and observables and what type they are
         # Variables can be constant values (c), patterns (p), or dynamic expressions (d)
         self.var_dict = {}
@@ -105,7 +105,7 @@ class KappaReader(Reader):
                         "Exact conversion of observable '%s' to BNGL is not possible.  Renamed to '%s'" % (
                             name, bname))
 
-                if bname in model.convert_namespace.values():
+                if bname in list(model.convert_namespace.values()):
                     rebname = bname + '_'
                     logging.warning(
                         "Name '%s' already exists due to inexact conversion.  Renamed to '%s'" % (bname, rebname))
@@ -120,7 +120,7 @@ class KappaReader(Reader):
                         self.var_dict[name] = 'p'
                     else:
                         pat_dict, subst_expr_list = self.get_var_patterns(expr_list)
-                        for p in pat_dict.keys():
+                        for p in list(pat_dict.keys()):
                             model.add_obs(Observable(p, self.parse_cpatterns(pat_dict[p].strip('|'), model.molecules)))
                             self.var_dict[p] = 'p'
                         model.add_func(Function(name, Expression(subst_expr_list)))
@@ -157,7 +157,7 @@ class KappaReader(Reader):
         for atom in expr_list:
             if re.match('\[T', atom):
                 return True
-            for k, v in self.var_dict.iteritems():
+            for k, v in self.var_dict.items():
                 if re.match("%s" % k, atom) and (v == 'd' or v == 'p'):
                     return True
         return False
@@ -532,7 +532,8 @@ class BNGLReader(Reader):
         """
         super(BNGLReader, self).__init__(file_name)
         self.lines = self.condense_line_continuation(
-            it.ifilterfalse(self.ignore_line, [re.sub('#.*$', '', l).strip() for l in self.lines]))
+            [re.sub('#.*$', '', l).strip() for l in self.lines
+             if not self.ignore_line(l)])
 
         self.is_def_block = False
         self.is_init_block = False
@@ -584,7 +585,7 @@ class BNGLReader(Reader):
 
         for i, l in enumerate(self.lines):
 
-            if re.match('\s*\n', l):
+            if re.match('$|\s*\n', l):
                 continue
 
             logging.debug("Parsing %s" % l.strip())
@@ -689,7 +690,7 @@ class BNGLReader(Reader):
                     raise rbexceptions.NotCompatibleException("Kappa does not allow states to start with digits.  "
                                                               "Please rename states in BNGL file")
 
-            if sd.name in site_name_counter.keys():
+            if sd.name in list(site_name_counter.keys()):
                 site_name_counter[sd.name] += 1
                 if not has_site_symmetry:
                     logging.info('SiteDef %s has site symmetry' % sd.name)
@@ -697,12 +698,12 @@ class BNGLReader(Reader):
             else:
                 site_name_counter[sd.name] = 1
 
-        for sn in site_name_counter.keys():
+        for sn in list(site_name_counter.keys()):
             if site_name_counter[sn] == 1:
                 site_name_counter.pop(sn)
                 site_name_map[sn] = sn
 
-        for sn in site_name_counter.keys():
+        for sn in list(site_name_counter.keys()):
             while site_name_counter[sn] > 0:
                 site_name_map[sn + str(site_name_counter[sn] - 1)] = sn
                 site_name_counter[sn] -= 1
@@ -908,7 +909,7 @@ class BNGLReader(Reader):
         """
         d = DeepDiff(lhs_cp, rhs_cp)
         try:
-            changed = d.get('type_changes').keys()
+            changed = list(d.get('type_changes').keys())
         except AttributeError:
             return False
         num_changed_bonds = 0

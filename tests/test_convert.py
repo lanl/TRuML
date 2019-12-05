@@ -1,4 +1,5 @@
 from .context import readers
+import os
 
 
 class TestConvert:
@@ -7,8 +8,9 @@ class TestConvert:
 
     @classmethod
     def setup_class(cls):
-        test0 = "resources/test0.bngl"
-        test1 = "resources/test1.bngl"
+        testdir = os.path.abspath(os.path.dirname(__file__))
+        test0 = os.path.join(testdir, "resources/test0.bngl")
+        test1 = os.path.join(testdir, "resources/test1.bngl")
         cls.bm0 = readers.BNGLReader(test0).parse()
         cls.bm1 = readers.BNGLReader(test1).parse()
 
@@ -37,5 +39,5 @@ class TestConvert:
 
     def test_bmodel1_convert(self):
         krules = [r for rule in self.bm1.rules for r in rule.convert()]
-        print '\n'.join([r.write_as_kappa() for r in krules])
+        print('\n'.join([r.write_as_kappa() for r in krules]))
         assert len(krules) == 29

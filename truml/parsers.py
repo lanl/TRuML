@@ -1,5 +1,5 @@
-from objects import Bond
-from rbexceptions import NotCompatibleException
+from .objects import Bond
+from .rbexceptions import NotCompatibleException
 
 import pyparsing as pp
 import re

@@ -90,7 +90,7 @@ class TestMisc:
         graph = readers.BNGLReader.parse_cpattern(self.pattern, [self.md0, self.md1])._build_graph()
         assert len(graph.nodes()) == 3
         assert len(graph.edges()) == 2
-        assert graph.node[1]['name'] == 'A:xb_yb'
+        assert graph.nodes[1]['name'] == 'A:xb_yb'
         assert graph[0][1]['name'] == 'x-x'
 
         graph2 = readers.BNGLReader.parse_cpattern(self.pattern2, [self.md2, self.md3])._build_graph()
@@ -129,7 +129,7 @@ class TestMisc:
         assert self.rate2.contains_variable('rate')
 
     def test_factors(self):
-        print self.rule6._unique_reactant_indices()
+        print(self.rule6._unique_reactant_indices())
         assert self.rule6._unique_reactant_indices() == {0: 2}
         assert self.rule6.rate_factor(True) == 0.5
         assert self.rule6.rate_factor(False) == 2.0

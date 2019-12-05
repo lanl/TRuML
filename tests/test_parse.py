@@ -63,20 +63,20 @@ class TestParseKappa:
         assert len(rule4s) == 1
         assert rule4s[0].rev
         rule5s = readers.KappaReader.parse_rule(self.rule5, mds)
-        print rule5s[0]
+        print(rule5s[0])
         assert len(rule5s[0].lhs) == 1
         assert len(rule5s[0].lhs[0]) == 1
         assert rule5s[0].lhs[0][0] == objects.PlaceHolderMolecule()
         assert rule5s[0].rev
         rule6s = readers.KappaReader.parse_rule(self.rule6, mds)
-        print rule6s
+        print(rule6s)
         assert len(rule6s[0].rhs) == 1
         assert len(rule6s[0].rhs[0]) == 1
         assert rule6s[0].rhs[0][0] == objects.PlaceHolderMolecule()
         assert rule6s[0].delmol
         rule7s = readers.KappaReader.parse_rule(self.rule7, mds)
         assert len(rule7s[0].rhs) == 2
-        print rule7s[0].rhs
+        print(rule7s[0].rhs)
         assert isinstance(rule7s[0].rhs[1][0], objects.PlaceHolderMolecule)
 
     def test_cpattern_parse(self):
@@ -200,7 +200,7 @@ class TestParseBNGL:
         assert mol1.write_as_bngl() == "Mol(a,b~U,b~P)"
         mol2 = readers.BNGLReader.parse_molecule(self.mol2, [pmdef3])
         assert mol2.write_as_bngl() == "Mol(a,b~?!+)"
-        print mol2.write_as_kappa()
+        print(mol2.write_as_kappa())
         assert mol2.write_as_kappa() == "Mol(a[.],b{#}[_])"
 
     @raises(rbexceptions.NotAMoleculeException)
