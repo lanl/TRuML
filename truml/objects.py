@@ -786,7 +786,7 @@ class CPattern:
         # dict of all (node name, node list) pairs
         node_name_dict = {}
         for node in g.nodes():
-            name = g.node[node]['name']
+            name = g.nodes[node]['name']
             if name not in list(node_name_dict.keys()):
                 node_name_dict[name] = [node]
             else:
